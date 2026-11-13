@@ -1,5 +1,5 @@
 import { ChevronRight, Plus, Search, SlidersHorizontal } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { useT } from "@/i18n";
 import { agentsPage, DEFAULT_FILTERS, type AgentsFilters, type ProjectGroup } from "@/lib/agents-page";
@@ -45,13 +45,15 @@ interface AgentsPageProps {
   current?: string;
   /** Compact: the column's own header, the filters icon at its end. */
   title?: string;
+  /** Compact: one more control after the filters icon (the column's « Replier »). */
+  titleAction?: ReactNode;
 }
 
 /**
  * The Agents page: a sentence, the filters, then one group per project and one line per agent.
  * The same list, `compact`, is the agent view's pane column and the phone's pane switcher.
  */
-export function AgentsPageView({ herd, internal, machineCount = 1, onOpen, onNew, compact = false, current, title }: AgentsPageProps) {
+export function AgentsPageView({ herd, internal, machineCount = 1, onOpen, onNew, compact = false, current, title, titleAction }: AgentsPageProps) {
   const t = useT();
   const [f, setF] = useFilters(compact ? "collie-agents-filters-compact" : "collie-agents-filters");
   const [query, setQuery] = useState("");
@@ -85,6 +87,7 @@ export function AgentsPageView({ herd, internal, machineCount = 1, onOpen, onNew
         >
           <SlidersHorizontal className="size-4" />
         </button>
+        {titleAction}
         </div>
       ) : (
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 lg:items-end">

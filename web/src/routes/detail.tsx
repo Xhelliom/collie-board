@@ -5,7 +5,7 @@ import { useLoaderData, useLocation, useNavigate, useParams, useRouteLoaderData 
 import { AgentChat } from "@/components/agent-chat";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import { ROOT_ROUTE_ID, type HomeData, type PaneData } from "@/lib/loaders";
-import { homePath, panePath } from "@/lib/nav";
+import { homePath, panePath, spacesPath } from "@/lib/nav";
 import { remoteAgents } from "@/lib/peers";
 import { t } from "@/i18n";
 import { setStatus } from "@/lib/status";
@@ -30,7 +30,7 @@ export function DetailRoute() {
   // navigation and write below stays scoped to it.
   const session = pane.session;
   const navigate = useNavigate();
-  const back = useBack(homePath(session));
+  const back = useBack(spacesPath(session)); // a deep link backs out to the Agents page
   const location = useLocation();
   const stalled = useLoadingStalled();
 

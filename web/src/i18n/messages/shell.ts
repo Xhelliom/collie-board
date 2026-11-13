@@ -68,7 +68,6 @@ export const shell = defineMessages({
   "pin.remove": { en: "Unpin", fr: "Désépingler" },
   "pin.gone": { en: "gone", fr: "disparu" },
   "pin.failed": { en: "Pin not saved", fr: "Épingle non enregistrée" },
-  "rail.statusline": { en: "Agent statusline", fr: "Statusline de l'agent" },
   "gauge.context": { en: "Context", fr: "Contexte" },
   "gauge.tokens": { en: "{count}k tokens", fr: "{count}k tokens" },
   "gauge.handoff": { en: "worth handing off", fr: "à passer le relais" },

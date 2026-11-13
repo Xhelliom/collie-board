@@ -25,8 +25,6 @@ export interface DisplayPrefs {
    * and worth reflowing on a phone.
    */
   reading: boolean;
-  /** Show the agent's statusline strip above the composer (default: true). Per device — a phone may want the rows back. */
-  statusLine: boolean;
 }
 
 const STORAGE_KEY = "collie:display-prefs:v3";
@@ -59,7 +57,7 @@ const NARROW_VIEWPORT = `(width < ${WRAP_BELOW_PX}px)`;
  */
 type StoredPrefs = Omit<DisplayPrefs, "wrap" | "reading"> & { wrap?: boolean; readingPick?: boolean };
 
-const DEFAULTS: StoredPrefs = { fontSize: 12, rawTerminal: false, statusLine: true };
+const DEFAULTS: StoredPrefs = { fontSize: 12, rawTerminal: false };
 
 function clampFont(n: number): number {
   return Math.max(FONT_MIN, Math.min(FONT_MAX, Math.round(n)));
@@ -77,7 +75,6 @@ function loadPrefs(): StoredPrefs {
       ...(typeof p.readingPick === "boolean" ? { readingPick: p.readingPick } : {}),
       fontSize: typeof p.fontSize === "number" ? clampFont(p.fontSize) : DEFAULTS.fontSize,
       rawTerminal: typeof p.rawTerminal === "boolean" ? p.rawTerminal : DEFAULTS.rawTerminal,
-      statusLine: typeof p.statusLine === "boolean" ? p.statusLine : DEFAULTS.statusLine,
     };
   } catch {
     return DEFAULTS;
@@ -117,7 +114,6 @@ export interface UseDisplayPrefsReturn {
   setRawTerminal: (raw: boolean) => void;
   /** Switch the pane screen between the terminal mirror and the reading view. */
   setReading: (reading: boolean) => void;
-  setStatusLine: (statusLine: boolean) => void;
 }
 
 export function useDisplayPrefs(): UseDisplayPrefsReturn {
@@ -168,13 +164,5 @@ export function useDisplayPrefs(): UseDisplayPrefsReturn {
     });
   }, []);
 
-  const setStatusLine = useCallback((statusLine: boolean) => {
-    setPrefs((p) => {
-      const next: StoredPrefs = { ...p, statusLine };
-      savePrefs(next);
-      return next;
-    });
-  }, []);
-
-  return { prefs, setWrap, setFontSize, stepFontSize, setRawTerminal, setReading, setStatusLine };
+  return { prefs, setWrap, setFontSize, stepFontSize, setRawTerminal, setReading };
 }

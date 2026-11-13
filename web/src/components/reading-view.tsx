@@ -229,11 +229,13 @@ export function ReadingView({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="relative min-h-0 min-w-0 flex-1">
         {pin && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 px-3 pt-1">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 mx-auto max-w-[784px] px-3 pt-1">
             <PromptPin pin={pin} onTap={backToPrompt} />
           </div>
         )}
         <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">
+          {/* A reading column (~80 characters), centred: a full-width line on a wide screen is unreadable. */}
+          <div className="mx-auto w-full max-w-[760px]">
           {entries.length === 0 ? (
             <div className="px-2 py-16 text-center text-sm text-muted-foreground">
               {note ?? t("common.loading")}
@@ -300,7 +302,7 @@ export function ReadingView({
           {queued.length > 0 && (
             // Folded: a queue of long messages would otherwise push the conversation off screen.
             <details className="group mt-3 rounded-md border border-dashed bg-muted/30 px-3 py-2">
-              <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs text-muted-foreground">
                 <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
                 <Clock className="size-3" />
                 {t("pane.reading.queue", { count: queued.length })}
@@ -317,6 +319,7 @@ export function ReadingView({
               </div>
             </details>
           )}
+          </div>
         </ChatMessageList>
       </div>
     </div>

@@ -34,8 +34,8 @@ describe("TranscriptView", () => {
         ]}
       />,
     );
-    expect(screen.getByText("You")).toBeInTheDocument();
-    expect(screen.getByText("claude")).toBeInTheDocument();
+    expect(screen.getByText(/^You(, |$)/)).toBeInTheDocument();
+    expect(screen.getByText(/^Claude(, |$)/)).toBeInTheDocument();
     expect(screen.getByText("what changed?")).toBeInTheDocument();
     expect(screen.getByText("One commit.")).toBeInTheDocument();
   });
@@ -111,7 +111,7 @@ describe("TranscriptView", () => {
       />,
     );
     expect(screen.getByText(/Context compacted/)).toBeInTheDocument();
-    expect(screen.queryByText("You")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^You(, |$)/)).not.toBeInTheDocument();
   });
 
   // Markdown introduced ONE new way for log content to reach the browser: an <a href>. A hostile
@@ -230,7 +230,7 @@ describe("TranscriptView — speaker grouping", () => {
         ]}
       />,
     );
-    expect(screen.getAllByText("claude")).toHaveLength(1);
+    expect(screen.getAllByText(/^Claude(, |$)/)).toHaveLength(1);
     // Every turn's content still renders — only the repeated header is suppressed.
     for (const t of ["one", "two", "three"]) expect(screen.getByText(t)).toBeInTheDocument();
   });
@@ -246,8 +246,8 @@ describe("TranscriptView — speaker grouping", () => {
         ]}
       />,
     );
-    expect(screen.getAllByText("claude")).toHaveLength(2);
-    expect(screen.getAllByText("You")).toHaveLength(1);
+    expect(screen.getAllByText(/^Claude(, |$)/)).toHaveLength(2);
+    expect(screen.getAllByText(/^You(, |$)/)).toHaveLength(1);
   });
 
   it("a day divider restarts the run even for the same speaker", () => {
@@ -260,7 +260,7 @@ describe("TranscriptView — speaker grouping", () => {
         ]}
       />,
     );
-    expect(screen.getAllByText("claude")).toHaveLength(2);
+    expect(screen.getAllByText(/^Claude(, |$)/)).toHaveLength(2);
   });
 });
 
@@ -278,8 +278,8 @@ describe("TranscriptView — system notes", () => {
     );
     expect(screen.getByText(/System/)).toBeInTheDocument();
     expect(screen.getByText(/Agent "issue 8 fixes" finished/)).toBeInTheDocument();
-    expect(screen.queryByText("You")).not.toBeInTheDocument();
-    expect(screen.queryByText("claude")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^You(, |$)/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Claude(, |$)/)).not.toBeInTheDocument();
   });
 
   it("keeps a compaction summary distinct from an ordinary note", () => {
@@ -376,9 +376,33 @@ describe("TranscriptView images", () => {
     );
     const steps = container.querySelector("details")!;
     expect(steps).not.toHaveAttribute("open");
-    expect(within(steps).getByText("3 steps")).toBeInTheDocument();
+    expect(within(steps).getByText("3 steps: Bash, Bash, Bash")).toBeInTheDocument();
     expect(within(steps).getByText("ls a1")).toBeInTheDocument();
     expect(steps).not.toContainElement(screen.getByText("Looking."));
+  });
+});
+
+describe("TranscriptView — what the harness injected", () => {
+  it("folds a system note and an envelope-shaped user turn behind « System message », keeps real speech", () => {
+    const { container } = render(
+      <TranscriptView
+        agent="claude"
+        entries={[
+          turn({ uuid: "n1", role: "note", parts: [{ kind: "text", text: "Background task done" }] }),
+          turn({ uuid: "u2", parts: [{ kind: "text", text: '<agent-message from="lead">\nship it\n</agent-message>' }] }),
+          turn({ uuid: "u3", parts: [{ kind: "text", text: "<b>is</b> this bold?" }] }),
+        ]}
+      />,
+    );
+    const folds = [...container.querySelectorAll("details")];
+    expect(folds).toHaveLength(2);
+    for (const fold of folds) {
+      expect(fold).not.toHaveAttribute("open");
+      expect(within(fold).getByText(/^System message/)).toBeInTheDocument();
+    }
+    expect(within(folds[1]!).getByText(/ship it/)).toBeInTheDocument();
+    // A human turn that merely starts with a tag is still speech.
+    expect(screen.getByText(/^You(, |$)/)).toBeInTheDocument();
   });
 });
 

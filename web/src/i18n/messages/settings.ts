@@ -12,11 +12,6 @@ export const settings = defineMessages({
   "settings.gallery.title": { en: "Gallery", fr: "Galerie" },
   "settings.gallery.hint": { en: "Images your agents left in their scratchpads.", fr: "Les images que vos agents ont laissées dans leurs brouillons." },
 
-  "settings.statusLine.title": { en: "Agent status line", fr: "Ligne d'état de l'agent" },
-  "settings.statusLine.hint": {
-    en: "The agent's status lines above the reply box (mode, hooks…). On this device.",
-    fr: "Les lignes d'état de l'agent au-dessus de la zone de réponse (mode, hooks…). Sur cet appareil.",
-  },
 
   "settings.push.title": { en: "Push notifications", fr: "Notifications push" },
   "settings.push.hint": { en: "Get a notification when an agent needs you.", fr: "Être notifié quand un agent a besoin de vous." },

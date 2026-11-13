@@ -70,7 +70,7 @@ describe("AgentChat — reply flow", () => {
   it("sends a typed reply and clears the composer on success", async () => {
     const user = userEvent.setup();
     renderChat();
-    const box = screen.getByPlaceholderText(/type a reply/i);
+    const box = screen.getByPlaceholderText(/^reply to/i);
 
     await user.type(box, "looks good");
     expect(box).toHaveValue("looks good");
@@ -88,7 +88,7 @@ describe("AgentChat — reply flow", () => {
     );
     const user = userEvent.setup();
     renderChat();
-    const box = screen.getByPlaceholderText(/type a reply/i);
+    const box = screen.getByPlaceholderText(/^reply to/i);
 
     await user.type(box, "retry this");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -105,27 +105,32 @@ function SpaceOverviewSentinel() {
   return <div>overview:{spaceId ?? "none"}</div>;
 }
 
-describe("AgentChat — header title block", () => {
-  it("leads with the space, puts the directory on the subline, and drops the redundant agent name", () => {
-    renderChat(); // claude @ /home/you/webapp → ~/webapp
-    // Scoped to the header: the same name is also the screen's sr-only h1 (which the header's own
-    // title text can't be, since it lives inside a button — a heading there isn't exposed as one),
-    // and (since the redesign) the desktop pane list's OWN row for this same pane, which falls back
-    // to the bare agent slug ("claude") as ITS display name when no label/session name is set —
-    // real, unrelated behaviour this test isn't about.
-    const banner = within(screen.getByRole("banner"));
-    expect(banner.getByText("webapp")).toBeInTheDocument(); // space leads
-    // Banner-scoped: the pane list's own header for this space prints the same path (it has no
-    // branch to show for a hand-launched pane), which is that list's business, not this test's.
-    expect(banner.getByText("~/webapp")).toBeInTheDocument(); // directory on the subline
-    // The agent is conveyed by its icon (aria-label only) in the HEADER specifically, so its name
-    // isn't repeated as text there.
-    expect(banner.queryByText(/claude/i)).toBeNull();
-    expect(screen.getByRole("button", { name: /open webapp overview/i })).toBeInTheDocument();
+// « ⋯ » opens the same sheet at both widths; jsdom renders both headers, so the first copy will do.
+async function openMore(user = userEvent.setup()) {
+  await user.click(screen.getAllByRole("button", { name: "More" })[0]!);
+  return user;
+}
+
+describe("AgentChat — header", () => {
+  it("names the agent with its state, then its project and model — no pane id, no breadcrumb", () => {
+    renderChat({ agent: { ...fixtureAgents[0]!, model: "Opus 5.5", effort: "high", ctxPct: 26 } });
+    const banner = within(screen.getByRole("banner")); // the phone's
+    expect(banner.getByText("claude")).toBeInTheDocument();
+    expect(banner.getByText("waiting for you")).toBeInTheDocument();
+    expect(banner.getByText("webapp")).toBeInTheDocument();
+    expect(banner.getByText("Opus 5.5, high")).toBeInTheDocument();
+    expect(banner.getByText("context 26%")).toBeInTheDocument();
+    expect(screen.queryByText("w1:p1")).toBeNull();
+    expect(screen.queryByText("~/webapp")).toBeNull();
   });
 
-  it("opens the space overview (all tabs + panes) when the title block is tapped", async () => {
-    const user = userEvent.setup();
+  it("backs out to the agents list", async () => {
+    const props = renderChat();
+    await userEvent.click(screen.getByRole("button", { name: "Back to the agents" }));
+    expect(props.onBack).toHaveBeenCalled();
+  });
+
+  it("opens the space overview from « ⋯ »", async () => {
     const agent = fixtureAgents[0]!; // workspaceId w1
     const router = createMemoryRouter(
       [
@@ -150,13 +155,13 @@ describe("AgentChat — header title block", () => {
     );
     render(<RouterProvider router={router} />);
 
-    await user.click(screen.getByRole("button", { name: /open webapp overview/i }));
+    const user = await openMore();
+    await user.click(await screen.findByRole("button", { name: /open webapp overview/i }));
     expect(await screen.findByText("overview:w1")).toBeInTheDocument();
   });
 });
 
-// The card a session backs. Desktop reaches it from ContextRailColumn (`lg:flex`), which left the
-// mobile session with no route to its own card — this row is mobile's copy, same destination.
+// The card a session backs: a row of « ⋯ », at both widths.
 describe("AgentChat — the card this pane backs", () => {
   function renderWithCard(agent: (typeof fixtureAgents)[number]) {
     const router = createMemoryRouter(
@@ -183,19 +188,17 @@ describe("AgentChat — the card this pane backs", () => {
     render(<RouterProvider router={router} />);
   }
 
-  it("names the card and opens it — the same destination desktop's rail leads to", async () => {
-    const user = userEvent.setup();
+  it("names the card and opens it", async () => {
     renderWithCard({ ...fixtureAgents[0]!, cardId: "c-42", cardTitle: "Ship the thing" });
-
-    // Named with the card, which also tells it apart from the desktop rail's own plain
-    // "Ouvrir la carte" — jsdom renders both breakpoints, a real browser only ever one.
-    await user.click(screen.getByRole("button", { name: "Open card: Ship the thing" }));
+    const user = await openMore();
+    await user.click(await screen.findByRole("button", { name: "Open card: Ship the thing" }));
     expect(await screen.findByText("card:c-42")).toBeInTheDocument();
   });
 
-  it("shows no row at all when the pane backs no card", () => {
+  it("shows no row at all when the pane backs no card", async () => {
     renderWithCard(fixtureAgents[0]!); // hand-launched: no cardId
-    expect(screen.queryByRole("button", { name: /ouvrir la carte/i })).toBeNull();
+    await openMore();
+    expect(screen.queryByRole("button", { name: /open card/i })).toBeNull();
   });
 });
 
@@ -206,16 +209,16 @@ function CardSentinel() {
 }
 
 describe("AgentChat — subagents in flight", () => {
-  // The line sits under the header, outside the terminal/reading switch: both views show it.
+  // Named in the header (desktop) and on a line under it (phone), outside the terminal/reading switch.
   it.each([
     ["terminal", false],
     ["reading", true],
   ])("shows the running subagents in the %s view", (_view, readingPick) => {
     localStorage.setItem("collie:display-prefs:v3", JSON.stringify({ readingPick }));
     renderChat({ agent: { ...fixtureAgents[0]!, subagents: ["Relecture", "Inventaire"] } });
-    expect(screen.getByText(/2 subagents running/)).toBeInTheDocument();
-    expect(screen.getByText(/Relecture · Inventaire/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /reading view/i })).toHaveAttribute("aria-pressed", String(readingPick));
+    expect(screen.getAllByText(/2 subagents running/)).toHaveLength(2);
+    expect(screen.getAllByText(/Relecture · Inventaire/)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: readingPick ? "Switch to Terminal" : "Switch to Reading" })).toBeInTheDocument();
   });
 
   it("shows nothing once they are done", () => {
@@ -271,7 +274,7 @@ describe("AgentChat — read-only device", () => {
   it("keeps the composer live for an authorised device", () => {
     renderChat({ device: { enforced: true, device: "my-phone", authorized: true } });
     expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/type a reply/i)).not.toBeDisabled();
+    expect(screen.getByPlaceholderText(/^reply to/i)).not.toBeDisabled();
   });
 });
 
@@ -404,7 +407,8 @@ describe("AgentChat — prompt-select race guard wiring (frozen {text, revision}
 
     // Freeze the mirror (opening find pins the tail — the same `following=false` state a scroll-up
     // freeze produces).
-    await user.click(screen.getAllByRole("button", { name: "Find in output" })[0]!);
+    await openMore(user);
+    await user.click(await screen.findByRole("button", { name: "Find in output" }));
 
     // The pane advances while frozen: new output below the menu + a bumped revision.
     act(() => advance({ text: `${MENU_TEXT}\n● proceeding…\n`, revision: 2 }));
@@ -443,7 +447,8 @@ describe("AgentChat — prompt-select race guard wiring (frozen {text, revision}
     // The real detector lifted the multi-question tail into a wizard with option buttons.
     await screen.findByRole("button", { name: /Parser/ });
 
-    await user.click(screen.getAllByRole("button", { name: "Find in output" })[0]!); // freeze the tail
+    await openMore(user);
+    await user.click(await screen.findByRole("button", { name: "Find in output" })); // freeze the tail
     act(() => advance({ text: `${WIZARD_TEXT}\n● advancing…\n`, revision: 2 }));
 
     await user.click(screen.getByRole("button", { name: /Parser/ }));
@@ -468,15 +473,13 @@ describe("AgentChat — block-grammar scoping (Claude-only)", () => {
     expect(screen.getByText(/1\. Yes/)).toBeInTheDocument();
   });
 
-  it("re-surfaces the Claude input-box statusline as an app strip above the composer", () => {
+  it("re-surfaces the Claude input-box statusline at the head of « ⋯ »", async () => {
     renderChat({ text: STATUS_TEXT }); // default claude agent
-    // Two copies since the redesign — the composer's own strip (below `lg`) and the desktop context
-    // rail's (context-rail-column.tsx), fed the same `statusLines` value; jsdom renders both
-    // regardless of which breakpoint's CSS would actually show it.
-    const strips = screen.getAllByText("[Opus 4.8] ~/webapp · main");
-    expect(strips).toHaveLength(2);
-    for (const strip of strips) expect(strip.closest("pre")).toBeNull(); // app chrome, not mirror text
+    expect(screen.queryByText("[Opus 4.8] ~/webapp · main")).toBeNull(); // not in the mirror, not on screen
     expect(screen.queryByText(/❯/)).toBeNull(); // the input box was stripped off the mirror
+    await openMore();
+    const line = await screen.findByText("[Opus 4.8] ~/webapp · main");
+    expect(line.closest("pre")).toBeNull(); // app chrome, not mirror text
   });
 
   it("leaves a codex input-box buffer fully raw — no status strip, box kept in the mirror", () => {
@@ -504,7 +507,7 @@ describe("AgentChat — mirror tap must not pop the keyboard on option taps", ()
   it("does NOT focus the composer when a native prompt option is tapped", async () => {
     const user = userEvent.setup();
     renderChat({ text: MENU_TEXT });
-    const box = screen.getByPlaceholderText(/type a reply/i);
+    const box = screen.getByPlaceholderText(/^reply to/i);
     const yes = await screen.findByRole("button", { name: "Yes" });
 
     await user.click(yes);
@@ -515,7 +518,7 @@ describe("AgentChat — mirror tap must not pop the keyboard on option taps", ()
   it("DOES still focus the composer when the raw mirror text is tapped", async () => {
     const user = userEvent.setup();
     renderChat({ text: "recent pane output" });
-    const box = screen.getByPlaceholderText(/type a reply/i);
+    const box = screen.getByPlaceholderText(/^reply to/i);
 
     await user.click(screen.getByText("recent pane output"));
     await waitFor(() => expect(box).toHaveFocus());
@@ -523,7 +526,7 @@ describe("AgentChat — mirror tap must not pop the keyboard on option taps", ()
 
   it("focuses during the tap event so mobile browsers can open the software keyboard", () => {
     renderChat({ text: "recent pane output" });
-    const box = screen.getByPlaceholderText(/type a reply/i);
+    const box = screen.getByPlaceholderText(/^reply to/i);
 
     fireEvent.click(screen.getByText("recent pane output"));
 
@@ -531,19 +534,13 @@ describe("AgentChat — mirror tap must not pop the keyboard on option taps", ()
   });
 });
 
-// Connection copy now lives in the single top ConnectionBanner (mounted in RootLayout), not in the
-// header — so the pane header has no pill. What it still owns: the agent StatusBadge, which shows the
-// LAST snapshot's status and must stop reading as current during an outage (it dims on any not-live).
-//
-// Two responsive copies exist since the redesign (the toolbar's, `lg`-only, and the mobile context
-// row's, below `lg` — jsdom renders both regardless of the CSS that picks one per breakpoint), fed by
-// the SAME `stale` prop — so this asserts they can never disagree, which is a stronger claim than the
-// single-badge version had.
+// The header's state (« t'attend depuis… ») is the LAST snapshot's: it dims while the connection isn't
+// live. Two copies (phone header, desktop toolbar — jsdom renders both), fed the same `stale`.
 describe("AgentChat — shared header: stale-status dimming", () => {
   beforeEach(() => __resetConnectionHealth());
 
-  it("dims the agent StatusBadge while the connection is not live and restores it on recovery", () => {
-    // fixtureAgents[0] is a blocked claude agent → StatusBadge reads "needs you".
+  it("dims the agent's state while the connection is not live and restores it on recovery", () => {
+    // fixtureAgents[0] is a blocked claude agent → « waiting for you ».
     let setError: (e: boolean) => void = () => {};
     function Harness() {
       const [error, setErr] = useState(true);
@@ -566,11 +563,12 @@ describe("AgentChat — shared header: stale-status dimming", () => {
     const router = createMemoryRouter([{ path: "/", element: <Harness /> }]);
     render(<RouterProvider router={router} />);
 
-    const badges = screen.getAllByText("needs you");
-    expect(badges).toHaveLength(2);
-    for (const badge of badges) expect(badge).toHaveClass("opacity-40"); // not live → frozen, dimmed
+    // The pane column lists this agent too, in its own words: only the headers' copies count here.
+    const states = screen.getAllByText("waiting for you").filter((el) => !el.closest("nav"));
+    expect(states).toHaveLength(2);
+    for (const state of states) expect(state).toHaveClass("opacity-50"); // not live → frozen, dimmed
     act(() => setError(false)); // snapshot recovers → live
-    for (const badge of badges) expect(badge).not.toHaveClass("opacity-40"); // undimmed instantly
+    for (const state of states) expect(state).not.toHaveClass("opacity-50"); // undimmed instantly
   });
 });
 
@@ -579,40 +577,27 @@ describe("AgentChat — shared header: stale-status dimming", () => {
 // viewport. It's gated on the pane actually reporting an agent session, so the button can never
 // lead to an empty screen.
 describe("AgentChat — history affordance", () => {
-  it("is offered when the pane reports an agent session id", () => {
+  it("is offered in « ⋯ » when the pane reports an agent session id", async () => {
     const agent = { ...fixtureAgents[0]!, agentSessionId: "d7e62e23-8576-4c63-98ba-ec1b02902c6b" };
     renderChat({ agent, agents: [agent] });
-    expect(screen.getByRole("button", { name: /conversation history/i })).toBeInTheDocument();
+    await openMore();
+    expect(await screen.findByRole("button", { name: "History" })).toBeInTheDocument();
   });
 
   // Deliberately NOT gated on `agentSessionId` any more: herdr only reports it once the optional
   // integration hook is planted, and the bridge resolves the transcript from the pane's process
   // otherwise — the same route the context gauge has always used.
-  it("is offered for an agent pane with no session id (the default install)", () => {
+  it("is offered for an agent pane with no session id (the default install)", async () => {
     renderChat(); // fixture agents carry no agentSessionId
-    expect(screen.getByRole("button", { name: /conversation history/i })).toBeInTheDocument();
+    await openMore();
+    expect(await screen.findByRole("button", { name: "History" })).toBeInTheDocument();
   });
 
-  it("is hidden on a bare shell, which has no agent and therefore no transcript", () => {
+  it("is hidden on a bare shell, which has no agent and therefore no transcript", async () => {
     const shell = { ...fixtureAgents[0]!, kind: "shell" as const };
     renderChat({ agent: shell, agents: [shell] });
-    expect(screen.queryByRole("button", { name: /conversation history/i })).not.toBeInTheDocument();
-  });
-
-  // Deliberate placement, not an accident of slot order: the status pill stays the rightmost thing on
-  // the pane screen (it's what you glance at), so History sits to its LEFT — in the toolbar's own
-  // (desktop, `lg`-only) cluster, which is the pair this test exercises; the mobile context row is a
-  // separate DOM section entirely and has no History button to be ordered against.
-  //
-  // (The top-of-mirror affordance is covered separately below.)
-  it("sits to the LEFT of the status pill", () => {
-    const agent = { ...fixtureAgents[0]!, agentSessionId: "d7e62e23-8576-4c63-98ba-ec1b02902c6b" };
-    renderChat({ agent, agents: [agent] });
-    const history = screen.getByRole("button", { name: /conversation history/i });
-    // fixtureAgents[0] is blocked → "needs you"; index 0 is the toolbar's own copy (DOM-first).
-    const pill = screen.getAllByText("needs you")[0]!;
-    // Node.compareDocumentPosition: FOLLOWING (4) means the pill comes after History in the DOM.
-    expect(history.compareDocumentPosition(pill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await openMore();
+    expect(screen.queryByRole("button", { name: "History" })).not.toBeInTheDocument();
   });
 });
 
@@ -629,7 +614,7 @@ describe("AgentChat — terminal / reading toggle", () => {
   it("is hidden on a bare shell, which has no transcript to read", () => {
     const shell = { ...fixtureAgents[0]!, kind: "shell" as const };
     renderChat({ agent: shell, agents: [shell] });
-    expect(screen.queryByRole("group", { name: /view mode/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^switch to/i })).not.toBeInTheDocument();
   });
 
   it("opens on Reading by default and swaps to the terminal mirror on Terminal, remembering it", async () => {
@@ -640,9 +625,9 @@ describe("AgentChat — terminal / reading toggle", () => {
     // The transcript (MSW's default history fixture) is the default view; the composer stays.
     expect(await screen.findByText("One commit: abc1234.")).toBeInTheDocument();
     expect(screen.queryByText(/recent pane output/)).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/type a reply/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/^reply to/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /terminal/i }));
+    await user.click(screen.getByRole("button", { name: "Switch to Terminal" }));
     expect(screen.getByText(/recent pane output/)).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("collie:display-prefs:v3")!).readingPick).toBe(false);
   });
@@ -658,7 +643,7 @@ describe("AgentChat — terminal / reading toggle", () => {
     renderChat({ agent, agents: [agent], text: "recent pane output" });
 
     expect(await screen.findByText(/recent pane output/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /terminal view/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Switch to Reading" })).toBeInTheDocument();
     // Never written back: the choice is the user's, not this pane's.
     const stored = localStorage.getItem("collie:display-prefs:v3");
     expect(stored === null || JSON.parse(stored).readingPick !== false).toBe(true);
@@ -685,16 +670,14 @@ describe("AgentChat — terminal / reading toggle", () => {
     const user = userEvent.setup();
     const agent = withTranscript();
     renderChat({ agent, agents: [agent] });
-    await user.click(screen.getByRole("button", { name: /reading view/i }));
+    await user.click(screen.getByRole("button", { name: "Switch to Terminal" }));
+    await user.click(screen.getByRole("button", { name: "Switch to Reading" }));
     await screen.findByText("One commit: abc1234.");
 
     cleanup();
     renderChat({ agent, agents: [agent] });
     expect(await screen.findByText("One commit: abc1234.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /reading view/i })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.getByRole("button", { name: "Switch to Terminal" })).toBeInTheDocument();
   });
 
   it("returns to an untouched terminal mode — find, mirror and all", async () => {
@@ -702,15 +685,11 @@ describe("AgentChat — terminal / reading toggle", () => {
     const agent = withTranscript();
     renderChat({ agent, agents: [agent], text: "recent pane output" });
 
-    await user.click(screen.getByRole("button", { name: /reading view/i }));
-    // Find searches the mirror's buffer, so it belongs to terminal mode only.
-    expect(screen.queryByRole("button", { name: /find in output/i })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /terminal view/i }));
+    await user.click(screen.getByRole("button", { name: "Switch to Terminal" }));
     expect(screen.getByText(/recent pane output/)).toBeInTheDocument();
-    // Two copies since the redesign (the mobile header's and the desktop toolbar's — jsdom renders
-    // both regardless of which breakpoint's CSS would show it).
-    expect(screen.getAllByRole("button", { name: /find in output/i })).toHaveLength(2);
+    // Find searches the mirror's buffer, so it belongs to terminal mode only.
+    await openMore(user);
+    expect(await screen.findByRole("button", { name: /find in output/i })).toBeInTheDocument();
   });
 });
 
@@ -850,26 +829,14 @@ describe("AgentChat — session images", () => {
 // only exists on a card-backed pane — a hand-launched agent has no root to read from.
 describe("AgentChat — session artifacts affordance", () => {
   const cardAgent = { ...fixtureAgents[0]!, cardId: "c1" as const };
-  const artifactsButton = () => screen.queryByRole("button", { name: /session artifacts/i });
 
-  it("shows the button on a card-backed pane, in terminal mode", () => {
-    renderChat({ agent: cardAgent, agents: [cardAgent] });
-    expect(artifactsButton()).toBeInTheDocument();
-  });
-
-  it("shows it in reading mode too — the artwork is a fact of the session, not of a mode", async () => {
-    const user = userEvent.setup();
-    renderChat({ agent: cardAgent, agents: [cardAgent] });
-    await user.click(screen.getByRole("button", { name: /reading view/i }));
-    expect(artifactsButton()).toBeInTheDocument();
-  });
-
-  it("stays hidden on a hand-launched pane, which has no card worktree", () => {
+  it("stays hidden on a hand-launched pane, which has no card worktree", async () => {
     renderChat(); // fixtureAgents[0] has no cardId
-    expect(artifactsButton()).not.toBeInTheDocument();
+    await openMore();
+    expect(screen.queryByText("Artifacts")).not.toBeInTheDocument();
   });
 
-  it("lives in the mobile '⋯' sheet, next to History and Images", async () => {
+  it("lives in the '⋯' sheet, next to History and Images", async () => {
     const user = userEvent.setup();
     renderChat({ agent: cardAgent, agents: [cardAgent] });
     await user.click(screen.getAllByRole("button", { name: "More" })[0]!);
@@ -901,10 +868,10 @@ describe("AgentChat — reading mode, an agent blocked on a terminal screen", ()
     expect(banner.querySelector("img")).toBeNull();
     await user.click(within(banner).getByRole("button", { name: "Send Enter" }));
     await waitFor(() => expect(sent).toMatchObject({ keys: ["Enter"] }));
-    expect(screen.getByRole("button", { name: /reading view/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Switch to Terminal" })).toBeInTheDocument();
 
     await user.click(within(banner).getByRole("button", { name: /show terminal/i }));
-    expect(screen.getByRole("button", { name: /terminal view/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Switch to Reading" })).toBeInTheDocument();
   });
 
   it("a recognised first-run screen gets its named choices instead (repo MCP approval)", async () => {

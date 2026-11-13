@@ -112,14 +112,14 @@ describe("MarkdownText — the copilot's review notes", () => {
   });
 });
 
-// The terminal's colour cues (bold orange, headings/table headers violet, inline code blue) come
-// through as theme tokens, and a ```diff block keeps its sign colours — all still text nodes.
+// The terminal's colour cues (headings/table headers violet, inline code blue) come through as theme
+// tokens; bold keeps the text's own colour (an orange on every bold word read as a warning), and a ```diff block keeps its sign colours — all still text nodes.
 describe("MarkdownText — colour accents", () => {
-  it("tints bold, headings, table headers and inline code with their theme tokens", () => {
+  it("tints headings, table headers and inline code with their theme tokens, not bold", () => {
     const md = ["# Title", "", "a **bold** and `code`", "", "| H |", "| - |", "| v |"].join("\n");
     const { container } = render(<MarkdownText text={md} />);
     expect(screen.getByText("Title").className).toContain("text-md-heading");
-    expect(container.querySelector("strong")?.className).toContain("text-md-strong");
+    expect(container.querySelector("strong")?.className).toBe("font-semibold");
     expect(container.querySelector("code")?.className).toContain("text-md-code");
     expect(container.querySelector("th")?.className).toContain("text-md-heading");
   });
