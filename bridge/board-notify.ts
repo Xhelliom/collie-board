@@ -38,6 +38,7 @@ import type { BoardEvent } from "./db.ts";
 import type { NotifyLog, NotifyLogEntry } from "./notify-log.ts";
 import type { Alert, NotifiableStatus } from "./notifications.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { RESUMED_EVENT } from "./resume-lost.ts";
 
 /** How long an agent's note stays on the phone at most. ponytail: one fixed value — the bell keeps
  *  the note after it, so this is only how long it may occupy the herd's slot (ADR 0019). */
@@ -241,6 +242,8 @@ const runKey = (runId: string): string => `run:${runId}`;
 const noteKey = (paneId: string): string => `note:${paneId}`;
 /** The copilot is one for the whole board, so is its alert. */
 const COPILOT_KEY = "copilot";
+/** The lost-terminals recap — one for the whole herd. */
+const RESUMED_KEY = "resumed";
 /** A checkpoint's reason, as the push says it. */
 const GOAL_LABEL: Record<string, string> = {
   half: "Objectif : moitié du budget",
@@ -323,6 +326,10 @@ export class BoardNotifier {
       }
       if (e.type === "goal.checkpoint") {
         if (this.alerts) this.checkpoint(e);
+        continue;
+      }
+      if (e.type === RESUMED_EVENT) {
+        if (this.alerts) this.resumed(e);
         continue;
       }
       if (e.type === "card.held_reminder") {
@@ -420,6 +427,20 @@ export class BoardNotifier {
       ...(card ? { cardId: card.id, cardTitle: card.title, cardStatus: card.status } : {}),
       subtitle,
     });
+  }
+
+  /**
+   * Lost terminals classified after a restart (resume-lost.ts): ONE recap in the herd's slot, keyed
+   * so a later pass replaces it. Test 3 holds — a lost terminal is a shell, it signals nothing. It
+   * retracts by itself after {@link NOTE_TTL_MS}: a story of what the board did, true only for a while.
+   */
+  private resumed(e: BoardEvent): void {
+    const line = str(e.payload, "line");
+    if (!line) return;
+    const expires = this.now() + NOTE_TTL_MS;
+    const read = () => (this.now() > expires ? null : "recap");
+    this.armed.set(RESUMED_KEY, { mark: "recap", read });
+    this.alerts!.arm(RESUMED_KEY, { cwd: "", status: "note", subtitle: oneLine(line) });
   }
 
   /**

@@ -700,3 +700,18 @@ describe("copilot stalled", () => {
     expect(REVIEW_OUTCOMES).toContain("review.created");
   });
 });
+
+describe("lost terminals' recap (resume-lost.ts)", () => {
+  test("one note in the herd's slot, that retracts by itself", () => {
+    let now = 0;
+    const alerts = sink();
+    const db = source([]);
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts, () => now);
+    db.events.push({ ...event(1, "herd.resumed", { line: "Terminaux perdus : 2 agents repris" }), cardId: null });
+    notifier.update();
+    expect(alerts.armed.get("resumed")).toMatchObject({ status: "note", subtitle: "Terminaux perdus : 2 agents repris" });
+    now = NOTE_TTL_MS + 1;
+    notifier.update();
+    expect(alerts.log).toEqual(["arm resumed", "retract resumed"]);
+  });
+});

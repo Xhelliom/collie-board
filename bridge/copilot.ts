@@ -44,6 +44,8 @@ const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** How often we look for the answer file. */
 const POLL_MS = 2000;
+/** How long after a launch a pane not yet seen as an agent is still taken for one (see `observe`). */
+const RELAUNCH_GRACE_MS = 60_000;
 
 /**
  * Requests before the session is reset.
@@ -1043,6 +1045,8 @@ export function reviewPrompt(input: {
 export class Copilot {
   /** The pane the copilot lives in, once it has one. */
   private _paneId: string | null = null;
+  /** When ensurePane last launched an agent — {@link observe} gives the snapshot time to see it. */
+  private launchedAt = 0;
   /** Set by ensurePane, consumed by the next prompt — see promptAndConfirm's `firstAfterLaunch`. */
   private justLaunched = false;
   /** Serialises requests: one pane is one queue, which is free rate limiting. */
@@ -1231,6 +1235,7 @@ export class Copilot {
     if (kind === "claude") trustFolder(this.workDir);
     await launchAgent(this.herdr, paneId, kind, agentNameFor(label));
     this._paneId = paneId;
+    this.launchedAt = Date.now();
     this.requestsSinceReset = 0;
     this.justLaunched = true;
     console.log(`[${this.tag}] agent ready in ${paneId} (${this.workDir})`);
@@ -1264,8 +1269,10 @@ export class Copilot {
       this._paneId = snap.agents.find((a) => a.cwd === this.workDir)?.paneId ?? null;
       return;
     }
-    const live = [...snap.agents, ...snap.shellPanes].some((p) => p.paneId === this._paneId);
-    if (!live) this._paneId = null;
+    // A pane gone, or back to a bare shell (an hc terminal whose agent was lost: a reboot) — the next
+    // request relaunches. Not right after a launch: the snapshot may not have seen the agent yet.
+    const live = snap.agents.some((p) => p.paneId === this._paneId);
+    if (!live && Date.now() - this.launchedAt > RELAUNCH_GRACE_MS) this._paneId = null;
   }
 }
 
