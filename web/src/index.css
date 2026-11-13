@@ -44,7 +44,7 @@
   /* Square, or nearly: 2 px on panels and buttons (every Tailwind radius rung is pinned to it below). */
   --radius: 2px;
 
-  --background: #eef3f1;
+  --background: #e9eeee;
   --foreground: #0b1a1c;
   --card: #ffffff;
   --card-foreground: #0b1a1c;
@@ -54,49 +54,49 @@
   --primary: #0b1a1c;
   --primary-foreground: #ffffff;
   /* The raised surface a secondary button sits on. */
-  --secondary: #e1e9e6;
+  --secondary: #dde4e4;
   --secondary-foreground: #0b1a1c;
-  --muted: #e1e9e6;
-  --muted-foreground: #4c625f;
-  --accent: #d5e0dc;
+  --muted: #dde4e4;
+  --muted-foreground: #4a5f62;
+  --accent: #d0d9d9;
   --accent-foreground: #0b1a1c;
   /* « bloqué »: the one red. */
   --destructive: #b0243f;
   --destructive-foreground: #ffffff;
   /* Barely there: tone does the separating, a line only where a list needs one. */
-  --border: #dbe4e1;
-  --input: #b6c6c1;
-  --ring: #a14f00;
+  --border: #d6dedd;
+  --input: #b2c0c0;
+  --ring: #a84300;
 
   /* Permanent app chrome (header and composer bars): one shade off the page. */
-  --chrome: #e4ece9;
+  --chrome: #e0e6e6;
 
   /* Text one step under the foreground (« secondaire »). */
-  --text-secondary: #2e4442;
+  --text-secondary: #2c4246;
 
   /* The operator's signal colours, exactly: the shapes of status-signal.tsx and the solid marks.
      A graphic needs 3:1 against the page, and each clears it in both themes. */
-  --signal-blocked: #c25e00;
-  --signal-working: #0e8c78;
+  --signal-blocked: #d85f00;
+  --signal-working: #a86f00;
   --signal-stuck: #c42c4e;
 
   /* Agent lifecycle, as TEXT and tints. `blocked` is herdr's « needs you » — the orange, not the red.
      In light mode each is the signal colour taken a step darker, to read at 4.5:1 on every surface
      (the reference board does the same: its orange counter is #9A4A00). */
-  --status-blocked: #a14f00;
-  --status-working: #0a7564;
-  --status-done: #33695f;
+  --status-blocked: #a84300;
+  --status-working: #775200;
+  --status-done: #136f37;
   --status-idle: #4c625f;
   --status-unknown: #4c625f;
-  --status-info: #1d4f7a;
+  --status-info: #1a5fb8;
 
   --find-hit: oklch(0.879 0.169 91.605 / 70%);
   --find-hit-current: oklch(0.769 0.188 70.08);
 
   /* Markdown reader accents: info blue headings, teal inline code, diff in teal/red. */
-  --md-heading: #1d4f7a;
+  --md-heading: #1a5fb8;
   --md-code: #08695a;
-  --diff-add: #08695a;
+  --diff-add: #136f37;
   --diff-del: #b0243f;
 
   /* Terminal mirror: pinned dark whatever the theme (D2), on the night palette. */
@@ -106,23 +106,23 @@
 
   /* The action colour: the active navigation item, the primary action, the focus ring. Never a status.
      Light: the action orange one step darker, so white reads on it and it reads as text. */
-  --brand: #a14f00;
+  --brand: #a84300;
   --brand-foreground: #ffffff;
 
   /* Foreground for a SOLID status chip. */
   --status-chip-foreground: #ffffff;
 
   /* Actors (A L C O B T): a letter on a tinted square, one pair per actor. */
-  --actor-agent-bg: #fce2c8;
-  --actor-agent-fg: #8a4300;
-  --actor-lead-bg: #e7dffc;
-  --actor-lead-fg: #4e35a6;
-  --actor-copilot-bg: #d2f1ea;
-  --actor-copilot-fg: #08695a;
-  --actor-orchestrator-bg: #dae8f4;
-  --actor-orchestrator-fg: #1d4f7a;
-  --actor-board-bg: #e1e9e6;
-  --actor-board-fg: #2e4442;
+  --actor-agent-bg: #ffe0c2;
+  --actor-agent-fg: #8f3a00;
+  --actor-lead-bg: #e4d9ff;
+  --actor-lead-fg: #4a2ec0;
+  --actor-copilot-bg: #cdf0d9;
+  --actor-copilot-fg: #12703a;
+  --actor-orchestrator-bg: #d6e6fb;
+  --actor-orchestrator-fg: #1a5fb8;
+  --actor-board-bg: #dde4e4;
+  --actor-board-fg: #2c4246;
   --actor-you-bg: #0b1a1c;
   --actor-you-fg: #ffffff;
 }
@@ -130,64 +130,64 @@
 .dark {
   color-scheme: dark;
 
-  --background: #0a1316;
+  --background: #0b1215;
   --foreground: #e6f0ee;
-  --card: #132227;
+  --card: #182830;
   --card-foreground: #e6f0ee;
-  --popover: #17292f;
+  --popover: #1d3039;
   --popover-foreground: #e6f0ee;
   --primary: #e6f0ee;
   --primary-foreground: #0a1316;
-  --secondary: #1d3238;
+  --secondary: #223a43;
   --secondary-foreground: #e6f0ee;
-  --muted: #1d3238;
-  --muted-foreground: #8fa6a3;
-  --accent: #253d44;
+  --muted: #223a43;
+  --muted-foreground: #93a8ac;
+  --accent: #2b4853;
   --accent-foreground: #e6f0ee;
   --destructive: #f27a92;
   --destructive-foreground: #1a0509;
-  --border: #1b2e33;
-  --input: #34505a;
-  --ring: #ff8f1f;
+  --border: #1f343b;
+  --input: #3a5762;
+  --ring: #ff7a1a;
 
-  --chrome: #0f1b1f;
+  --chrome: #101a1e;
 
-  --text-secondary: #bfd0cd;
+  --text-secondary: #c0d1d4;
 
-  --signal-blocked: #ff8f1f;
-  --signal-working: #5ed6c0;
+  --signal-blocked: #ff7a1a;
+  --signal-working: #f5b83d;
   --signal-stuck: #e8476a;
 
-  --status-blocked: #ff8f1f;
-  --status-working: #5ed6c0;
-  --status-done: #7fb3aa;
-  --status-idle: #8fa6a3;
-  --status-unknown: #8fa6a3;
-  --status-info: #8ec1f0;
+  --status-blocked: #ff7a1a;
+  --status-working: #f5b83d;
+  --status-done: #3ccf6e;
+  --status-idle: #93a8ac;
+  --status-unknown: #93a8ac;
+  --status-info: #4fa3ff;
 
   --find-hit: oklch(0.769 0.188 70.08 / 40%);
   --find-hit-current: oklch(0.852 0.199 91.936);
 
-  --md-heading: #8ec1f0;
+  --md-heading: #4fa3ff;
   --md-code: #5ed6c0;
-  --diff-add: #5ed6c0;
+  --diff-add: #3ccf6e;
   --diff-del: #f27a92;
 
-  --brand: #ff8f1f;
+  --brand: #ff7a1a;
   --brand-foreground: #1e1000;
 
   --status-chip-foreground: #1e1000;
 
-  --actor-agent-bg: #33230f;
-  --actor-agent-fg: #ffb463;
-  --actor-lead-bg: #2b2140;
-  --actor-lead-fg: #c4adff;
-  --actor-copilot-bg: #0f3330;
-  --actor-copilot-fg: #5ed6c0;
-  --actor-orchestrator-bg: #13283a;
-  --actor-orchestrator-fg: #8ec1f0;
-  --actor-board-bg: #1d3238;
-  --actor-board-fg: #bfd0cd;
+  --actor-agent-bg: #3a210c;
+  --actor-agent-fg: #ffa45c;
+  --actor-lead-bg: #2d2150;
+  --actor-lead-fg: #c3adff;
+  --actor-copilot-bg: #0f3a22;
+  --actor-copilot-fg: #5fe08f;
+  --actor-orchestrator-bg: #10294a;
+  --actor-orchestrator-fg: #7dbbff;
+  --actor-board-bg: #223a43;
+  --actor-board-fg: #c0d1d4;
   --actor-you-bg: #e6f0ee;
   --actor-you-fg: #0a1316;
 }
