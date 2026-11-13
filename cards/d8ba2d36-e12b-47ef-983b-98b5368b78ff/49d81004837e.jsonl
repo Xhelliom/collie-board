@@ -40,3 +40,4 @@
 {"v":1,"hlc":"1794594572590.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.gate","payload":{"runId":"dabd15c1-148d-493f-a8ba-db60a6257e0d","command":"bun run check","ok":true},"ts":1794594563902}}
 {"v":1,"hlc":"1794594704593.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
 {"v":1,"hlc":"1794594704594.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1794594696686}}
+{"v":1,"hlc":"1794594800608.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.gate","payload":{"runId":"dabd15c1-148d-493f-a8ba-db60a6257e0d","command":"bun run check","ok":true},"ts":1794594789292}}
