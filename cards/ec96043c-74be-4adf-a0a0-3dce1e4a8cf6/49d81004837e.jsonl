@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794560489894.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Page Agents plus claire : groupes par projet, une ligne par agent, filtres, et choix du dépôt pour un nouvel agent","status":"backlog"},"ts":1794560484608}}
 {"v":1,"hlc":"1794560489894.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"9ef45e39-43f2-43d3-975b-baf85e3b1eca"}}
 {"v":1,"hlc":"1794560489895.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"fd636616-b98b-43f1-9516-3d19667061a7"}}
+{"v":1,"hlc":"1794561475259.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
