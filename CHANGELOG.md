@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.323.0] - 2026-11-13
+
+### Added
+
+- Variant de bouton `success` (vert) sur Fusionner, Valider la phase, Valider : atteint (7bfb020)
+
+### Changed
+
+- Une couleur par sens : au travail bleu, « t'attend » orange (seul orange), coincé et Supprimer rouge, fini vert, à relire violet, repos gris — Sémaphore et Classique (7bfb020)
+- Plus d'ambre ; le carré « fini » est vert plein ; nouveau signal « à relire » (carré violet) (7bfb020)
+- Bouton principal, onglet actif et focus : neutres ; info et titres markdown en cyan (7bfb020)
+
 ## [0.322.0] - 2026-11-13
 
 ### Added
