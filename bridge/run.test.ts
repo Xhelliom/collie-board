@@ -9,7 +9,8 @@ import { checkPrompt, LeadSilent } from "./lead.ts";
 import { currentStep } from "./pipeline.ts";
 import { lotView } from "./lot.ts";
 import { reconcile } from "./cards.ts";
-import { briefOf, orphanedHalt, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
+import { mechanicalHalt } from "./resume.ts";
+import { AGENT_GONE_REASON, briefOf, heldHalts, LEAD_SILENT_MS, orphanedHalt, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = (panes: Record<string, string> = {}, bridge = "connected"): EngineSnapshot =>
@@ -785,6 +786,84 @@ describe("RunCoordinator (ADR 0017)", () => {
       await flush();
     }
     expect(w.calls.some((c) => c.startsWith("advance"))).toBe(false);
+  });
+});
+
+describe("a landing the lead never judges (lot « Sessions hc rangées par dépôt », 12/11)", () => {
+  /** hc kept the worker's terminal across the reboot; its agent did not survive: a bare shell, still `t4s`. */
+  const hcShell = (paneId: string): EngineSnapshot =>
+    ({ agents: [], shellPanes: [{ paneId, status: "unknown", kind: "shell" }], workspaces: [], tabs: [], bridge: "connected" }) as unknown as EngineSnapshot;
+  const hcCard = (db: BoardDb) => {
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "t4s" });
+    land(db, a);
+    return { a, run };
+  };
+
+  it("an hc worker that finished is judged by the lead, and its PR opened", async () => {
+    const db = new BoardDb(":memory:");
+    const { a } = hcCard(db);
+    const w = world(db);
+    w.coord.update(snap({ t4s: "done" }));
+    await flush();
+    expect(w.seen).toHaveLength(1);
+    w.coord.update(snap({ t4s: "idle" }));
+    await flush();
+    expect(w.calls).toContain("pr a");
+    expect(events(db, a, "run.halted")).toEqual([]);
+  });
+
+  it("its agent gone, the lead still judges the checkout and the card goes on to its PR", async () => {
+    const db = new BoardDb(":memory:");
+    hcCard(db);
+    const w = world(db);
+    w.coord.update(hcShell("t4s"));
+    await flush();
+    expect(w.seen).toHaveLength(1);
+    w.coord.update(hcShell("t4s"));
+    await flush();
+    expect(w.calls).toContain("pr a");
+  });
+
+  it("its agent gone, a send-back halts the lot instead of typing into a shell", async () => {
+    const db = new BoardDb(":memory:");
+    const { a } = hcCard(db);
+    const w = world(db);
+    w.checks.push({ decision: "prompt", prompt: "add a test", reason: "no test" });
+    w.coord.update(hcShell("t4s"));
+    await flush();
+    expect(w.calls.filter((c) => c.startsWith("prompt"))).toEqual([]);
+    expect(events(db, a, "run.halted").map((e) => (e.payload as { reason: string }).reason)).toEqual([AGENT_GONE_REASON]);
+  });
+
+  it("no verdict past the delay halts the lot as « lead silencieux », which the orchestrator may lift", async () => {
+    const db = new BoardDb(":memory:");
+    const { a, run } = hcCard(db);
+    const clock = { now: Date.now() };
+    const w = world(db, { clock });
+    // A pane that reports nothing the coordinator waits on: nothing asked, nothing halted — for now.
+    w.coord.update(snap({ t4s: "unknown" }));
+    await flush();
+    expect(w.seen).toEqual([]);
+    expect(events(db, a, "run.halted")).toEqual([]);
+    clock.now += LEAD_SILENT_MS;
+    w.coord.update(snap({ t4s: "unknown" }));
+    await flush();
+    const halts = heldHalts(db, db.getRun(run.id)!);
+    expect(halts).toHaveLength(1);
+    expect(halts[0]!.payload).toMatchObject({ leadSilent: true });
+    expect(mechanicalHalt(halts[0]!.payload as { reason?: unknown; leadSilent?: unknown })).toBe(true);
+    // Halted once, not every tick.
+    w.coord.update(snap({ t4s: "unknown" }));
+    await flush();
+    expect(events(db, a, "run.halted")).toHaveLength(1);
+    // The orchestrator resumes: the delay counts again from the resume, it does not re-halt at once.
+    expect(resumeRun(db, db.getRun(run.id)!, true)).toBe(1);
+    w.coord.update(snap({ t4s: "unknown" }));
+    await flush();
+    expect(events(db, a, "run.halted")).toHaveLength(1);
+    expect(runState(db.getRun(run.id)!, [{ card: db.getCard(a.id)!, events: db.listEvents(a.id) }])).toBe("running");
   });
 });
 

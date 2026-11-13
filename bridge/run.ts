@@ -111,8 +111,14 @@ export type Step =
   | { kind: "pr" }
   | { kind: "land" }
   | { kind: "file" }
-  | { kind: "halt"; reason: string; limit?: true }
+  | { kind: "halt"; reason: string; limit?: true; leadSilent?: true }
   | null;
+
+/** A landing with no verdict for this long halts the lot as « lead silencieux » — past the lead's own deadlines (3 × 5 min) and a gate. */
+export const LEAD_SILENT_MS = 30 * 60_000;
+
+/** The worker's pane is there, its agent is not (hc keeps a terminal across a reboot): no one reads a send-back. */
+export const AGENT_GONE_REASON = "its agent is gone from its pane (Collie, Herdr or the machine stopped) — the lead's send-back has no one to read it; relaunch the card";
 
 const STARTABLE = new Set<string>(["backlog", "ready"]);
 const FILED = new Set<string>(["done", "archived"]);
@@ -147,6 +153,10 @@ export function stepFor(
     session: CardSession | null;
     /** The worker pane's status in the snapshot. */
     pane: string | undefined;
+    /** The worker's pane is a bare shell now: its agent is gone, its checkout is still there to judge. */
+    agentGone?: boolean;
+    /** The coordinator's clock: a landing with no verdict past {@link LEAD_SILENT_MS} halts. Absent, never. */
+    now?: number;
     /** Its predecessor is filed (or it has none). */
     depsDone: boolean;
     /** …but filed on an armed auto-merge nobody has seen land yet ({@link awaitsMerge}). */
@@ -198,8 +208,17 @@ export function stepFor(
     const lost = orphanedHalt(run.id, events, ctx);
     if (lost) return after(held, newest(events, (e) => e.type === "card.status")) ? null : { kind: "halt", reason: lost };
   } else {
-    // Only a worker that has landed and sits quietly. `blocked` is a question — never ours to answer.
-    if (card.status !== "review" || (ctx.pane !== "idle" && ctx.pane !== "done")) return null;
+    if (card.status !== "review") return null;
+    // The net: whatever keeps the lead from a landing (a pane that reports nothing, a lost question), the lot
+    // stops instead of waiting for ever. Counted from the landing, or from the resume that lifted the last net.
+    const resumed = newest(events, (e) => e.type === "run.resumed" && isRun(e, run.id));
+    const since = after(resumed, landed) ? resumed : landed;
+    const verdict = newest(events, (e) => e.type === "run.decision" && isRun(e, run.id) && isVerdict(e));
+    if (ctx.now !== undefined && since && !after(held, landed) && !after(verdict, landed) && ctx.now - since.ts >= LEAD_SILENT_MS)
+      return { kind: "halt", reason: `no verdict from the lead ${Math.round((ctx.now - since.ts) / 60_000)} min after the worker landed — look at the lead's and the worker's panes, then resume`, leadSilent: true };
+    // Only a worker that has landed and sits quietly — or whose agent is gone, its checkout still there to
+    // judge. `blocked` is a question — never ours to answer.
+    if (!ctx.agentGone && ctx.pane !== "idle" && ctx.pane !== "done") return null;
     // Busy with the board's own handoff or wrapup ask.
     if (!ctx.session || ctx.session.handoffRequestedAt !== null || isAutoHandoffPending(ctx.session)) return null;
   }
@@ -366,6 +385,8 @@ export class RunCoordinator {
   private readonly startingBy = new Map<string, number>();
   /** Lots with a fold, a filing or a PR in flight: who closes a one-PR lot is read from who is filed, so those go one at a time. */
   private readonly lotBusy = new Set<string>();
+  /** The last snapshot's bare shells: a worker pane among them has lost its agent. */
+  private shells = new Set<string>();
 
   constructor(
     private readonly db: BoardDb,
@@ -377,6 +398,7 @@ export class RunCoordinator {
   update(snap: EngineSnapshot): void {
     if (snap.bridge === "disconnected") return;
     const panes = new Map([...snap.agents, ...snap.shellPanes].map((p) => [p.paneId, p.status as string]));
+    this.shells = new Set(snap.shellPanes.map((p) => p.paneId));
     const reviewing = this.ports.reviewing();
 
     for (const open of this.db.listOpenRuns()) {
@@ -407,6 +429,8 @@ export class RunCoordinator {
         const step = stepFor(run, card, events, {
           session,
           pane: session?.paneId ? panes.get(session.paneId) : undefined,
+          agentGone: !!session?.paneId && this.shells.has(session.paneId),
+          now: this.now(),
           depsDone: !pred || FILED.has(pred.status),
           predecessorArmed: pred !== null && FILED.has(pred.status) && awaitsMerge(this.db.listEvents(pred.id, 200)),
           gated: this.ports.gateCommand(card) !== null,
@@ -455,7 +479,7 @@ export class RunCoordinator {
     const runId = run.id;
     switch (step.kind) {
       case "halt":
-        { if (step.limit) await this.haltEmpty(run, card, session, step.reason); else this.halt(run, card.id, step.reason); return; }
+        { if (step.limit) await this.haltEmpty(run, card, session, step.reason); else this.halt(run, card.id, step.reason, step.leadSilent && { leadSilent: true }); return; }
       case "start": {
         // A peer's card forks from origin's base on the peer: the lot branch is a local one.
         if (run.integration === "lot" && !card.environment) {
@@ -483,6 +507,7 @@ export class RunCoordinator {
         if (workerReport) this.keepReport(runId, card.id, workerReport);
         // Nothing to judge and nothing said: the lead would only send it back (ADR 0014's loop), so ask for the bilan.
         if (step.kind === "check" && statSummary.trim() === "(no changes)" && !workerReport) {
+          if (this.shells.has(session!.paneId!)) return this.halt(run, card.id, AGENT_GONE_REASON);
           await this.ports.prompt(session!.paneId!, `Your branch has no changes. ${bilanPrompt()}`);
           this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "prompt", prompt: "bilan", reason: "empty diff and no bilan from the worker" });
           return;
@@ -746,6 +771,7 @@ export class RunCoordinator {
     const current = currentStep(this.db.listEvents(card.id, 200));
     const worker = workerStep(pipelineOf(this.db, card), current);
     if (worker !== null && worker !== current) await this.ports.sendBack(card, failure, worker);
+    else if (this.shells.has(session.paneId!)) throw new Error(AGENT_GONE_REASON);
     else await this.ports.prompt(session.paneId!, failure);
   }
 
