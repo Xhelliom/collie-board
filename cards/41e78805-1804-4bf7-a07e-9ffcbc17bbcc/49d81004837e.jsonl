@@ -2,3 +2,5 @@
 {"v":1,"hlc":"1794562989922.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Page Agents : la carte ou l activité de chaque agent, et son modèle avec son effort","status":"backlog"},"ts":1794562983993}}
 {"v":1,"hlc":"1794562989922.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"9ef45e39-43f2-43d3-975b-baf85e3b1eca"}}
 {"v":1,"hlc":"1794562989922.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c273d5f1-ce62-4779-9e64-b728b9ab2082"}}
+{"v":1,"hlc":"1794563091217.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":null}}
+{"v":1,"hlc":"1794563091217.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c38104da-a674-4b47-8805-a68b341d1ca7"}}
