@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.307.0] - 2026-11-13
+
+### Changed
+
+- Onglets du projet soulignés, dans l'ordre Projet, Cartes, Recette, Roadmap, PR, Documents, Réglages : ceux qui ne tiennent pas passent sous « Plus » (210f3b2)
+- Le nom du projet dans l'en-tête sert de sélecteur (tous les projets, ajouter, retirer) ; la ligne du sélecteur disparaît (210f3b2)
+- L'objectif ouvert s'affiche en une ligne sous le titre et sur la tuile d'accueil, sans boîte ni pastille (210f3b2)
+- « Board » devient « Cartes » ; sur téléphone, Orchestrateur en icône et filtre du projet dans la page (210f3b2)
+
 ## [0.306.0] - 2026-11-13
 
 ### Added
