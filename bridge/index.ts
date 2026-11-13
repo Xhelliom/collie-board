@@ -6,6 +6,7 @@ import { loadAdapters } from "./adapters.ts";
 import { AuditLog, fileAuditAppender } from "./audit.ts";
 import { AutoHandoff } from "./auto-handoff.ts";
 import { IdleLanding } from "./idle-landing.ts";
+import { LostAgentResumer } from "./resume-lost.ts";
 import { BoardNotifier } from "./board-notify.ts";
 import { reconcile, withCardFields } from "./cards.ts";
 import { ReviewGuard } from "./review-guard.ts";
@@ -381,6 +382,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // says when it stops being true; the rest only ever reach the bell (NOTIFY_AUDIT.md §6.6).
     // « En main » (ADR 0058): its reminder and its expiry, read off `card.held` — before the notifier tails them.
     engine.onUpdate((snap) => void (snap.bridge !== "disconnected" && sweepHeld(board)), "held");
+    // hc terminals whose agent was lost (a reboot): the ones at work resumed once, one recap (resume-lost.ts).
+    const resumer = new LostAgentResumer(board, herdr, new ClaudeTranscriptSource(cfg.transcriptRoot), cfg.boardCopilotKind || cfg.boardAgentKind);
+    engine.onUpdate((snap) => resumer.update(snap), "resumeLost");
     const boardNotifier = new BoardNotifier(board, notifyLog, notifications);
     engine.onUpdate((snap) => boardNotifier.update(snap), "boardNotifier");
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
