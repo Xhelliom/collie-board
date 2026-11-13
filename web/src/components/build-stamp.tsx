@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
 import { useT } from "@/i18n";
@@ -60,7 +61,7 @@ export function BuildStamp({ className }: { className?: string }) {
             type="button"
             onClick={update}
             disabled={updating}
-            className="font-medium text-status-working underline underline-offset-2 disabled:no-underline disabled:opacity-70"
+            className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-7 text-xs")}
           >
             {updating ? (
               <span className="inline-flex items-center gap-1 align-middle">

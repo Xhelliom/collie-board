@@ -28,7 +28,7 @@ export function McpSetupCard() {
           <p className="text-sm text-muted-foreground">{t("settings.mcp.hint")}</p>
         </div>
       </div>
-      {failed && <p className="text-sm text-status-blocked">{t("settings.mcp.failed")}</p>}
+      {failed && <p className="text-sm text-destructive">{t("settings.mcp.failed")}</p>}
       {setup && (
         <>
           <CommandLine command={setup.command} />

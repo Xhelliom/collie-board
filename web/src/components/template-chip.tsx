@@ -9,7 +9,7 @@ export function TemplateChip({ name, inherited, className }: { name: string; inh
     <span
       title={inherited ? t("templates.chip.inherited") : undefined}
       className={cn(
-        "inline-flex items-center rounded-full border px-[7px] py-px text-[10px] font-semibold",
+        "inline-flex items-center rounded-sm border px-[7px] py-px text-[10px] font-semibold",
         inherited ? "border-dashed border-border text-muted-foreground" : "border-brand/35 bg-brand/10 text-brand",
         className,
       )}

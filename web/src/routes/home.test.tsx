@@ -8,6 +8,7 @@ import { server } from "@/test/setup";
 
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import type { AgentView } from "@/lib/types";
+import { __setPins } from "@/lib/pins";
 import { HomeRoute } from "./home";
 
 const agent = (extra: Partial<AgentView>): AgentView => ({
@@ -20,9 +21,9 @@ const data = {
   agents: [agent({}), agent({ paneId: "w1:p2", status: "blocked" })],
 } as unknown as HomeData;
 
-function renderHome(agents = data.agents) {
+function renderHome(agents = data.agents, cards: unknown[] = []) {
   const router = createMemoryRouter(
-    [{ id: ROOT_ROUTE_ID, path: "/", loader: () => ({ ...data, agents }), children: [{ index: true, loader: () => ({ board: { cards: [] } }), element: <HomeRoute /> }] }],
+    [{ id: ROOT_ROUTE_ID, path: "/", loader: () => ({ ...data, agents }), children: [{ index: true, loader: () => ({ board: { cards } }), element: <HomeRoute /> }] }],
   );
   return render(<RouterProvider router={router} />);
 }
@@ -54,6 +55,60 @@ describe("HomeRoute", () => {
     expect(within(screen.getByRole("region", { name: "Working" })).getByText("Orchestrator")).toBeInTheDocument();
     expect(localStorage.getItem("collie-home-with-orch")).toBe("1");
     localStorage.removeItem("collie-home-with-orch");
+  });
+});
+
+describe("HomeRoute pins", () => {
+  afterEach(() => {
+    __setPins([]);
+    vi.unstubAllGlobals();
+  });
+  const pin = [{ repoPath: "/home/me/pinned-repo", name: "pinned-repo" }];
+
+  it("shows the pins on the phone, after the herd, before the current projects", async () => {
+    __setPins(pin);
+    renderHome(data.agents, [{ id: "c1", title: "T", status: "review", repoPath: "/home/me/repo", updatedAt: Date.now() }]);
+    const pinned = await screen.findByRole("button", { name: /pinned-repo/ });
+    const working = screen.getByRole("region", { name: "Working" });
+    const project = await screen.findByRole("link", { name: /^repo/ });
+    expect(working.compareDocumentPosition(pinned) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(pinned.compareDocumentPosition(project) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("dresses the three kinds of pin as panels on the phone, a working agent not doubled", async () => {
+    __setPins([
+      { repoPath: "/home/me/pinned-repo", name: "pinned-repo" },
+      { cardId: "c9", name: "Pinned card", status: "review" },
+      { session: "s-idle", name: "idle one" },
+      { session: "s-work", name: "worker one" },
+    ]);
+    const idle = agent({ paneId: "w1:p3", status: "idle", agentSessionId: "s-idle", paneLabel: "restful" });
+    const work = agent({ paneId: "w1:p4", status: "working", agentSessionId: "s-work", paneLabel: "busy-bee" });
+    renderHome([...data.agents, idle, work], [{ id: "c1", title: "Step", status: "working", repoPath: "/home/me/pinned-repo", updatedAt: Date.now() }]);
+    const section = await screen.findByRole("region", { name: "Pinned" });
+    expect(within(section).getByRole("heading", { level: 2, name: "Pinned" })).toBeInTheDocument();
+    const rows = within(section).getAllByRole("button");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent("pinned-repo");
+    expect(rows[1]).toHaveTextContent("Pinned card");
+    expect(rows[1]).toHaveTextContent(/review/i);
+    expect(rows[2]).toHaveTextContent("restful");
+    expect(rows[2]).toHaveTextContent(/this PC/i);
+    expect(within(section).queryByText("busy-bee")).toBeNull();
+  });
+
+  it("shows nothing when nothing is pinned", async () => {
+    renderHome();
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByText("Pinned")).toBeNull();
+  });
+
+  it("does not double the sidebar on a wide screen", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {} }));
+    __setPins(pin);
+    renderHome();
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByRole("button", { name: /pinned-repo/ })).toBeNull();
   });
 });
 

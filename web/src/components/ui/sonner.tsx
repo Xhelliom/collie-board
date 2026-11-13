@@ -23,7 +23,7 @@ export function Toaster(props: ToasterProps) {
       offset={UNDER_HEADER}
       mobileOffset={UNDER_HEADER}
       richColors
-      toastOptions={{ closeButtonAriaLabel: t("toast.dismiss") }}
+      toastOptions={{ closeButtonAriaLabel: t("toast.dismiss"), style: { boxShadow: "var(--shadow-3)" } }}
       className="toaster group"
       style={
         {

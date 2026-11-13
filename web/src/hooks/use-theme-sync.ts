@@ -9,6 +9,11 @@ import { applyTheme, loadThemeMode } from "@/lib/theme";
 export function useThemeSync(): void {
   useEffect(() => {
     applyTheme(loadThemeMode());
+    try {
+      localStorage.removeItem("collie:style"); // the retired Classique choice, from before 13/11
+    } catch {
+      // Private mode: nothing was stored.
+    }
     if (typeof matchMedia === "undefined") return;
     const mq = matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => applyTheme(loadThemeMode());

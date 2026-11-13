@@ -357,24 +357,24 @@ export function positionFor(neighbours: number[], index: number): number {
 
 /** The pill every board chip wears — shell only, the colours come from the maps below. */
 export const CHIP_SHELL =
-  "shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide";
+  "shrink-0 rounded-sm border px-2 py-0.5 text-xs font-medium";
 
 /** Tailwind chip classes per column, reusing the status palette the agent badges already use. */
 export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
   blocked: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
-  review: "border-status-done/30 bg-status-done/15 text-status-done",
+  review: "border-status-review/30 bg-status-review/15 text-status-review",
   working: "border-status-working/30 bg-status-working/15 text-status-working",
   starting: "border-status-working/30 bg-status-working/10 text-status-working",
   orphaned: "border-status-unknown/30 bg-status-unknown/15 text-status-unknown",
   ready: "border-status-idle/30 bg-status-idle/10 text-status-idle",
   backlog: "border-border bg-muted text-muted-foreground",
-  done: "border-status-idle/30 bg-status-idle/10 text-status-idle",
+  done: "border-status-done/30 bg-status-done/15 text-status-done",
   archived: "border-border bg-muted text-muted-foreground",
 };
 
 /**
  * The review verdict as a chip, on the SAME three colours the columns use — green reads "landed",
- * amber "still moving", red "stop and look". A verdict is the one line of a review you read before
+ * orange "needs a look", red "stop and look". A verdict is the one line of a review you read before
  * deciding whether to read the rest, and set in the body text it was indistinguishable from it.
  *
  * Matched on the exact word the prompt asks for, lowercased: anything else — a model that answered
@@ -384,8 +384,8 @@ export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
  */
 const REVIEW_VERDICT_CHIP: Record<string, string> = {
   complete: "border-status-done/30 bg-status-done/15 text-status-done",
-  partial: "border-status-working/30 bg-status-working/15 text-status-working",
-  drift: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
+  partial: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
+  drift: "border-destructive/30 bg-destructive/15 text-destructive",
 };
 
 export function verdictChip(verdict: string | null): string {
@@ -1292,7 +1292,7 @@ export interface GhPr {
 export interface PrsReading {
   prs: OpenPr[];
   /** Open on GitHub, on no card. `plan`: the board's own lot-end export. */
-  others?: (GhPr & { repoPath: string; origin: "plan" | "other" })[];
+  others?: (GhPr & { repoPath: string; origin: "plan" | "other"; replacedBy?: number })[];
   merged?: (GhPr & { repoPath: string; cardId: string | null })[];
   checkedAt?: number;
 }
@@ -1528,6 +1528,8 @@ export const fetchRoadmap = (repo: string, signal?: AbortSignal): Promise<{ road
 export interface OrchestratorState {
   paneId: string | null;
   running: boolean;
+  /** The agent is mid-turn (not merely present): the pane's Stop shows then. */
+  working?: boolean;
   /** The pane's context occupancy, 0-100; null when unknown (ADR 0023). */
   ctxPct?: number | null;
   /** The pane's model (short label) and effort; each absent when unknown. */
@@ -1627,6 +1629,9 @@ export const launchLot = (id: string): Promise<{ run: Lot }> =>
 /** The operator resumes a halted lot: each halted card picks up at the step it stopped on. */
 export const resumeLot = (id: string): Promise<{ resumed: number }> =>
   apiRequest(`/api/runs/${encodeURIComponent(id)}/resume`, { method: "POST" });
+/** Drop a PLANNED lot, releasing its cards (the bridge refuses a launched one). */
+export const deleteLot = (id: string): Promise<{ ok: true }> =>
+  apiRequest(`/api/runs/${encodeURIComponent(id)}`, { method: "DELETE" });
 /** Upsert one decision (`id` present: change it, e.g. settle an open question). */
 export const saveDecision = (repoPath: string, d: Omit<Decision, "id"> & { id?: string }): Promise<{ decision: Decision; revision: number }> =>
   apiRequest("/api/roadmap/decision", { method: "POST", body: JSON.stringify({ repoPath, ...d }) });

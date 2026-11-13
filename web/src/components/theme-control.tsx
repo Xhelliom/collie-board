@@ -32,7 +32,7 @@ export function ThemeControl() {
         {OPTIONS.map(({ mode: m, label, icon: Icon }) => (
           <Button
             key={m}
-            variant={mode === m ? "secondary" : "outline"}
+            variant={mode === m ? "default" : "secondary"}
             size="sm"
             aria-pressed={mode === m}
             onClick={() => setMode(m)}

@@ -7,6 +7,7 @@ import { SessionSwitcher } from "@/components/session-switcher";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { useT } from "@/i18n";
 import { AgentList, IdleAgents } from "@/components/agent-list";
+import { HomePinned } from "@/components/home-pinned";
 import { UpdateBanner } from "@/components/update-banner";
 import {
   CardsError,
@@ -109,6 +110,13 @@ export function HomeRoute() {
               <AgentList agents={shown} onOpen={open} hasOrch={herd.some(isOrchestrator)} withOrch={withOrch} onWithOrch={setWithOrch} />
               {/* On a phone the resting agents fold right under the working ones; on a wide screen, below the projects. */}
               <IdleAgents agents={shown} onOpen={open} className="-mt-6 lg:order-last lg:mt-0" />
+              {/* The phone's pins (the sidebar holds them on a wide screen: renders nothing there). */}
+              {/* Pins need the cards only for a project's phase: without them the rows still show. */}
+              <Suspense fallback={<HomePinned data={data} cards={[]} />}>
+                <Await resolve={board} errorElement={<HomePinned data={data} cards={[]} />}>
+                  {(b: BoardData) => <HomePinned data={data} cards={b.cards} />}
+                </Await>
+              </Suspense>
               <CardBlock board={board} fallback={<ProjectRowsSkeleton />} label={t("home.projects.current")}>
                 {(b) => <Projects board={b} />}
               </CardBlock>

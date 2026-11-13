@@ -36,7 +36,7 @@ export function IdleLock({ onUnlock, catchingUp = false }: IdleLockProps) {
     >
       {/* The panel carries its own, heavier blur so the copy stays readable over arbitrary pane text,
           while the scrim above keeps the herd recognisable behind it. */}
-      <div className="flex flex-col items-center gap-6 rounded-3xl border border-border/60 bg-card/70 px-8 py-10 text-center shadow-2xl ring-1 ring-white/10 backdrop-blur-2xl">
+      <div className="flex flex-col items-center gap-6 rounded-3xl border border-border/60 bg-card/70 px-8 py-10 text-center shadow-(--shadow-3) ring-1 ring-white/10 backdrop-blur-2xl">
         <div className="flex flex-col items-center gap-3">
           <NavMark gallop={catchingUp} lost={false} size={80} />
           <span className="text-lg font-semibold tracking-tight">Collie</span>

@@ -39,7 +39,7 @@ function LaunchPermission() {
           onClick={() => void copy(LAUNCH_PERMISSION)}
           aria-label={t("orch.autoPermCopy")}
           title={canCopy ? LAUNCH_PERMISSION : copyUnavailableTitle()}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:pointer-events-none disabled:opacity-50"
+          className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:pointer-events-none disabled:opacity-50"
         >
           {copied ? <Check className="size-3 text-status-done" /> : <Copy className="size-3" />}
           {copied ? t("card.copied") : t("orch.autoPermCopy")}
@@ -108,7 +108,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
   }
 
   return (
-    <section id={AUTONOMY_SECTION} aria-label={t("orch.auto")} className="scroll-mt-4 rounded-2xl border bg-card/40 p-3.5 text-sm">
+    <section id={AUTONOMY_SECTION} aria-label={t("orch.auto")} className="scroll-mt-4 rounded-xl border bg-card shadow-(--shadow-2) p-3.5 text-sm">
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">
           <span>{t("orch.autoOn")}</span>

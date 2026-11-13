@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { StatusSignal } from "@/components/status-signal";
 import { Link, useRevalidator } from "react-router";
-import { Ellipsis, ImagePlus, Loader2, Maximize2, Package, Send } from "lucide-react";
+import { Ellipsis, ImagePlus, Loader2, Maximize2, Package } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
@@ -8,14 +9,15 @@ import { ModelTag } from "@/components/model-tag";
 import { ButtonsPaneContext } from "@/components/action-buttons";
 import { TranscriptView } from "@/components/transcript-view";
 import { DeliverableLinks, type RecentDeliverable } from "@/components/card-deliverables";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { MigrateHcButton } from "@/components/migrate-hc-button";
 import { BottomSheet } from "@/components/ui/sheet";
+import { SendButton } from "@/components/ui/chat/send-button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
-import { sendReply } from "@/lib/api";
+import { sendKeys, sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -182,7 +184,7 @@ export function OrchestratorPanel({
     <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3 max-lg:p-0">
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
-          <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", state.running ? "bg-status-done" : "bg-muted-foreground/50")} />
+          <StatusSignal status={state.working ? "working" : "idle"} decorative />
           <span className="text-sm font-semibold text-foreground">{t("orch.title")}</span>
           <ModelTag model={state.model} effort={state.effort} className="font-mono text-[11px] normal-case tracking-normal" />
           {typeof state.ctxPct === "number" && (
@@ -192,7 +194,7 @@ export function OrchestratorPanel({
               className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-[11px] normal-case tracking-normal"
             >
               <span aria-hidden="true" className="h-1 w-12 overflow-hidden rounded-full bg-border">
-                <i className={cn("block h-full", state.ctxPct >= 50 ? "bg-status-working" : "bg-status-done")} style={{ width: `${Math.min(100, state.ctxPct)}%` }} />
+                <i className={cn("block h-full", state.ctxPct >= 50 ? "bg-status-info" : "bg-status-done")} style={{ width: `${Math.min(100, state.ctxPct)}%` }} />
               </span>
               ctx {Math.round(state.ctxPct)}%
             </span>
@@ -207,11 +209,11 @@ export function OrchestratorPanel({
                 setDelivOpen(true);
               }}
               aria-label={t(fresh > 0 ? "orch.deliverablesNew" : "orch.deliverablesCount", { count: deliverables.length, fresh })}
-              className="relative inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-brand"
+              className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "relative text-xs")}
             >
               <Package className="size-3.5" />
               <span className="tabular-nums">{deliverables.length}</span>
-              {fresh > 0 && <span data-testid="deliverables-new" aria-hidden="true" className="absolute -right-1.5 top-0.5 size-2 rounded-full bg-status-working" />}
+              {fresh > 0 && <span data-testid="deliverables-new" aria-hidden="true" className="absolute -right-1.5 top-0.5 size-2 rounded-full bg-status-info" />}
             </button>
           )}
           <Link
@@ -241,7 +243,7 @@ export function OrchestratorPanel({
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setMenuOpen(false)} />
-                <div role="menu" className="absolute right-0 top-full z-50 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 rounded-xl border border-border bg-card p-1.5 text-sm shadow-lg">
+                <div role="menu" className="absolute right-0 top-full z-50 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 rounded-xl border border-border bg-card p-1.5 text-sm shadow-(--shadow-3)">
                   <button
                     type="button"
                     role="menuitem"
@@ -294,7 +296,7 @@ export function OrchestratorPanel({
       </BottomSheet>
       {/* Past the threshold the warning stays in sight: the actions it asks for are in the ⋯ menu. */}
       {full && (
-        <p role="alert" className="rounded-lg border border-status-working/50 bg-status-working/10 p-2.5 text-sm">
+        <p role="alert" className="rounded-lg border border-status-info/50 bg-status-info/10 p-2.5 text-sm">
           {t("orch.handover")}
         </p>
       )}
@@ -369,9 +371,17 @@ export function OrchestratorPanel({
         >
           {upload.uploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
         </Button>
-        <Button type="submit" variant="brand" className="size-11 shrink-0 px-0" disabled={busy || draft.trim() === ""} aria-label={t("orch.send")}>
-          <Send className="size-4" />
-        </Button>
+        <SendButton
+          type="submit"
+          label={t("orch.send")}
+          stopLabel={t("pane.stop")}
+          hasContent={draft.trim() !== ""}
+          working={!!state?.working}
+          busy={busy}
+          onStop={() => {
+            if (state?.paneId) void sendKeys(state.paneId, ["Escape"]).then(() => revalidator.revalidate());
+          }}
+        />
       </form>
     </div>
   );

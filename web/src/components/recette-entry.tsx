@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { ArrowUpRight, Check, ChevronDown, Circle, CircleDot, GitPullRequest, Images, SkipForward, Smartphone, Sparkles, X, ZoomIn } from "lucide-react";
 
+import { ActorToken } from "@/components/actor-token";
 import { GalleryImg } from "@/components/gallery-img";
 import { buttonVariants } from "@/components/ui/button";
 import { getLocale, useT } from "@/i18n";
@@ -17,14 +18,14 @@ import { cn } from "@/lib/utils";
 // captures to look at, and its steps — the current one carrying where to go, the orchestrator's help
 // and the verdict. Shared with the one-by-one session (recette-session.tsx).
 
-export const STATE_TONE = { todo: "bg-brand", ok: "bg-status-done", ko: "bg-status-blocked" } as const;
-const STATE_EDGE = { todo: "border-l-brand", ok: "border-l-status-done", ko: "border-l-status-blocked" } as const;
+export const STATE_TONE = { todo: "bg-brand", ok: "bg-status-done", ko: "bg-destructive" } as const;
+const STATE_EDGE = { todo: "border-l-brand", ok: "border-l-status-done", ko: "border-l-destructive" } as const;
 export const FOCUS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 export const MOTION = "transition-colors duration-150 motion-reduce:transition-none";
 
 export const VERDICTS = [
   { status: "ok", key: "o", Icon: Check, label: "recette.step.markOk", tip: "recette.step.tipOk", on: "border-status-done bg-status-done/15 text-status-done", idle: "text-status-done hover:border-status-done/60 hover:bg-status-done/10" },
-  { status: "ko", key: "n", Icon: X, label: "recette.step.markKo", tip: "recette.step.tipKo", on: "border-status-blocked bg-status-blocked/15 text-status-blocked", idle: "text-status-blocked hover:border-status-blocked/60 hover:bg-status-blocked/10" },
+  { status: "ko", key: "n", Icon: X, label: "recette.step.markKo", tip: "recette.step.tipKo", on: "border-destructive bg-destructive/15 text-destructive", idle: "text-destructive hover:border-destructive/60 hover:bg-destructive/10" },
   { status: "skip", key: "p", Icon: SkipForward, label: "recette.step.markSkip", tip: "recette.step.tipSkip", on: "border-foreground/50 bg-muted text-foreground", idle: "text-muted-foreground hover:border-foreground/40 hover:text-foreground" },
 ] as const;
 
@@ -152,7 +153,7 @@ export function KoNote({ busy, onAdd }: { busy: boolean; onAdd: (note: string) =
 
 export function PrLink({ url }: { url: string }) {
   return (
-    <a href={url} target="_blank" rel="noreferrer" className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-px font-medium text-foreground hover:bg-muted/60", FOCUS, MOTION)}>
+    <a href={url} target="_blank" rel="noreferrer" className={cn("inline-flex items-center gap-1 rounded-sm border px-2 py-px font-medium text-foreground hover:bg-muted/60", FOCUS, MOTION)}>
       <GitPullRequest className="size-3" />
       {prLabel(url)}
     </a>
@@ -162,20 +163,23 @@ export function PrLink({ url }: { url: string }) {
 /** The thread back to the delivery, as chips: project, phase, lot, « carte : … », PR, the hour. */
 export function Thread({ entry: e }: { entry: RecetteEntry }) {
   const t = useT();
-  const chip = cn("rounded-full bg-muted px-2 py-px text-muted-foreground hover:bg-muted/70 hover:text-foreground", FOCUS, MOTION);
+  const chip = cn("rounded-sm bg-muted px-2 py-px text-muted-foreground hover:bg-muted/70 hover:text-foreground", FOCUS, MOTION);
   const project = projectPath(e.repoPath);
   return (
     <nav aria-label={t("recette.thread")} className="flex flex-wrap items-center gap-1.5 text-xs">
       {e.project && <Link to={project} className={chip}>{e.project}</Link>}
       {e.phase && <Link to={project} className={chip}>{e.phase}</Link>}
       {e.lot && <Link to={project} className={chip}>{e.lot}</Link>}
-      <Link to={cardPath(e.cardId)} className={cn("rounded-full bg-brand/12 px-2 py-px font-medium text-brand hover:bg-brand/20", FOCUS, MOTION)}>
+      <Link to={cardPath(e.cardId)} className={cn("rounded-sm bg-brand/12 px-2 py-px font-medium text-brand hover:bg-brand/20", FOCUS, MOTION)}>
         {t("recette.thread.card", { title: e.title ?? e.capability })}
       </Link>
       {e.prUrl && <PrLink url={e.prUrl} />}
-      <time dateTime={new Date(e.deliveredAt).toISOString()} title={t("recette.thread.delivered", { ago: ago(e.deliveredAt) })} className="tabular-nums text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5">
+        <ActorToken actor="agent" />
+        <time dateTime={new Date(e.deliveredAt).toISOString()} title={t("recette.thread.delivered", { ago: ago(e.deliveredAt) })} className="tabular-nums text-muted-foreground">
         {clock(e.deliveredAt)}
       </time>
+      </span>
     </nav>
   );
 }
@@ -186,7 +190,7 @@ function StepIcon({ step: s, current }: { step: RecetteStep; current: boolean })
   const cls = "mt-0.5 size-4 shrink-0";
   const label = <span className="sr-only">{t(`recette.step.${status ?? "todo"}`)}</span>;
   if (status === "ok") return <span>{label}<Check className={cn(cls, "text-status-done")} aria-hidden /></span>;
-  if (status === "ko") return <span>{label}<X className={cn(cls, "text-status-blocked")} aria-hidden /></span>;
+  if (status === "ko") return <span>{label}<X className={cn(cls, "text-destructive")} aria-hidden /></span>;
   if (status === "skip") return <span>{label}<SkipForward className={cn(cls, "text-muted-foreground")} aria-hidden /></span>;
   return <span>{label}{current ? <CircleDot className={cn(cls, "text-brand")} aria-hidden /> : <Circle className={cn(cls, "text-muted-foreground")} aria-hidden />}</span>;
 }
@@ -250,7 +254,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
         </span>
       )}
       {!validated && open.length > 0 && (
-        <span className={cn("font-medium", e.state === "ko" ? "text-status-blocked" : "text-brand")}>{t(business ? "recette.toProofread" : "recette.toTest", { count: open.length })}</span>
+        <span className={cn("font-medium", e.state === "ko" ? "text-destructive" : "text-brand")}>{t(business ? "recette.toProofread" : "recette.toTest", { count: open.length })}</span>
       )}
       <span>{checksLine(e)}</span>
     </span>
@@ -258,7 +262,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
 
   if (!unfolded) {
     return (
-      <article className={cn("flex min-w-0 items-center gap-3 rounded-[14px] border border-l-4 bg-card p-2.5", STATE_EDGE[e.state], validated && "bg-status-done/5")}>
+      <article className={cn("flex min-w-0 items-center gap-3 rounded-sm border border-l-4 bg-card p-2.5", STATE_EDGE[e.state], validated && "bg-status-done/5")}>
         <button
           type="button"
           tabIndex={-1}
@@ -285,7 +289,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
   }
 
   return (
-    <article className={cn("flex min-w-0 flex-col overflow-hidden rounded-[14px] border border-l-4 bg-card", STATE_EDGE[e.state], e.state === "ko" && "bg-status-blocked/5")}>
+    <article className={cn("flex min-w-0 flex-col overflow-hidden rounded-sm border border-l-4 bg-card", STATE_EDGE[e.state], e.state === "ko" && "bg-destructive/5")}>
       <div className={cn("flex flex-col", shots.length > 0 && "lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]")}>
         {shots.length > 0 && (
           // What to look at: one capture large, the others as thumbnails — each capture shown once.
@@ -325,7 +329,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
             {e.steps.map((s) => {
               const isCurrent = s.id === current;
               return (
-                <li key={s.id} className={cn("flex flex-col gap-2.5 rounded-lg px-2 py-1.5", MOTION, isCurrent && "bg-muted/60 py-2.5", s.verdict?.status === "ko" && "bg-status-blocked/10")}>
+                <li key={s.id} className={cn("flex flex-col gap-2.5 rounded-lg px-2 py-1.5", MOTION, isCurrent && "bg-muted/60 py-2.5", s.verdict?.status === "ko" && "bg-destructive/10")}>
                   <button
                     type="button"
                     onClick={() => setCurrent(isCurrent ? null : s.id)}
@@ -365,7 +369,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
                       )}
                       {s.verdict?.status === "ko" && (
                         <>
-                          {s.verdict.note && <p className="text-xs text-status-blocked">{s.verdict.note}</p>}
+                          {s.verdict.note && <p className="text-xs text-destructive">{s.verdict.note}</p>}
                           <KoNote busy={busy} onAdd={(n) => void addNote(s.id, n)} />
                         </>
                       )}
@@ -376,12 +380,12 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
             })}
           </ol>
           {/* Where a « Pas bon » ends — said here, and true: the bridge files the card so. */}
-          <p className="rounded-md bg-status-blocked/8 px-2.5 py-2 text-xs text-muted-foreground">
+          <p className="rounded-md bg-destructive/8 px-2.5 py-2 text-xs text-muted-foreground">
             {e.phase ? t("recette.koWhere", { phase: e.phase, card: e.title ?? e.capability }) : t("recette.koWhereNoPhase", { card: e.title ?? e.capability })}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {e.fixCardId && (
-              <Link to={cardPath(e.fixCardId)} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-status-blocked", FOCUS)}>
+              <Link to={cardPath(e.fixCardId)} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-destructive", FOCUS)}>
                 {t("recette.fixCard")}
               </Link>
             )}

@@ -9,6 +9,111 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.324.0] - 2026-11-13
+
+### Changed
+
+- Sémaphore, direction « Relevé » : neutres sans teinte, panneaux bordés et ombrés (14 px), boutons secondaires en contour, « Valider » en émeraude à texte blanc. (b6740be)
+- « Ce qui t'attend » : bord orange au lieu du fond teinté ; « Valider la phase » de l'en-tête passe en contour. (b6740be)
+- Couleurs d'état ajustées sur les nouveaux neutres. (b6740be)
+
+## [0.323.0] - 2026-11-13
+
+### Added
+
+- Variant de bouton `success` (vert) sur Fusionner, Valider la phase, Valider : atteint (7bfb020)
+
+### Changed
+
+- Une couleur par sens : au travail bleu, « t'attend » orange (seul orange), coincé et Supprimer rouge, fini vert, à relire violet, repos gris — Sémaphore et Classique (7bfb020)
+- Plus d'ambre ; le carré « fini » est vert plein ; nouveau signal « à relire » (carré violet) (7bfb020)
+- Bouton principal, onglet actif et focus : neutres ; info et titres markdown en cyan (7bfb020)
+
+## [0.322.0] - 2026-11-13
+
+### Added
+
+- PR ouvertes : les anciennes PR docs(plan) sont marquées « remplacée par #N » (à fermer à la main) (d014f19)
+
+### Changed
+
+- Téléphone : les épinglés de l’Accueil en panneaux (projet avec phase et avancement, agent avec signal et machine, carte avec sa colonne), titre au style des autres sections (ad66922)
+- Export du plan : une seule PR docs(plan) roulante par dépôt — une fin de lot pousse sur sa branche et la retitre au lieu d'en ouvrir une autre (d014f19)
+- Elle rattrape les bilans de lots finis absents de la base (d014f19)
+
+## [0.321.1] - 2026-11-13
+
+### Changed
+
+- Sémaphore plus coloré : fait en vrai vert, au travail en ambre, t attend en orange franc, info en bleu saturé ; fonds moins verts, cartes plus distinctes (587f517)
+
+## [0.321.0] - 2026-11-13
+
+### Changed
+
+- Un seul bouton Envoyer (carré, 44 px) partout ; pendant un tour, champ vide, il devient Stop (42551e8)
+
+### Fixed
+
+- Orchestrateur : Stop absent (le panneau croyait « travaille » dès que le pane existait) (42551e8)
+
+## [0.320.1] - 2026-11-13
+
+### Fixed
+
+- Téléphone : les épinglés reviennent, sur l'Accueil, sous « Au travail » et avant « Projets en cours » (3b58aa9)
+
+## [0.320.0] - 2026-11-13
+
+### Added
+
+- Design system Sémaphore, palette Balise : nouveaux jetons sombre et clair, angles droits, surfaces séparées par le ton (1cdfb26)
+- IBM Plex Sans auto-hébergée, chiffres tabulaires partout, plus aucune capitale espacée (1cdfb26)
+- Signal d'état unique (travaille, t'attend, bloqué, fini, au repos) : une forme par état, animée, coupée sous réduction des animations (1cdfb26)
+- Jetons d'acteurs A L C O B T dans l'historique des fiches et la Recette (1cdfb26)
+- Réglages › Apparence › Style : Sémaphore ou Classique (l'ancienne palette) (1cdfb26)
+
+### Changed
+
+- Toute action est un bouton visible ; un lien texte ne sert plus qu'à naviguer dans une phrase (1cdfb26)
+- « Bloqué », erreurs et refus en rouge ; l'orange est réservé à « t'attend » et à l'action (1cdfb26)
+
+## [0.319.1] - 2026-11-13
+
+### Fixed
+
+- Téléphone, vue d'un agent : l'en-tête reste collé en haut, sa première ligne ne glisse plus sous la barre d'état. (8162e50)
+- Téléphone, lecture : la bulle du dernier message épinglée ne recouvre plus la réponse, elle prend sa place au-dessus. (8162e50)
+
+## [0.319.0] - 2026-11-13
+
+### Added
+
+- Page Projet : l'anneau d'avancement et les compteurs cliquables reviennent dans la phase en cours. (f18f4a2)
+- Lots étiquetés Prêt / Ensuite / Vides ; un lot vide (sans carte) se supprime, un par un ou tous. (f18f4a2)
+- « Phases suivantes » : phases ouvertes (Prête, À découper) et items de roadmap à découper, avec « Demander le découpage » et les conditions de sortie de herdr 0.9. (f18f4a2)
+- « À ranger » : chaque constat dit pourquoi et porte son bouton (jalon, tri, objectif, livrables). (f18f4a2)
+
+### Changed
+
+- « Ce qui t'attend » propose le lot prêt avec son bouton ; rien n'attend : une ligne. (f18f4a2)
+- Téléphone : plus d'épinglés en tête, épingle et machine sous « ⋯ », compte de la recette sur l'onglet, titres de cartes entiers. (f18f4a2)
+- Panneau Objectif vide remplacé par une ligne « Fixer un objectif » ; panneau « Phases » retiré. (f18f4a2)
+
+## [0.318.0] - 2026-11-13
+
+### Added
+
+- Recette en chronologie des livraisons (Aujourd'hui, Hier, date) : phase, « carte : … », visuel et vignettes, étapes cochées / en cours / à faire, mention « téléphone ». (2a23aa0)
+- Filtre « Tout l'historique » : les livraisons validées restent visibles, repliées en vert. (2a23aa0)
+- Chaque étape : « Aller voir » (l'écran où la faire) et « Me préparer le test » (demande à l'orchestrateur du projet, `POST /api/cards/<id>/checks/<step>/prepare`). (2a23aa0)
+- Session « Vérifier une à une » : une étape en grand, touches O / N / P, filtre Tout / Ordinateur / Téléphone. (2a23aa0)
+
+### Changed
+
+- « Pas bon » ne demande plus de cause : il crée (ou complète) une seule carte de correction dans la phase de la carte testée, rattachée à elle ; la page dit où elle va. (2a23aa0)
+- Libellés « C'est bon / Pas bon / Passer », plus de « Faire / Attendu », chaque capture montrée une fois. (2a23aa0)
+
 ## [0.317.0] - 2026-11-13
 
 ### Added

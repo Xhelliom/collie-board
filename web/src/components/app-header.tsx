@@ -29,6 +29,8 @@ interface AppHeaderProps {
   rightLead?: ReactNode;
   /** Right-cluster trailing items — typically the screen's primary action. */
   rightTrail?: ReactNode;
+  /** False: the machine switcher is not in the header on a phone (the page carries it in its own « ⋯ »). */
+  machineOnPhone?: boolean;
   /** Full-width takeover of the row (the pane's find bar). Still lives inside this one shell so the
    *  sticky/safe-area bar is never copy-pasted. */
   override?: ReactNode;
@@ -48,6 +50,7 @@ export function AppHeader({
   children,
   rightLead,
   rightTrail,
+  machineOnPhone = true,
   override,
 }: AppHeaderProps) {
   const t = useT();
@@ -84,7 +87,13 @@ export function AppHeader({
           <div className="flex items-center gap-1">
             {rightLead}
             {rightTrail}
-            <MachineSwitcher />
+            {machineOnPhone ? (
+              <MachineSwitcher />
+            ) : (
+              <span className="flex max-sm:hidden">
+                <MachineSwitcher />
+              </span>
+            )}
             {/* The bell closes the right cluster on every screen. In a right-aligned row the anchored
                 slot is the LAST one, and the bell is the only control present everywhere — so it gets
                 it, and the screen's own controls (which change from screen to screen anyway) shift

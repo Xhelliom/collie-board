@@ -121,7 +121,7 @@ export function PeersControl() {
         ? t("peers.test.unreachable", { error: r.error })
         : t(`peers.test.${r.state}`);
 
-  if (!view) return error ? <p className="text-sm text-status-blocked">{error}</p> : <Loader2 className="size-4 animate-spin text-muted-foreground" />;
+  if (!view) return error ? <p className="text-sm text-destructive">{error}</p> : <Loader2 className="size-4 animate-spin text-muted-foreground" />;
 
   const left = open ? Math.max(0, Math.ceil((open.expiresAt - now) / 1000)) : 0;
   const inv = view.invitation;
@@ -138,7 +138,7 @@ export function PeersControl() {
             {herd && <p className="text-xs text-muted-foreground" data-testid="engine-local">{engineText(herd.local?.engine)}</p>}
           </div>
         </div>
-        {(error ?? view.error) && <p className="text-sm text-status-blocked">{error ?? view.error}</p>}
+        {(error ?? view.error) && <p className="text-sm text-destructive">{error ?? view.error}</p>}
       </Card>
 
       <Card className="gap-3 p-4" aria-label={t("peers.invite.title")} role="region">
@@ -159,7 +159,7 @@ export function PeersControl() {
         ) : (
           <>
             {inv?.state === "burned" && (
-              <p className="text-sm text-status-blocked">
+              <p className="text-sm text-destructive">
                 {t("peers.invite.burned", { who: inv.login ?? t("peers.unknownLogin"), time: date(inv.at) })}
               </p>
             )}
@@ -287,7 +287,7 @@ export function PeersControl() {
                 </div>
               </div>
               {tests[p.name] && (
-                <p role="status" className={`text-xs ${tests[p.name]!.state === "ok" ? "" : "text-status-blocked"}`}>
+                <p role="status" className={`text-xs ${tests[p.name]!.state === "ok" ? "" : "text-destructive"}`}>
                   {testText(tests[p.name]!)}
                 </p>
               )}

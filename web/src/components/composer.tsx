@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
 import { useRevalidator } from "react-router";
-import { AArrowDown, AArrowUp, Check, Copy, EllipsisVertical, ImagePlus, Keyboard, Loader2, PanelsTopLeft, Send, Slash, SlidersHorizontal, Square, Terminal, WrapText, X, Zap } from "lucide-react";
+import { AArrowDown, AArrowUp, Check, Copy, EllipsisVertical, ImagePlus, Keyboard, Loader2, PanelsTopLeft, Slash, SlidersHorizontal, Terminal, WrapText, X, Zap } from "lucide-react";
 
 import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
@@ -10,6 +10,7 @@ import { useImageUpload } from "@/hooks/use-image-upload";
 import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
 import { setStatus } from "@/lib/status";
 import { Button } from "@/components/ui/button";
+import { SendButton } from "@/components/ui/chat/send-button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { NavTray } from "@/components/nav-tray";
 import { CommandPalette } from "@/components/command-palette";
@@ -355,7 +356,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   }
 
   const commands = commandsFor(agent);
-  const showStop = working && !isShell && !locked;
+  const showStop = !isShell && !locked;
 
   function focusInputImmediately() {
     const el = inputRef.current;
@@ -796,19 +797,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               >
                 <SlidersHorizontal className="size-4" />
               </Button>
-              {/* Stop: Escape interrupts the agent's turn — there only while one runs. */}
-              {showStop && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-11 shrink-0 rounded-full"
-                  onClick={() => pressKeys(["Escape"])}
-                  aria-label={tr("pane.stop")}
-                  title={tr("pane.stop")}
-                >
-                  <Square className="size-4 fill-current" />
-                </Button>
-              )}
           </div>
           <div className="flex items-center gap-1 lg:gap-2">
               <Button
@@ -844,7 +832,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               {confirmingSend ? (
                 <Button
                   variant="destructive"
-                  className="h-11 shrink-0 rounded-full px-4 text-sm font-semibold"
+                  className="h-11 shrink-0 rounded-sm px-4 text-sm font-semibold"
                   onClick={onSendClick}
                   disabled={locked || !input.trim() || sending}
                   aria-label={tr("pane.send.really")}
@@ -852,23 +840,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   {tr("pane.send.really")}
                 </Button>
               ) : (
-                <Button
-                  variant="brand"
-                  size="icon"
-                  className="size-11 shrink-0 rounded-full"
+                <SendButton
+                  label={tr("pane.send")}
+                  stopLabel={tr("pane.stop")}
                   onClick={onSendClick}
-                  disabled={locked || !input.trim() || sending}
-                  aria-label={tr("pane.send")}
-                  title={tr("pane.send")}
-                >
-                  {sending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : justSent ? (
-                    <Check className="size-4" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
-                </Button>
+                  onStop={showStop ? () => pressKeys(["Escape"]) : undefined}
+                  hasContent={input.trim() !== ""}
+                  working={working}
+                  busy={sending}
+                  armed={justSent}
+                  disabled={locked}
+                />
               )}
           </div>
         </div>

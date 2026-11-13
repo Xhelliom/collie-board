@@ -10,6 +10,7 @@
 import type { BoardDb, BoardEvent, Card } from "./db.ts";
 import { boardBranchPrefix } from "./config.ts";
 import { closePr, enableAutoMerge, listPrs, prStatusOf, type GhPr, type GitRunner, type PrStatus } from "./git.ts";
+import { rollingPlanPr } from "./plan-export.ts";
 import { notePrOutcome, prStatusFor } from "./integrate.ts";
 
 export { notePrOutcome };
@@ -51,7 +52,7 @@ export interface OpenPr {
 }
 
 /** A PR GitHub lists that is on no card. `plan`: the board's own lot-end export. */
-export type LoosePr = GhPr & { repoPath: string; origin: "plan" | "other" };
+export type LoosePr = GhPr & { repoPath: string; origin: "plan" | "other"; /** Plan PR superseded by the rolling one (#N): the operator closes it, never the board. */ replacedBy?: number };
 
 export interface PrsReading {
   prs: OpenPr[];
@@ -126,6 +127,10 @@ export async function openPrs(db: BoardDb, check = false, gh?: GitRunner, now: (
   );
   for (const { row } of rows) {
     if (row.github) row.pr = { state: "open", url: row.github.url, mergedAt: null, conflicting: row.github.conflicting, mergeable: row.github.mergeable, createdAt: row.github.createdAt };
+  }
+  for (const o of others) {
+    const roll = o.origin === "plan" ? rollingPlanPr(others.filter((x) => x.repoPath === o.repoPath && x.origin === "plan")) : null;
+    if (roll && roll.number !== o.number) o.replacedBy = roll.number;
   }
   merged.sort((a, b) => (b.mergedAt ?? 0) - (a.mergedAt ?? 0));
   const value: PrsReading = {

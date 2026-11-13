@@ -61,7 +61,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 function bridgeLabel(bridge: BridgeStatus | undefined): { text: string; tone: string } {
   if (bridge === "connected") return { text: t("settings.conn.connected"), tone: "text-status-done" };
-  if (bridge === "disconnected") return { text: t("settings.conn.offline"), tone: "text-status-working" };
+  if (bridge === "disconnected") return { text: t("settings.conn.offline"), tone: "text-status-info" };
   return { text: t("settings.conn.connecting"), tone: "text-muted-foreground" };
 }
 
@@ -77,6 +77,6 @@ function deviceLabel(device: DeviceAuth | undefined): { text: string; tone: stri
   }
   return {
     text: device.device ? t("settings.conn.ro", { device: device.device }) : t("settings.conn.roBare"),
-    tone: "text-status-working",
+    tone: "text-status-info",
   };
 }

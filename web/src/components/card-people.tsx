@@ -31,12 +31,12 @@ export function CardPeople({ card, className }: { card: PeopleCard; className?: 
     <span className={cn("flex shrink-0 items-center gap-1.5", className)}>
       {people.by && <span title={card.createdBy ?? undefined}>{t("people.by", { name: people.by })}</span>}
       {people.to && (
-        <span title={card.assignee ?? undefined} className="rounded-full border border-foreground/20 bg-accent px-1.5 py-px font-medium text-foreground">
+        <span title={card.assignee ?? undefined} className="rounded-sm border border-foreground/20 bg-accent px-1.5 py-px font-medium text-foreground">
           {t("people.to", { name: people.to })}
         </span>
       )}
       {people.at && (
-        <span title={card.claim?.by} className="rounded-full bg-status-working/15 px-1.5 py-px font-medium text-status-working">
+        <span title={card.claim?.by} className="rounded-sm bg-status-working/15 px-1.5 py-px font-medium text-status-working">
           {t("people.runningAt", { name: people.at })}
         </span>
       )}

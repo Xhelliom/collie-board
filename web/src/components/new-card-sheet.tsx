@@ -399,7 +399,7 @@ function RepoRow({
         <EyeOff className="size-3.5 shrink-0 text-muted-foreground" />
       ) : (
         repo.source === "herd" && (
-          <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
+          <span className="shrink-0 text-xs text-muted-foreground">
             {t("newcard.open")}
           </span>
         )

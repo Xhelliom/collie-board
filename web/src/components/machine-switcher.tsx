@@ -11,7 +11,8 @@ import { cachedPeers, cachedPeerTest, type PeersView, type TestResult } from "@/
 // the peers it drives (peers.toml), each with a reachable dot. Picking a peer OPENS that Collie at its
 // own address — its UI is never proxied through this bridge. Reachability is « Tester la connexion »
 // (#185) run on opening the menu, through a short cache: no loop. Nothing renders without a peer.
-export function MachineSwitcher() {
+/** `menu`: a row of a « ⋯ » menu (the project page on a phone) instead of the header's button. */
+export function MachineSwitcher({ variant = "header" }: { variant?: "header" | "menu" }) {
   const t = useT();
   const [view, setView] = useState<PeersView | null>(null);
   const [open, setOpen] = useState(false);
@@ -28,6 +29,18 @@ export function MachineSwitcher() {
   if (!view || view.outbound.length === 0) return null;
   return (
     <>
+      {variant === "menu" ? (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => setOpen(true)}
+          aria-label={t("machines.label", { name: view.name })}
+          className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-left font-medium hover:bg-muted/60"
+        >
+          <Server className="size-4 text-muted-foreground" />
+          <span className="min-w-0 truncate">{view.name}</span>
+        </button>
+      ) : (
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -37,6 +50,7 @@ export function MachineSwitcher() {
         <Server className="size-[18px]" />
         <span className="hidden max-w-32 truncate text-sm sm:inline">{view.name}</span>
       </button>
+      )}
       <BottomSheet open={open} onClose={() => setOpen(false)} title={t("machines.title")}>
         {open && <MachineList view={view} />}
       </BottomSheet>
@@ -63,7 +77,7 @@ function MachineList({ view }: { view: PeersView }) {
 
   return (
     <ul className="flex flex-col gap-1 py-2">
-      <li className="flex items-center gap-3 rounded-[10px] bg-brand/16 px-3 py-3">
+      <li className="flex items-center gap-3 rounded-sm bg-brand/16 px-3 py-3">
         <Dot state="up" />
         <span className="min-w-0 flex-1 truncate font-semibold text-brand">{view.name}</span>
         <span className="text-xs text-muted-foreground">{t("machines.this")}</span>
@@ -76,7 +90,7 @@ function MachineList({ view }: { view: PeersView }) {
             <a
               href={p.url}
               {...(standalone ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-              className="flex items-center gap-3 rounded-[10px] px-3 py-3 transition-colors hover:bg-muted/60 active:bg-muted"
+              className="flex items-center gap-3 rounded-sm px-3 py-3 transition-colors hover:bg-muted/60 active:bg-muted"
             >
               <Dot state={state} />
               <span className="min-w-0 flex-1">
@@ -100,7 +114,7 @@ function Dot({ state }: { state: "up" | "down" | "pending" }) {
       aria-hidden
       className={cn(
         "size-2.5 shrink-0 rounded-full",
-        state === "up" ? "bg-status-done" : state === "down" ? "bg-status-blocked" : "animate-pulse bg-muted-foreground/40",
+        state === "up" ? "bg-status-done" : state === "down" ? "bg-destructive" : "animate-pulse bg-muted-foreground/40",
       )}
     />
   );

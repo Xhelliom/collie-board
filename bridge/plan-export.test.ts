@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { BoardDb, type Run } from "./db.ts";
 import { runGit, type GitRunner } from "./git.ts";
-import { exportPlanAtLotEnd, lotBilanMarkdown, lotSlugOf, openPlanPr } from "./plan-export.ts";
+import { exportPlanAtLotEnd, lotBilanMarkdown, lotSlugOf, openPlanPr, planTitle, rollingPlanPr } from "./plan-export.ts";
 import { RunCoordinator, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -98,5 +98,95 @@ describe("plan export at the end of a lot", () => {
     coord.update(snap);
     coord.update(snap);
     expect(finished).toEqual([a.runId ?? db.getCard(a.id)!.runId!]);
+  });
+});
+
+describe("export cut short by a restart", () => {
+  const snap = { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" } as unknown as EngineSnapshot;
+  const boot = (db: BoardDb) => {
+    const handed: string[] = [];
+    const ports = { reviewing: () => false, direct: () => false, freeSlots: () => 1, lotFinished: (r: Run) => handed.push(r.id) } as unknown as RunPorts;
+    new RunCoordinator(db, ports).update(snap);
+    return handed;
+  };
+
+  it("a finished lot with no successful export is exported again at the next start, once per repo", () => {
+    const db = new BoardDb(":memory:");
+    const mk = (name: string) => db.createRun({ repoPath: "/r", cardIds: [db.createCard({ title: name, repoPath: "/r", status: "done" }).id], foldInCap: 0, name }) as Run;
+    const a = mk("A");
+    const b = mk("B");
+    db.recordRunEvent(null, "run.finished", { runId: a.id });
+    db.recordRunEvent(null, "run.finished", { runId: b.id });
+    db.recordRunEvent(null, "plan.exported", { runId: a.id, ok: true });
+    db.recordRunEvent(null, "plan.exported", { runId: b.id, ok: false, error: "push failed" });
+    expect(boot(db)).toEqual([b.id]);
+    db.recordRunEvent(null, "plan.exported", { runId: b.id, ok: true });
+    expect(boot(db)).toEqual([]);
+  });
+});
+
+describe("the rolling docs(plan) PR", () => {
+  const pr = (number: number, branch: string) => ({ number, title: "t", url: `https://g/pull/${number}`, branch, createdAt: null, conflicting: false, mergeable: true, checks: null, review: null, draft: false });
+
+  it("picks the newest open plan PR, ignores the others", () => {
+    expect(rollingPlanPr([pr(3, "board/plan-lot-a"), pr(9, "board/plan-lot-b"), pr(12, "board/feat")])?.number).toBe(9);
+    expect(rollingPlanPr([pr(12, "board/feat")])).toBeNull();
+    expect(planTitle(["A"])).toBe("docs(plan): fin du lot « A »");
+    expect(planTitle(["A", "B", "C"])).toBe("docs(plan): fin des lots A, B, C");
+  });
+
+  it("with 23 open docs(plan) PRs, a lot end commits on the newest and catches up the missing bilans", async () => {
+    const { repo, origin } = await repoWithOrigin();
+    const db = new BoardDb(":memory:");
+    const mk = (name: string) => db.createRun({ repoPath: repo, cardIds: [db.createCard({ title: name, repoPath: repo, status: "done" }).id], foldInCap: 0, name }) as Run;
+    const missed = mk("Manqué");
+    const last = mk("Dernier");
+    (db as unknown as { runFinishedAt: (id: string) => number | null }).runFinishedAt = () => Date.UTC(2026, 10, 1);
+    const prs = Array.from({ length: 23 }, (_, i) => ({ number: 380 + i, title: "t", url: `https://g/pull/${380 + i}`, headRefName: `board/plan-lot-old-${i}`, mergeable: "MERGEABLE" }));
+    await git(["push", "origin", "main:refs/heads/board/plan-lot-old-22"], repo);
+    const gh: GitRunner = async (args) => ({ ok: true, stdout: args[1] === "list" ? JSON.stringify(prs) : "", stderr: "" });
+    expect(await exportPlanAtLotEnd(db, last, runGit, gh)).toEqual({ ok: true, url: null });
+    expect(await git(["show", "board/plan-lot-old-22:docs/plan/lots/" + lotSlugOf(missed) + ".md"], origin)).toContain("Manqué");
+  });
+
+  it("a second lot end pushes a commit on the existing branch, retitles it, catches up missing bilans", async () => {
+    const { repo, origin } = await repoWithOrigin();
+    const mainBefore = await git(["rev-parse", "main"], origin);
+    const db = new BoardDb(":memory:");
+    const mk = (name: string) => {
+      const c = db.createCard({ title: name, repoPath: repo, status: "done" });
+      return db.createRun({ repoPath: repo, cardIds: [c.id], foldInCap: 0, name }) as Run;
+    };
+    const a = mk("Lot A");
+    const b = mk("Lot B");
+    const ghCalls: string[][] = [];
+    let open: unknown[] = [];
+    const gh: GitRunner = async (args) => {
+      ghCalls.push(args);
+      if (args[1] === "list") return { ok: true, stdout: JSON.stringify(open), stderr: "" };
+      return { ok: true, stdout: "https://github.com/o/r/pull/7\n", stderr: "" };
+    };
+    // Both lots finished: bilans are journaled by the coordinator in production; here stub the read.
+    const finished = new Set([a.id, b.id]);
+    (db as unknown as { runFinishedAt: (id: string) => number | null }).runFinishedAt = (id) => (finished.has(id) ? Date.UTC(2026, 10, 1) : null);
+
+    // First end (lot A): no open PR → a new one, titled for the lot, and it catches up lot B.
+    const first = await exportPlanAtLotEnd(db, a, runGit, gh);
+    expect(first).toMatchObject({ ok: true, url: "https://github.com/o/r/pull/7" });
+    const branch = `board/plan-${lotSlugOf(a)}`;
+    expect(ghCalls.some((c) => c[1] === "create" && c.includes("docs(plan): fin des lots Lot B, Lot A"))).toBe(true);
+    expect(await git(["show", `${branch}:docs/plan/lots/${lotSlugOf(b)}.md`], origin)).toContain("Lot B");
+    const tip1 = await git(["rev-parse", branch], origin);
+
+    // Second end (lot B): the PR is open → no create, a commit on ITS branch, retitled.
+    ghCalls.length = 0;
+    open = [{ number: 7, title: "x", url: "https://github.com/o/r/pull/7", headRefName: branch }];
+    const second = await exportPlanAtLotEnd(db, b, runGit, gh);
+    expect(second).toMatchObject({ ok: true });
+    expect(ghCalls.some((c) => c[1] === "create")).toBe(false);
+    expect(ghCalls).toContainEqual(["pr", "edit", "7", "--title", "docs(plan): fin des lots Lot A, Lot B"]);
+    expect(await git(["rev-parse", `${branch}^`], origin)).toBe(tip1);
+    expect(await git(["show", `${branch}:docs/plan/lots/${lotSlugOf(a)}.md`], origin)).toContain("Lot A");
+    expect(await git(["rev-parse", "main"], origin)).toBe(mainBefore); // the base is never pushed
   });
 });

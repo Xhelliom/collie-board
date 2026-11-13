@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { Link } from "react-router";
 import { Download, File, FileCode, FileText, Trash2 } from "lucide-react";
 
@@ -132,7 +133,7 @@ export function CardDeliverables({ cardId, version }: { cardId: string; version:
           <div data-vaul-no-drag className="flex h-[65dvh] flex-col">
             <DocViewer url={deliverableUrl(cardId, open.name)} name={open.name} kind={openKind} fromLabel={t("deliv.fromCard")} />
             {/* A sandboxed frame may refuse a PDF (some browsers will not render one there): the file itself, one tap away. */}
-            <a href={deliverableUrl(cardId, open.name)} target="_blank" rel="noopener noreferrer" className="px-3 pb-2 text-xs font-semibold text-primary underline">
+            <a href={deliverableUrl(cardId, open.name)} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "mx-3 mb-2 self-start text-xs")}>
               {t("deliv.newTab")}
             </a>
           </div>
@@ -169,7 +170,7 @@ export function DeliverableLinks({ items, onLeave }: { items: RecentDeliverable[
         const kind = deliverableKind(d.name);
         const Icon = kind === "image" ? null : DOC_ICON[kind];
         return (
-          <li key={`${d.cardId}/${d.name}`} className="flex items-center gap-2.5 rounded-[10px] border bg-card/70 px-2.5 py-2">
+          <li key={`${d.cardId}/${d.name}`} className="flex items-center gap-2.5 rounded-sm border bg-card/70 px-2.5 py-2">
             {Icon ? (
               <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t("deliv.open", { name: d.name })} className="flex size-10 shrink-0 items-center justify-center rounded-md border bg-muted/40">
                 <Icon className="size-4 text-muted-foreground" />

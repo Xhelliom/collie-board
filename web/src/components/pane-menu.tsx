@@ -39,7 +39,7 @@ export function PaneMenu({ panes, currentPaneId, onSelect }: PaneMenuProps) {
 
   if (only) {
     return (
-      <span className="shrink-0 rounded-full bg-muted px-[7px] py-0.5 font-semibold text-foreground">
+      <span className="shrink-0 rounded-sm bg-muted px-[7px] py-0.5 font-semibold text-foreground">
         {label}
       </span>
     );
@@ -54,7 +54,7 @@ export function PaneMenu({ panes, currentPaneId, onSelect }: PaneMenuProps) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t("spaces.paneMenu", { label: label ?? "" })}
-        className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-[7px] py-0.5 font-semibold text-foreground transition-colors hover:bg-muted/70"
+        className="flex shrink-0 items-center gap-1 rounded-sm bg-muted px-[7px] py-0.5 font-semibold text-foreground transition-colors hover:bg-muted/70"
       >
         {label}
         <ChevronsUpDown className="size-2.5" />
@@ -70,7 +70,7 @@ export function PaneMenu({ panes, currentPaneId, onSelect }: PaneMenuProps) {
           />
           <ul
             role="menu"
-            className="absolute left-0 top-full z-50 mt-1.5 min-w-[15rem] max-w-[20rem] overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg"
+            className="absolute left-0 top-full z-50 mt-1.5 min-w-[15rem] max-w-[20rem] overflow-hidden rounded-xl border border-border bg-card py-1 shadow-(--shadow-3)"
           >
             {panes.map((p) => {
               const active = p.paneId === currentPaneId;

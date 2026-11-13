@@ -49,7 +49,7 @@ export function KeyBadge({ children, tone = "default" }: { children: ReactNode; 
         "mt-px flex size-5 shrink-0 items-center justify-center rounded-md border text-xs font-semibold leading-none tabular-nums",
         tone === "default"
           ? "border-border bg-background text-muted-foreground"
-          : "border-brand/35 bg-brand/16 text-brand",
+          : "border-status-blocked/35 bg-status-blocked/16 text-status-blocked",
       )}
     >
       {children}
@@ -71,7 +71,7 @@ export function PromptPanel({ ariaLabel, children }: { ariaLabel: string; childr
     <div
       role="group"
       aria-label={ariaLabel}
-      className="my-1.5 flex flex-col gap-1.5 rounded-xl border border-brand/35 bg-card p-1.5 shadow-sm"
+      className="my-1.5 flex flex-col gap-1.5 rounded-xl border border-status-blocked/35 bg-card p-1.5 shadow-sm"
     >
       {children}
     </div>
@@ -82,14 +82,14 @@ export function PromptPanel({ ariaLabel, children }: { ariaLabel: string; childr
 // separating the block from the raw mirror above it. Shared by both group headers below.
 const accentTick = <span aria-hidden className="h-3 w-0.5 shrink-0 rounded-full bg-primary/60" />;
 
-/** The compact caption above an option group — a short uppercase label, for the single-question
+/** The compact caption above an option group — a short label, for the single-question
  *  dialogs whose actual question stays visible in the raw scrollback just above. Non-semantic (the
  *  group is already aria-labelled by its question). */
 export function OptionGroupCaption({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-1.5 pl-0.5">
       {accentTick}
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-medium text-muted-foreground">
         {children}
       </span>
     </div>

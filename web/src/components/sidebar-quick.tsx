@@ -10,9 +10,10 @@ import { panePath } from "@/lib/nav";
 import { pinId, pinKey, usePins, type Pin } from "@/lib/pins";
 import { useQuickAccess, type QuickAccess } from "@/lib/quick-access";
 import { StatusDot } from "./status-badge";
+import { StatusSignal, cardSignal } from "./status-signal";
 import { GonePin } from "./pin-button";
 import type { HomeData } from "@/lib/loaders";
-import { paneDisplayName, type AgentStatus, type AgentView } from "@/lib/types";
+import { paneDisplayName, type AgentView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // Below the sidebar's entries: what the operator pinned (projects, cards, agents), then the agents
@@ -32,14 +33,6 @@ export function SidebarSections({ data }: { data: HomeData }) {
   );
 }
 
-/** The phone's Pinned, at the head of the Projects page. */
-export function PhonePinned({ data }: { data: HomeData }) {
-  const desktop = useIsDesktop();
-  const q = useQuickAccess(data, !desktop);
-  const pins = usePins(data);
-  return desktop ? null : <PinnedList pins={pins} data={data} q={q} />;
-}
-
 /** Working first would bury what needs you: blocked, then working. Idle agents and shells are not "running". */
 export function runningAgents(agents: AgentView[]): AgentView[] {
   return [...agents.filter((a) => a.status === "blocked"), ...agents.filter((a) => a.status === "working")];
@@ -54,13 +47,6 @@ const CHIP: Record<"project" | "card" | "agent", string> = {
   agent: "bg-status-working/15 text-status-working",
 };
 
-/** A card's column, as the dot the agents already wear. */
-function cardDot(status: string | null | undefined): AgentStatus {
-  if (status === "blocked") return "blocked";
-  if (status === "working" || status === "starting") return "working";
-  if (status === "review" || status === "done") return "done";
-  return status === "orphaned" ? "unknown" : "idle";
-}
 
 const STORE = "collie:nav-collapsed:";
 function useCollapsed(key: string): [boolean, () => void] {
@@ -99,7 +85,7 @@ function Section({ id, label, count, alert, children }: { id: string; label: Mes
       >
         <span>{t(label)}</span>
         {collapsed && <span className="tabular-nums">{count}</span>}
-        {collapsed && alert && <span className="size-2 rounded-full bg-status-blocked" role="img" aria-label={t("quick.waitsHere")} />}
+        {collapsed && alert && <StatusSignal status="blocked" label={t("quick.waitsHere")} />}
         <ChevronDown className={cn("ml-auto size-3.5 transition-transform", collapsed && "-rotate-90")} aria-hidden />
       </button>
       {!collapsed && children}
@@ -109,7 +95,7 @@ function Section({ id, label, count, alert, children }: { id: string; label: Mes
 
 function Chip({ kind }: { kind: "project" | "card" | "agent" }) {
   const t = useT();
-  return <span className={cn("shrink-0 rounded-full px-1.5 text-[11px] leading-[18px]", CHIP[kind])}>{t(`pin.kind.${kind}`)}</span>;
+  return <span className={cn("shrink-0 rounded-sm px-1.5 text-[11px] leading-[18px]", CHIP[kind])}>{t(`pin.kind.${kind}`)}</span>;
 }
 
 export function PinnedList({ pins, data, q }: { pins: Pin[]; data: HomeData; q: QuickAccess | null }) {
@@ -153,7 +139,7 @@ export function PinnedList({ pins, data, q }: { pins: Pin[]; data: HomeData; q: 
       if (waits) alert = true;
       return (
         <button key={key} type="button" onClick={() => navigate(cardPath(p.cardId))} className={ROW}>
-          <StatusDot status={waits ? "blocked" : cardDot(p.status)} className="size-2" />
+          <StatusSignal status={waits ? "blocked" : cardSignal(p.status)} />
           <span className="truncate">{p.name}</span>
           <Chip kind="card" />
         </button>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { Link } from "react-router";
 import { Target } from "lucide-react";
 
@@ -61,10 +62,10 @@ function GoalForm({ initial, onSave, onCancel }: { initial: Goal | null; onSave:
         </label>
       </div>
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded-full border px-3 py-1.5 text-xs hover:bg-muted/60">
+        <button type="button" onClick={onCancel} className="rounded-sm border px-3 py-1.5 text-xs hover:bg-muted/60">
           {t("goal.cancel")}
         </button>
-        <button type="submit" className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+        <button type="submit" className="rounded-sm bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
           {t("goal.save")}
         </button>
       </div>
@@ -88,7 +89,7 @@ function GoalJournal({ goal }: { goal: Goal }) {
       ) : (
         <ul className="mt-1 flex max-h-72 flex-col gap-1.5 overflow-y-auto">
           {goal.journal.map((j, i) => (
-            <li key={`${j.ts}-${i}`} className={`rounded-lg border p-2 text-xs ${j.type === "goal.checkpoint" ? "border-brand/45" : ""}`}>
+            <li key={`${j.ts}-${i}`} className={`rounded-lg border p-2 text-xs ${j.type === "goal.checkpoint" ? "border-status-blocked/45" : ""}`}>
               <div className="flex justify-between gap-2 text-muted-foreground">
                 <span className="font-medium">{t(j.reason ? `goal.entry.${j.reason}` : "goal.entry.lot")}</span>
                 <time dateTime={new Date(j.ts).toISOString()}>{new Date(j.ts).toLocaleString()}</time>
@@ -106,7 +107,23 @@ function GoalJournal({ goal }: { goal: Goal }) {
 // the bridge refuses them from an agent pane, which may only claim the objective reached.
 /** `noOrchestrator`: the repo has no orchestrator pane, so setting or resuming the objective wakes nobody.
  *  `onGoal`: the open objective as this panel holds it, for the page header to wear. */
-export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { repo: string; titleOf: (cardId: string) => string | undefined; noOrchestrator?: boolean; onGoal?: (g: OpenGoal | null) => void }) {
+export function GoalPanel({
+  repo,
+  titleOf,
+  noOrchestrator = false,
+  onGoal,
+  quietWhenEmpty = false,
+  editSignal = 0,
+}: {
+  repo: string;
+  titleOf: (cardId: string) => string | undefined;
+  noOrchestrator?: boolean;
+  onGoal?: (g: OpenGoal | null) => void;
+  /** Nothing at all when there is no objective, none prepared and none past: the page says it in one line. */
+  quietWhenEmpty?: boolean;
+  /** Bumped by the page's « Set an objective »: opens the form here. */
+  editSignal?: number;
+}) {
   const t = useT();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   // Which form is open: the objective's, or the next one's.
@@ -129,13 +146,22 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
   const open = goals?.find((g) => OPEN.has(g.status)) ?? null;
   const openStatus = open && isOpenGoal(open.status) ? open.status : null;
   const openText = open?.text ?? "";
+  // Said once the goals are read: before that, « no objective » would be a guess.
+  const loaded = goals !== null;
   useEffect(() => {
-    onGoal?.(openStatus ? { status: openStatus, text: openText } : null);
-  }, [openStatus, openText, onGoal]);
+    if (loaded) onGoal?.(openStatus ? { status: openStatus, text: openText } : null);
+  }, [loaded, openStatus, openText, onGoal]);
+
+  useEffect(() => {
+    if (!editSignal) return;
+    setEditing("open");
+    requestAnimationFrame(() => document.getElementById("goal")?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
+  }, [editSignal]);
 
   if (!goals) return null;
   const queued = goals.find((g) => g.status === "queued") ?? null;
   const past = goals.filter((g) => g.status === "achieved" || g.status === "abandoned").sort((a, b) => (b.endedAt ?? b.createdAt) - (a.endedAt ?? a.createdAt));
+  if (quietWhenEmpty && !open && !queued && past.length === 0 && editing === null) return null;
   const put = (g: Goal) => setGoals((all) => [g, ...(all ?? []).filter((x) => x.id !== g.id)]);
   const fail = (e: unknown) => setStatus(boardErrorMessage(e), "error", null);
 
@@ -170,8 +196,8 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
       fail(e);
     }
   };
-  const btn = "rounded-full border px-3 py-1.5 text-xs hover:bg-muted/60";
-  const link = "text-xs font-semibold text-brand";
+  const btn = cn(buttonVariants({ variant: "secondary", size: "sm" }), "text-xs");
+  const link = btn;
   const fold = (k: "criteria" | "cards" | "journal" | "next") => setShown((v) => (v === k ? null : k));
   const pct = open ? budgetPct(open) : 0;
   const gauge = (label: string, value: string, fill?: number, tone = "bg-status-done") => (
@@ -192,7 +218,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
         <h2 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold">
           <Target className="size-4 text-muted-foreground" />
           {t("goal.title")}
-          {open && <span className="rounded-full border px-2 py-0.5 text-xs font-medium">{t(`goal.status.${open.status}`)}</span>}
+          {open && <span className="rounded-sm border px-2 py-0.5 text-xs font-medium">{t(`goal.status.${open.status}`)}</span>}
           {open?.origin === "agent" && <span className="text-xs font-normal text-muted-foreground">{t("goal.byAgent")}</span>}
         </h2>
         {open && !editing && (
@@ -206,7 +232,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
       ) : !open ? (
         <>
           <p className="text-xs text-muted-foreground">{t("goal.none")}</p>
-          <button type="button" onClick={() => setEditing("open")} className="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+          <button type="button" onClick={() => setEditing("open")} className="self-start rounded-sm bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
             {t("goal.define")}
           </button>
         </>
@@ -214,7 +240,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
         <>
           <p className="text-[15px] font-medium leading-snug">{open.text}</p>
           {open.status === "active" && !noOrchestrator && <p className="text-xs font-medium text-status-done">{t("goal.runningHint")}</p>}
-          {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-status-blocked/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
+          {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-destructive/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
           <div role="group" aria-label={t("goal.progress")} className="grid grid-cols-3 gap-3">
             {gauge(t("goal.gauge.lots"), t("goal.gauge.lotsOf", { spent: open.spent.lots, max: open.budget.maxLots }), (100 * open.spent.lots) / open.budget.maxLots)}
             <div role="progressbar" aria-label={t("goal.gauge.budget")} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
@@ -271,7 +297,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
             <ul className="flex flex-wrap gap-1.5">
               {open.spent.cardIds.map((id) => (
                 <li key={id}>
-                  <Link to={cardPath(id)} className="inline-block max-w-[28ch] truncate rounded-full border px-2 py-0.5 text-xs hover:bg-muted/60">
+                  <Link to={cardPath(id)} className="inline-block max-w-[28ch] truncate rounded-sm border px-2 py-0.5 text-xs hover:bg-muted/60">
                     {titleOf(id) ?? id.slice(0, 8)}
                   </Link>
                 </li>
@@ -281,7 +307,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
           {shown === "journal" && <GoalJournal goal={open} />}
           {open.status === "claimed" && (
             <>
-              <p className="rounded-lg border border-brand/45 p-2 text-xs">{t("goal.claimedHint")}</p>
+              <p className="rounded-lg border border-status-blocked/45 p-2 text-xs">{t("goal.claimedHint")}</p>
               <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                 {t("goal.refusal")}
                 <textarea value={refusal} onChange={(e) => setRefusal(e.target.value)} rows={2} maxLength={2000} className={field} />
@@ -289,7 +315,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
             </>
           )}
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void move("achieve")} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+            <button type="button" onClick={() => void move("achieve")} className="rounded-sm bg-status-done px-3 py-1.5 text-xs font-semibold text-status-chip-foreground">
               {t("goal.achieve")}
             </button>
             {open.status === "active" ? (
@@ -349,7 +375,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
               </ul>
               <p className="text-xs text-muted-foreground">{t(open ? "goal.nextHint" : "goal.nextOrphan")}</p>
               {!open && !editing && (
-                <button type="button" onClick={() => void move("activate")} className="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+                <button type="button" onClick={() => void move("activate")} className="self-start rounded-sm bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
                   {t("goal.activate")}
                 </button>
               )}

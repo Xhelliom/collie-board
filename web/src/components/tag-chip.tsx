@@ -14,7 +14,7 @@ export function TagChip({ tag, label, className }: { tag: string; label?: string
   return (
     <span
       className={cn(
-        "tag-chip shrink-0 rounded-full border px-1.5 py-0.5 text-[0.65rem] font-medium",
+        "tag-chip shrink-0 rounded-sm border px-1.5 py-0.5 text-[0.65rem] font-medium",
         className,
       )}
       style={{ "--tag-hue": tagHue(tag) } as CSSProperties}

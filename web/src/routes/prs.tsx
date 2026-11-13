@@ -6,7 +6,7 @@ import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { Panel, PanelLink } from "@/components/card-panel";
 import { t, useT, type MessageKey } from "@/i18n";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import {
   boardErrorMessage,
@@ -54,6 +54,8 @@ export interface PrRow {
   repoPath: string | null;
   card: OpenPr["card"] | null;
   origin: "card" | "plan" | "other";
+  /** A superseded `docs(plan)` PR: the rolling one's number. */
+  replacedBy?: number;
   openedAt: number;
   lane: Lane;
   /** Why it waits, or why it is stuck — in the reader's words. */
@@ -105,6 +107,7 @@ export function rowsOf(reading: PrsReading): PrRow[] {
     repoPath: p.repoPath,
     card: null,
     origin: p.origin,
+    ...(p.replacedBy ? { replacedBy: p.replacedBy } : {}),
     openedAt: p.createdAt ?? 0,
     ...laneOf({ state: "open", url: p.url, mergedAt: null, conflicting: p.conflicting, mergeable: p.mergeable }, p),
     conflict: p.conflicting,
@@ -119,14 +122,14 @@ const LANE_TONE: Partial<Record<Lane, string>> = {
   blocked: "text-status-blocked",
 };
 
-/** The quiet text action on a row — the same look as a panel header's. */
-function RowAction({ onClick, disabled, children, danger }: { onClick: () => void; disabled?: boolean; children: ReactNode; danger?: boolean }) {
+/** The action on a row — a secondary button, the same look as a panel header's. */
+function RowAction({ onClick, disabled, children, danger, success }: { onClick: () => void; disabled?: boolean; children: ReactNode; danger?: boolean; success?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={cn("inline-flex min-h-9 items-center gap-1.5 text-[13px] font-medium disabled:opacity-50", danger ? "text-status-blocked" : "text-brand")}
+      className={cn(buttonVariants({ variant: success ? "success" : "secondary", size: "sm" }), "text-[13px]", danger && "text-destructive")}
     >
       {children}
     </button>
@@ -240,6 +243,7 @@ export function PrsRoute() {
         )}
         <span className="shrink-0 text-xs text-muted-foreground">
           {t(ORIGIN[r.origin])}
+          {r.replacedBy ? ` · ${t("prs.replacedBy", { n: r.replacedBy })}` : ""}
           {r.repoPath && !scope && repos.length > 1 ? ` · ${repoName(r.repoPath)}` : ""} · {ago(r.openedAt)}
         </span>
         {r.why && (
@@ -264,7 +268,7 @@ export function PrsRoute() {
 
   const gh = (r: PrRow) =>
     r.url && (
-      <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 text-[13px] font-medium text-brand">
+      <a href={r.url} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "text-[13px]")}>
         <ExternalLink className="size-3.5" />
         {t("prs.github")}
       </a>
@@ -275,7 +279,7 @@ export function PrsRoute() {
       <AppHeader
         children={<RepoTitle repos={repos} subtitle={subtitle} />}
         rightTrail={
-          <Button variant="brand" className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold" disabled={checking} onClick={() => void check()}>
+          <Button variant="brand" className="h-9 gap-1.5 rounded-sm px-3 text-sm font-semibold" disabled={checking} onClick={() => void check()}>
             <RefreshCw className={cn("size-4", checking && "animate-spin")} />
             {checking ? t("prs.checking") : t("prs.check")}
           </Button>
@@ -296,7 +300,7 @@ export function PrsRoute() {
                 tone="good"
                 actions={
                   ready.length > 1 && (
-                    <PanelLink disabled={busy !== null} onClick={() => confirm.confirm("merge-all") && void merge(ready)}>
+                    <PanelLink success disabled={busy !== null} onClick={() => confirm.confirm("merge-all") && void merge(ready)}>
                       <GitMerge className="size-3.5" />
                       {confirm.pending === "merge-all" ? t("prs.mergeAllConfirm", { count: ready.length }) : t("prs.mergeAll", { count: ready.length })}
                     </PanelLink>
@@ -308,7 +312,7 @@ export function PrsRoute() {
                     row(
                       r,
                       <>
-                      <RowAction disabled={busy !== null} onClick={() => void merge([r])}>
+                      <RowAction success disabled={busy !== null} onClick={() => void merge([r])}>
                         <GitMerge className="size-3.5" />
                         {busy === r.key ? t("prs.merging") : t("prs.merge")}
                       </RowAction>
@@ -387,7 +391,7 @@ export function PrsRoute() {
               {showMerged ? t("prs.hideMerged") : t("prs.showMerged", { count: merged.length })}
             </PanelLink>
             {showMerged && (
-              <ul className="rounded-2xl border bg-card px-4 py-3">
+              <ul className="rounded-xl border bg-card shadow-(--shadow-2) px-4 py-3">
                 {merged.map((m) => (
                   <li key={m.url} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 py-2 first:border-t-0 first:pt-0">
                     <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">#{m.number}</span>

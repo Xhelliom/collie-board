@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { buttonVariants } from "@/components/ui/button";
 import { AGENT_KIND_LABEL, type AgentKindOption } from "@/components/agent-kind-picker";
 import { TemplatesSheet } from "@/components/templates-sheet";
 import { useT } from "@/i18n";
@@ -76,7 +77,7 @@ export function PhaseTemplate({
             : t("templates.picker.runsKind", { kind })
           : t("templates.phase.hint")}
       </span>
-      <button type="button" onClick={() => setManaging(true)} className="font-semibold text-brand">
+      <button type="button" onClick={() => setManaging(true)} className={buttonVariants({ variant: "secondary", size: "sm" })}>
         {t("templates.manageLink")}
       </button>
       <TemplatesSheet open={managing} onClose={() => setManaging(false)} data={data} onChanged={onChanged} />

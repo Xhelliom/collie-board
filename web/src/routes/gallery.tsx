@@ -118,7 +118,7 @@ export function GalleryRoute() {
                 type="button"
                 aria-pressed={project === p}
                 onClick={() => setProject(p)}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${project === p ? "bg-primary text-primary-foreground" : "bg-muted/40"}`}
+                className={`shrink-0 rounded-sm border px-3 py-1.5 text-xs ${project === p ? "bg-primary text-primary-foreground" : "bg-muted/40"}`}
               >
                 {p ?? t("gallery.all")}
               </button>

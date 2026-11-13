@@ -117,7 +117,7 @@ export function GateSheet({
         </Button>
 
         {suggestion && (
-          <div aria-label={t("gate.suggestion")} className="flex flex-col gap-2 rounded-lg border bg-card/50 p-3 text-sm">
+          <div aria-label={t("gate.suggestion")} className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-2) p-3 text-sm">
             <p>{suggestion.reason}</p>
             {suggestion.needsScript && suggestion.scriptSuggestion && (
               <div className="flex flex-col gap-1">

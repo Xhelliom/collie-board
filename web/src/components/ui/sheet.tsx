@@ -107,7 +107,7 @@ function SheetShell({
             opener.current = null;
           }}
           className={cn(
-            "fixed z-50 flex flex-col border-border bg-background shadow-2xl",
+            "fixed z-50 flex flex-col border-border bg-background shadow-(--shadow-3)",
             className,
           )}
         >

@@ -3,28 +3,35 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+// A hair of shadow at rest, more on hover, pressed in on press (tokens; Classique zeroes them).
+const LIFT = "shadow-(--shadow-btn) hover:shadow-(--shadow-btn-hover) active:shadow-(--shadow-btn-press)";
+
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.98] select-none",
+  // 9 px radius (--radius-control). At least 30 px tall on
+  // a desktop, 44 px on a phone (the touch floor).
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] select-none",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-        // The redesign's primary action: reserved for exactly one brand-accented button per screen
-        // (index.css § --brand). Corner radius stays the caller's to set (`rounded-[10px]` per the
-        // handoff spec) rather than baked in here — every OTHER variant keeps the shared `rounded-md`.
-        brand: "bg-brand text-brand-foreground shadow-xs hover:bg-brand/90",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
-        outline: "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+        default: `${LIFT} bg-primary text-primary-foreground hover:bg-primary/90`,
+        // The primary action of a panel: the action colour, filled. One per panel.
+        brand: `${LIFT} bg-brand text-brand-foreground hover:bg-brand/90`,
+        // The gesture that concludes (merge, validate): green, the colour of « done ».
+        success: `${LIFT} bg-success text-success-foreground hover:bg-success/90`,
+        destructive: `${LIFT} bg-destructive text-destructive-foreground hover:bg-destructive/90`,
+        // The secondary button is an outline (Sémaphore · Relevé): you must see it is a button. Classic
+        // sets the outline stroke transparent and the fill to the raised tone.
+        outline: `${LIFT} border border-button-outline-border bg-button-outline-bg text-foreground hover:bg-accent`,
+        secondary: `${LIFT} border border-button-outline-border bg-button-outline-bg text-foreground hover:bg-accent`,
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        // Navigation inside a sentence only — never an action (see action-buttons.test).
+        link: "text-foreground underline underline-offset-4 decoration-muted-foreground hover:decoration-foreground",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-11 rounded-md px-6 has-[>svg]:px-4 text-base",
-        icon: "size-9",
+        default: `${LIFT} h-9 px-4 py-2 has-[>svg]:px-3 max-sm:min-h-11`,
+        sm: "h-8 gap-1.5 px-3 has-[>svg]:px-2.5 max-sm:min-h-11",
+        lg: "h-11 px-6 has-[>svg]:px-4 text-base",
+        icon: "size-9 max-sm:size-11",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

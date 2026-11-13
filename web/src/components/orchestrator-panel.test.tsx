@@ -55,6 +55,14 @@ describe("OrchestratorPanel", () => {
     expect(body).toEqual({ repoPath: "/g/app" });
   });
 
+  it("while it works with an empty field, the one button is Stop and presses Escape", async () => {
+    const sent: string[][] = [];
+    server.use(http.post(/\/api\/pane\/[^/]+\/keys$/, async ({ request }) => { sent.push(((await request.json()) as { keys: string[] }).keys); return HttpResponse.json({ ok: true }); }));
+    mount("/g/app", { paneId: "w1:p2", running: true, working: true });
+    await userEvent.click(await screen.findByRole("button", { name: /arrêter l'agent/i }));
+    await waitFor(() => expect(sent).toEqual([["Escape"]]));
+  });
+
   it("once running: shows its pane, links to the full chat, and sends what you type", async () => {
     let sent: unknown = null;
     server.use(

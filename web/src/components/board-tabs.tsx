@@ -59,11 +59,13 @@ interface TabItem {
   label: string;
   icon: typeof Settings;
   current: boolean;
+  count?: number;
 }
 
 const tabCls = "inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-sm font-semibold";
 
-export function BoardTabs() {
+/** `counts`: a figure beside a tab's name (the project page gives the acceptance list's), when the view knows it. */
+export function BoardTabs({ counts = {} }: { counts?: Partial<Record<(typeof TABS)[number]["key"], number>> } = {}) {
   const t = useT();
   const { pathname } = useLocation();
   const [params] = useSearchParams();
@@ -85,7 +87,7 @@ export function BoardTabs() {
   const pageOpen = pathname === "/board/page" ? params.get("name") : null;
 
   const items: TabItem[] = [
-    ...TABS.map((tab) => ({ key: tab.key, to: `${tab.path}${q}`, label: t(tab.label), icon: tab.icon, current: active === tab.key })),
+    ...TABS.map((tab) => ({ key: tab.key, to: `${tab.path}${q}`, label: t(tab.label), icon: tab.icon, current: active === tab.key, count: counts[tab.key] || undefined })),
     ...(repo ? pages : []).map((name) => ({
       key: `page:${name}`,
       to: `/board/page${q}&name=${encodeURIComponent(name)}`,
@@ -140,6 +142,7 @@ export function BoardTabs() {
             >
               <tab.icon className="size-4" aria-hidden="true" />
               {tab.label}
+              {tab.count && <span className="font-medium text-status-blocked">{tab.count}</span>}
             </Link>
           );
         })}
@@ -151,6 +154,7 @@ export function BoardTabs() {
           <span key={tab.key} className={tabCls}>
             <tab.icon className="size-4" />
             {tab.label}
+            {tab.count && <span>{tab.count}</span>}
           </span>
         ))}
         <span className={tabCls}>
@@ -192,7 +196,7 @@ function MoreMenu({ items, label }: { items: TabItem[]; label: string }) {
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden="true" />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-full z-30 mt-1 flex min-w-48 flex-col rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
+        <div role="menu" className="absolute right-0 top-full z-30 mt-1 flex min-w-48 flex-col rounded-xl border bg-popover p-1 text-popover-foreground shadow-(--shadow-3)">
           {items.map((tab) => (
             <Link
               key={tab.key}
@@ -204,6 +208,7 @@ function MoreMenu({ items, label }: { items: TabItem[]; label: string }) {
             >
               <tab.icon className="size-4 text-muted-foreground" aria-hidden="true" />
               {tab.label}
+              {tab.count && <span className="ml-auto text-status-blocked">{tab.count}</span>}
             </Link>
           ))}
         </div>

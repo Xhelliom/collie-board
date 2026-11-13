@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { ChevronLeft, FileDown, Plus, Sparkles } from "lucide-react";
 
 import { AgentKindPicker } from "@/components/agent-kind-picker";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
@@ -94,11 +95,11 @@ function List({ data, onView, onChanged }: { data: TemplatesData; onView: (v: Vi
       {data.templates.length === 0 && <p className="text-sm text-muted-foreground">{t("templates.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {data.templates.map((tpl) => (
-          <li key={tpl.id} className="flex flex-col gap-2 rounded-xl border bg-card/60 p-3">
+          <li key={tpl.id} className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-1) p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="min-w-0 flex-1 text-sm font-semibold">{templateName(tpl)}</span>
-              {tpl.builtin && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("templates.shipped")}</span>}
-              {tpl.worker && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("templates.worker.badge")}</span>}
+              {tpl.builtin && <span className="rounded-sm bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("templates.shipped")}</span>}
+              {tpl.worker && <span className="rounded-sm bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("templates.worker.badge")}</span>}
               <span className="font-mono text-[11px] text-muted-foreground">
                 {tpl.agentKind ?? t("templates.agentDefault")}
                 {tpl.model ? ` · ${tpl.model}` : ""}
@@ -116,7 +117,7 @@ function List({ data, onView, onChanged }: { data: TemplatesData; onView: (v: Vi
               ) : (
                 <Button
                   variant="ghost"
-                  className="h-8 px-3 text-xs text-status-blocked"
+                  className="h-8 px-3 text-xs text-destructive"
                   onClick={() => {
                     if (confirming !== tpl.id) return setConfirming(tpl.id);
                     setConfirming(null);
@@ -137,7 +138,7 @@ function List({ data, onView, onChanged }: { data: TemplatesData; onView: (v: Vi
 function BackBar({ onBack }: { onBack: () => void }) {
   const t = useT();
   return (
-    <button type="button" onClick={onBack} className="-ml-1 mb-3 inline-flex items-center gap-1 text-xs font-semibold text-brand">
+    <button type="button" onClick={onBack} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "mb-3 self-start text-xs")}>
       <ChevronLeft className="size-4" />
       {t("templates.back")}
     </button>
@@ -352,7 +353,7 @@ function Import({ onBack, onSaved }: { onBack: () => void; onSaved: () => void }
           <p className="text-xs text-muted-foreground">{t("templates.import.found", { count: found.length })}</p>
           <ul className="flex flex-col gap-2">
             {found.map((c, i) => (
-              <li key={`${c.name}-${i}`} className="rounded-xl border bg-card/60 p-3">
+              <li key={`${c.name}-${i}`} className="rounded-xl border bg-card shadow-(--shadow-1) p-3">
                 <label className="flex items-start gap-3">
                   <input
                     type="checkbox"

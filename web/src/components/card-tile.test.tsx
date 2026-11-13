@@ -79,12 +79,12 @@ describe("CardTile — three lines", () => {
   it("an unmet predecessor reads « waits for: <title> », grey, not red", () => {
     render(<CardTile card={card()} onClick={() => {}} dependency={{ title: "the panes column", met: false }} />);
     const line = stateLine("waits for: the panes column");
-    expect(line.className).not.toContain("status-blocked");
+    expect(line.className).not.toContain("destructive");
   });
 
   it("blocked is the one red state", () => {
     render(<CardTile card={card({ status: "orphaned" })} onClick={() => {}} />);
-    expect(stateLine("blocked: its agent is gone").className).toContain("text-status-blocked");
+    expect(stateLine("blocked: its agent is gone").className).toContain("text-destructive");
   });
 
   it("a merged card says so in green", () => {
@@ -106,7 +106,7 @@ describe("CardTile — three lines", () => {
 
   it("without the herd, a blocked pane still says it waits for you", () => {
     render(<CardTile card={card({ status: "blocked", runtime: runtime({ agentStatus: "blocked" }) })} onClick={() => {}} />);
-    expect(stateLine("waiting for you").className).not.toContain("status-blocked");
+    expect(stateLine("waiting for you").className).not.toContain("destructive");
   });
 
   it("an open question and an open PR each have their sentence", () => {

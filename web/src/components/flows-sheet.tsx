@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowUp, ChevronLeft, Plus, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
 import { boardErrorMessage } from "@/lib/board";
@@ -81,10 +82,10 @@ function List({ flows, templates, onView, onChanged }: { flows: Flow[]; template
       {flows.length === 0 && <p className="text-sm text-muted-foreground">{t("flows.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {flows.map((f) => (
-          <li key={f.id} className="flex flex-col gap-2 rounded-xl border bg-card/60 p-3">
+          <li key={f.id} className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-1) p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="min-w-0 flex-1 text-sm font-semibold">{flowName(f)}</span>
-              {f.builtin && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("flows.shipped")}</span>}
+              {f.builtin && <span className="rounded-sm bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("flows.shipped")}</span>}
             </div>
             <p className="text-[13px] leading-snug text-muted-foreground">{flowSteps(f, templates)}</p>
             {flowDescription(f) && <p className="text-[13px] leading-snug text-muted-foreground">{flowDescription(f)}</p>}
@@ -99,7 +100,7 @@ function List({ flows, templates, onView, onChanged }: { flows: Flow[]; template
               ) : (
                 <Button
                   variant="ghost"
-                  className="h-8 px-3 text-xs text-status-blocked"
+                  className="h-8 px-3 text-xs text-destructive"
                   onClick={() => {
                     if (confirming !== f.id) return setConfirming(f.id);
                     setConfirming(null);
@@ -154,7 +155,7 @@ function Editor({ flow, templates, onBack, onSaved }: { flow: Flow | null; templ
 
   return (
     <div className="flex flex-col gap-3">
-      <button type="button" onClick={onBack} className="-ml-1 inline-flex items-center gap-1 self-start text-xs font-semibold text-brand">
+      <button type="button" onClick={onBack} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "self-start text-xs")}>
         <ChevronLeft className="size-4" />
         {t("flows.back")}
       </button>
@@ -172,7 +173,7 @@ function Editor({ flow, templates, onBack, onSaved }: { flow: Flow | null; templ
         <span className="text-xs font-medium text-muted-foreground">{t("flows.field.steps")}</span>
         <ol className="flex flex-col gap-1.5">
           {steps.map((id, i) => (
-            <li key={`${id}-${i}`} className="flex items-center gap-1.5 rounded-lg border bg-card/60 px-3 py-1.5 text-sm">
+            <li key={`${id}-${i}`} className="flex items-center gap-1.5 rounded-xl border bg-card shadow-(--shadow-1) px-3 py-1.5 text-sm">
               <span className="font-mono text-xs tabular-nums text-muted-foreground">{i + 1}.</span>
               <span className="min-w-0 flex-1 truncate font-semibold">{nameOf(id)}</span>
               <button type="button" disabled={i === 0} aria-label={t("flows.step.up", { name: nameOf(id) })} onClick={() => move(i, -1)} className="p-1 text-muted-foreground disabled:opacity-30">

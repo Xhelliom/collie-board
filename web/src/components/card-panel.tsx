@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // One panel of a card's page: a title, an optional count, the panel's own actions on the right, then
@@ -26,9 +27,9 @@ export function Panel({
     <section
       aria-label={typeof title === "string" ? title : undefined}
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4",
-        tone === "bad" && "border-status-blocked/45 bg-status-blocked/8",
-        tone === "good" && "border-status-done/35 bg-status-done/6",
+        "flex min-w-0 flex-col gap-3 rounded-xl border bg-card shadow-(--shadow-2) p-4",
+        tone === "bad" && "bg-destructive/8",
+        tone === "good" && "bg-status-done/6",
         className,
       )}
     >
@@ -44,13 +45,16 @@ export function Panel({
   );
 }
 
-/** The quiet text action a panel header carries (« Modifier », « Journal complet »). */
+/** The action a panel header carries (« Modifier », « Journal complet »): a secondary button, never a
+ *  coloured word — an action must look clickable (actions-are-buttons.test). */
 export function PanelLink({
   onClick,
   children,
   disabled,
   expanded,
+  success,
 }: {
+  success?: boolean;
   onClick: () => void;
   children: ReactNode;
   disabled?: boolean;
@@ -62,7 +66,7 @@ export function PanelLink({
       onClick={onClick}
       disabled={disabled}
       aria-expanded={expanded}
-      className="inline-flex min-h-9 items-center gap-1.5 text-[13px] font-medium text-brand disabled:opacity-50"
+      className={cn(buttonVariants({ variant: success ? "success" : "secondary", size: "sm" }), "text-[13px]")}
     >
       {children}
     </button>
@@ -72,7 +76,7 @@ export function PanelLink({
 /** A sub-block inside a panel (« Critères de validation »): a plain heading, never tracked capitals. */
 export function PanelPart({ title, count, children }: { title: ReactNode; count?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
+    <div className="flex flex-col gap-2 pt-3">
       <h3 className="text-sm font-medium">
         {title}
         {count != null && <span className="ml-2 text-[13px] font-normal text-muted-foreground">{count}</span>}
