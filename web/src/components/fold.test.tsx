@@ -70,19 +70,20 @@ describe("count folds", () => {
 });
 
 describe("project tile in goal mode", () => {
-  it("wears the objective's colour and chip: active green, paused orange, claimed asks to validate; none unchanged", () => {
-    render(<MemoryRouter><ProjectTiles repos={[repo(0), repo(1), repo(2)]} goals={{ "/r/0": "active", "/r/1": "paused" }} /></MemoryRouter>);
+  it("shows the objective on one line, no box nor pill: a state word only when not simply running", () => {
+    render(<MemoryRouter><ProjectTiles repos={[repo(0), repo(1), repo(2)]} goals={{ "/r/0": { status: "active", text: "Ship it. Then more." }, "/r/1": { status: "paused", text: "Rest" } }} /></MemoryRouter>);
     const tile = (name: string) => screen.getByText(name).closest("a")!;
-    expect(tile("repo0").className).toMatch(/status-done/);
-    expect(tile("repo0")).toHaveTextContent("Objective · active");
-    expect(tile("repo1").className).toMatch(/status-working/);
-    expect(tile("repo1")).toHaveTextContent("Objective · paused");
-    expect(tile("repo2").className).toMatch(/bg-card/);
+    expect(tile("repo0").className).toMatch(/bg-card/);
+    expect(tile("repo0").querySelector("[data-goal]")).toHaveTextContent("Ship it.");
+    expect(tile("repo0").querySelector("[data-goal]")).not.toHaveTextContent("Then more");
+    expect(tile("repo0").querySelector("[data-goal]")).not.toHaveTextContent("active");
+    expect(tile("repo0").querySelector("[data-goal] svg")).toHaveClass("text-status-done");
+    expect(tile("repo1").querySelector("[data-goal]")).toHaveTextContent("paused");
     expect(tile("repo2").querySelector("[data-goal]")).toBeNull();
   });
 
   it("a claimed objective asks to validate", () => {
-    render(<MemoryRouter><ProjectTiles repos={[repo(0)]} goals={{ "/r/0": "claimed" }} /></MemoryRouter>);
-    expect(screen.getByText("repo0").closest("a")).toHaveTextContent("Objective · reached? validate");
+    render(<MemoryRouter><ProjectTiles repos={[repo(0)]} goals={{ "/r/0": { status: "claimed", text: "Done" } }} /></MemoryRouter>);
+    expect(screen.getByText("repo0").closest("a")).toHaveTextContent("reached? validate");
   });
 });

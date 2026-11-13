@@ -4,7 +4,7 @@ import { ChevronRight, ShieldCheck } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { AutonomySettings } from "@/components/autonomy-settings";
-import { BoardTabs } from "@/components/board-tabs";
+import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { GateSheet } from "@/components/gate-sheet";
 import { RepoOffer } from "@/components/repo-offer";
 import { calm } from "@/components/kpi";
@@ -47,8 +47,8 @@ export function RepoSettingsRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title={t("tabs.settings")} subtitle={repo ? repoName(repo) : undefined} />
-      <BoardTabs repos={repos.map((r) => ({ path: r.path, name: repoName(r.path) }))} />
+      <AppHeader children={<RepoTitle repos={repos.map((r) => ({ path: r.path, name: repoName(r.path) }))} />} />
+      <BoardTabs />
       <h1 className="sr-only">{t("tabs.settings")}</h1>
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 pb-24 lg:p-5">
         {/* Full-width scroll area like the other board pages; only the settings keep a reading width. */}

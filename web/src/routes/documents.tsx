@@ -3,7 +3,7 @@ import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router"
 import { ArrowLeft, ChevronRight, FilePlus2, FileText, Folder, FolderOpen, Globe, ListChecks, PencilLine, Search, Wand2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { BoardTabs } from "@/components/board-tabs";
+import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { DocLinkContext, MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -76,8 +76,8 @@ export function DocumentsRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title={t("docs.title")} subtitle={index ? t("docs.onRef", { ref: index.ref }) : undefined} />
-      <BoardTabs repos={repo ? [{ path: repo, name: repoName(repo) }] : []} />
+      <AppHeader children={<RepoTitle repos={repo ? [{ path: repo, name: repoName(repo) }] : []} subtitle={index ? t("docs.onRef", { ref: index.ref }) : undefined} />} />
+      <BoardTabs />
       <h1 className="sr-only">{t("docs.title")}</h1>
       {!repo || !index ? (
         <main className="flex-1 p-3">

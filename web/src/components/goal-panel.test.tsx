@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { setPreference } from "@/i18n";
 import { server } from "@/test/setup";
 
+import type { OpenGoal } from "./goal-chip";
 import { GoalPanel } from "./goal-panel";
 
 const mount = () =>
@@ -163,16 +164,16 @@ describe("GoalPanel", () => {
   it("says goal mode needs nothing more, and hands its status to the page header", async () => {
     const g = { id: "g1", repoPath: "/r", text: "Ship v1", criteria: ["CI green"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "active", createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } };
     server.use(http.get("*/api/goals", () => HttpResponse.json({ goals: [g] })));
-    const seen: (string | null)[] = [];
-    render(<RouterProvider router={createMemoryRouter([{ path: "/", element: <GoalPanel repo="/r" titleOf={() => undefined} onStatus={(s) => seen.push(s)} /> }])} />);
+    const seen: (OpenGoal | null)[] = [];
+    render(<RouterProvider router={createMemoryRouter([{ path: "/", element: <GoalPanel repo="/r" titleOf={() => undefined} onGoal={(g) => seen.push(g)} /> }])} />);
     expect(await screen.findByText(/nothing more to switch on/)).toBeInTheDocument();
-    expect(seen.at(-1)).toBe("active");
+    expect(seen.at(-1)).toEqual({ status: "active", text: "Ship v1" });
   });
 
   it("without an objective, tells the header there is none", async () => {
     server.use(http.get("*/api/goals", () => HttpResponse.json({ goals: [] })));
-    const seen: (string | null)[] = [];
-    render(<RouterProvider router={createMemoryRouter([{ path: "/", element: <GoalPanel repo="/r" titleOf={() => undefined} onStatus={(s) => seen.push(s)} /> }])} />);
+    const seen: (OpenGoal | null)[] = [];
+    render(<RouterProvider router={createMemoryRouter([{ path: "/", element: <GoalPanel repo="/r" titleOf={() => undefined} onGoal={(g) => seen.push(g)} /> }])} />);
     expect(await screen.findByRole("button", { name: "Set the objective" })).toBeInTheDocument();
     expect(seen.every((s) => s === null)).toBe(true);
   });

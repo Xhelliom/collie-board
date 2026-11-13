@@ -4,7 +4,7 @@ import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } fro
 import { ChevronRight, ListChecks, ListFilter, Plus, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { BoardTabs } from "@/components/board-tabs";
+import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { FoldToggle } from "@/components/fold";
@@ -421,8 +421,7 @@ export function BoardRoute() {
     // themselves re-lay out to whatever width the lane ends up with.
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
-        title={t("board.title")}
-        subtitle={t("common.cards", { count: cards.length })}
+        children={<RepoTitle repos={repos} subtitle={t("common.cards", { count: cards.length })} />}
         rightLead={
           <>
             {/* The phase filter, same removable chip: it used to narrow the board with no sign at all. */}
@@ -539,7 +538,7 @@ export function BoardRoute() {
           </>
         }
       />
-      <BoardTabs repos={repos} />
+      <BoardTabs />
 
       {/* One scroller on a phone (the whole board), FOUR on a wide screen (one per lane) — the
           outer one is switched off at `lg` and each lane takes over. Without this, seventeen cards

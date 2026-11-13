@@ -7,7 +7,7 @@ import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { boardErrorMessage, cardPath, createGoal, deleteGoal, editGoal, fetchGoals, moveGoal, type Goal, type GoalBudget, type GoalMove } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
-import { GOAL_SURFACE, isOpenGoal, type OpenGoalStatus } from "@/components/goal-chip";
+import { GOAL_SURFACE, isOpenGoal, type OpenGoal } from "@/components/goal-chip";
 
 const OPEN = new Set(["active", "paused", "claimed"]);
 const DEFAULT_BUDGET: GoalBudget = { maxLots: 10, quotaPct: 80, deadline: null };
@@ -127,8 +127,8 @@ function GoalJournal({ goal }: { goal: Goal }) {
 // The repo's objective (ADR 0056), at the top of the project page. Every write here is the operator's:
 // the bridge refuses them from an agent pane, which may only claim the objective reached.
 /** `noOrchestrator`: the repo has no orchestrator pane, so setting or resuming the objective wakes nobody.
- *  `onStatus`: the open objective's status as this panel holds it, for the page header to wear. */
-export function GoalPanel({ repo, titleOf, noOrchestrator = false, onStatus }: { repo: string; titleOf: (cardId: string) => string | undefined; noOrchestrator?: boolean; onStatus?: (s: OpenGoalStatus | null) => void }) {
+ *  `onGoal`: the open objective as this panel holds it, for the page header to wear. */
+export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { repo: string; titleOf: (cardId: string) => string | undefined; noOrchestrator?: boolean; onGoal?: (g: OpenGoal | null) => void }) {
   const t = useT();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   // Which form is open: the objective's, or the next one's.
@@ -148,9 +148,10 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onStatus }: {
 
   const open = goals?.find((g) => OPEN.has(g.status)) ?? null;
   const openStatus = open && isOpenGoal(open.status) ? open.status : null;
+  const openText = open?.text ?? "";
   useEffect(() => {
-    onStatus?.(openStatus);
-  }, [openStatus, onStatus]);
+    onGoal?.(openStatus ? { status: openStatus, text: openText } : null);
+  }, [openStatus, openText, onGoal]);
 
   if (!goals) return null;
   const queued = goals.find((g) => g.status === "queued") ?? null;
@@ -192,7 +193,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onStatus }: {
   const btn = "rounded-full border px-3 py-1.5 text-xs hover:bg-muted/60";
 
   return (
-    <section aria-label={t("goal.title")} className={cn("flex flex-col gap-2.5 rounded-2xl border p-4 text-sm", openStatus ? GOAL_SURFACE[openStatus] : "bg-card/60")}>
+    <section id="goal" aria-label={t("goal.title")} className={cn("flex flex-col gap-2.5 rounded-2xl border p-4 text-sm", openStatus ? GOAL_SURFACE[openStatus] : "bg-card/60")}>
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           <Target className="size-3.5" />

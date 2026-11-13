@@ -6,7 +6,7 @@ import { Kpi } from "@/components/kpi";
 import { Ring } from "@/components/ring";
 import { STEP_TONE } from "@/components/project-step";
 import { useFold } from "@/components/fold";
-import { GOAL_SURFACE, GoalChip, isOpenGoal, type OpenGoalStatus } from "@/components/goal-chip";
+import { GoalLine, isOpenGoal, type OpenGoal } from "@/components/goal-chip";
 import { useT } from "@/i18n";
 import { getNotifyLog } from "@/lib/api";
 import { boardPath, cardPath, fetchGoals, fetchLots, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Lot, type Phase, type ProviderUsage } from "@/lib/board";
@@ -169,21 +169,20 @@ function LotLine({ lot }: { lot: TileLot }) {
 
 const MOOD_TONE: Record<OrchestratorMood, string> = { idle: "text-muted-foreground", working: "text-status-working", waiting: "font-semibold text-status-blocked" };
 
-function ProjectTile({ repo, lot, mood, toTest = 0, goal }: { repo: RepoTile; lot?: TileLot | null; mood?: OrchestratorMood; toTest?: number; goal?: OpenGoalStatus }) {
+function ProjectTile({ repo, lot, mood, toTest = 0, goal }: { repo: RepoTile; lot?: TileLot | null; mood?: OrchestratorMood; toTest?: number; goal?: OpenGoal }) {
   const t = useT();
   return (
     <Link
       to={projectPath(repo.path)}
       className={cn(
-        "flex flex-col gap-2.5 rounded-xl border p-3.5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25",
-        goal ? GOAL_SURFACE[goal] : "bg-card/70",
+        "flex flex-col gap-2.5 rounded-xl border bg-card/70 p-3.5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25",
       )}
     >
       <div className="flex items-baseline gap-2">
         <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
-        {goal && <GoalChip status={goal} />}
         <span className="shrink-0 text-xs text-muted-foreground">{ago(repo.updatedAt)}</span>
       </div>
+      {goal && <GoalLine goal={goal} className="-mt-1.5 text-xs" />}
       {lot && <LotLine lot={lot} />}
       {repo.current.slice(0, PHASES_SHOWN).map((p) => (
         <div key={p.key} className="flex flex-col gap-1.5">
@@ -262,16 +261,16 @@ export function useRepoToTest(paths: string[], stamp: string): Record<string, nu
 }
 
 /** Each repo's open objective status (ADR 0056), in one request for every repo, on the lots' `stamp`. */
-export function useRepoGoals(paths: string[], stamp: string): Record<string, OpenGoalStatus> {
-  const [goals, setGoals] = useState<Record<string, OpenGoalStatus>>({});
+export function useRepoGoals(paths: string[], stamp: string): Record<string, OpenGoal> {
+  const [goals, setGoals] = useState<Record<string, OpenGoal>>({});
   const key = paths.join("\n");
   useEffect(() => {
     if (!key) return setGoals({});
     const ac = new AbortController();
     void fetchGoals(undefined, ac.signal).then((r) => r.goals, () => []).then((all) => {
       if (ac.signal.aborted) return;
-      const out: Record<string, OpenGoalStatus> = {};
-      for (const g of all) if (isOpenGoal(g.status)) out[g.repoPath] = g.status;
+      const out: Record<string, OpenGoal> = {};
+      for (const g of all) if (isOpenGoal(g.status)) out[g.repoPath] = { status: g.status, text: g.text };
       setGoals(out);
     });
     return () => ac.abort();
@@ -279,7 +278,7 @@ export function useRepoGoals(paths: string[], stamp: string): Record<string, Ope
   return goals;
 }
 
-export function ProjectTiles({ repos: all, lots = {}, moods = {}, toTest = {}, goals = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null>; moods?: Record<string, OrchestratorMood>; toTest?: Record<string, number>; goals?: Record<string, OpenGoalStatus> }) {
+export function ProjectTiles({ repos: all, lots = {}, moods = {}, toTest = {}, goals = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null>; moods?: Record<string, OrchestratorMood>; toTest?: Record<string, number>; goals?: Record<string, OpenGoal> }) {
   const t = useT();
   const repos = byLot(all, lots);
   const { shown, toggle } = useFold(repos, 3);

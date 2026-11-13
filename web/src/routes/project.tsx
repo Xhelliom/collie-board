@@ -1,5 +1,5 @@
 import { GoalPanel } from "@/components/goal-panel";
-import { GOAL_SURFACE, GoalChip, type OpenGoalStatus } from "@/components/goal-chip";
+import { GoalLine, type OpenGoal } from "@/components/goal-chip";
 import { useEffect, useMemo, useState } from "react";
 import { useLoaderData, useRevalidator, useRouteLoaderData, useSearchParams } from "react-router";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -7,7 +7,7 @@ import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, ListFilter, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { BoardTabs } from "@/components/board-tabs";
+import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { ExitCriteria } from "@/components/exit-criteria";
 import { Fold, useStoredFold, useStoredFolds } from "@/components/fold";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -151,8 +151,8 @@ export function ProjectRoute() {
   const mineOnly = params.get("who") === "me";
   const [filtersOpen, setFiltersOpen] = useState(false);
   // The open objective, as the Objective block reads it: the header wears it so goal mode is seen at once.
-  const [goalStatus, setGoalStatus] = useState<OpenGoalStatus | null>(null);
-  const goal = repo ? goalStatus : null;
+  const [openGoal, setOpenGoal] = useState<OpenGoal | null>(null);
+  const goal = repo ? openGoal : null;
   const pickMine = (mine: boolean) =>
     setParams((p) => (mine ? p.set("who", "me") : p.delete("who"), p), { replace: true, preventScrollReset: true });
   const cards = useMemo(
@@ -439,21 +439,20 @@ export function ProjectRoute() {
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
-        title={repo ? repoName(repo) : t("project.title")}
-        // The milestone in progress, when there is exactly one open phase to name.
-        subtitle={activePhases.length === 1 ? activePhases[0]!.title : undefined}
-        // In goal mode the title sits on the objective's colour with its chip — the same as the home tile.
-        children={goal && repo ? (
-          <div className={cn("flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1", GOAL_SURFACE[goal])}>
-            <div className="min-w-0">
-              <div className="truncate text-[17px] font-semibold tracking-[-0.01em]">{repoName(repo)}</div>
-              {activePhases.length === 1 && <div className="truncate text-sm text-muted-foreground">{activePhases[0]!.title}</div>}
-            </div>
-            <GoalChip status={goal} />
-          </div>
-        ) : undefined}
-        // The way back into the chat lives in the header, where the tab bar cannot cover it (a floating
-        // button did hide behind it) and where it is on screen whatever the scroll. Docked on a wide screen.
+        // The title picks the project; the second line is the open objective itself (touch it to reach its
+        // block), else the milestone in progress when there is exactly one open phase to name.
+        children={
+          <RepoTitle
+            repos={reposOf(data.cards)}
+            subtitle={
+              goal ? (
+                <GoalLine goal={goal} onClick={() => document.getElementById("goal")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
+              ) : activePhases.length === 1 ? (
+                activePhases[0]!.title
+              ) : undefined
+            }
+          />
+        }
         rightTrail={
           <>
           {repo && <PinToggle target={{ repoPath: repo }} name={repoName(repo)} className="size-9" />}
@@ -464,7 +463,8 @@ export function ProjectRoute() {
             className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
           >
             <MessagesSquare className="size-4" />
-            {t("orch.title")}
+            {/* Icon-only on a phone: the title beside it is the project picker and needs the room. */}
+            <span className="hidden sm:inline">{t("orch.title")}</span>
             {data.orchestrator?.running && (
               <span className="size-2 rounded-full bg-status-done" title={t("project.chatRunning")} aria-hidden="true" />
             )}
@@ -472,21 +472,7 @@ export function ProjectRoute() {
           </>
         }
       />
-      <BoardTabs
-        repos={reposOf(data.cards)}
-        actions={
-          <button
-            type="button"
-            onClick={() => setFiltersOpen(true)}
-            aria-label={t("project.filter.button")}
-            title={t("project.filter.button")}
-            className="relative inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 sm:hidden"
-          >
-            <ListFilter className="size-4" />
-            {(filter !== "all" || mineOnly) && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" aria-hidden="true" />}
-          </button>
-        }
-      />
+      <BoardTabs />
       <h1 className="sr-only">{t("project.title")}</h1>
       <div className="flex min-h-0 flex-1">
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
@@ -498,7 +484,7 @@ export function ProjectRoute() {
           {root && <PhonePinned data={root} />}
           {repo && <ProjectOpen repo={repo} />}
           {repo && <MigrateAllHc repo={repo} />}
-          {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} noOrchestrator={data.orchestrator?.paneId === null} onStatus={setGoalStatus} />}
+          {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} noOrchestrator={data.orchestrator?.paneId === null} onGoal={setOpenGoal} />}
           {v.total === 0 && v.closedCount === 0 ? (
             <div className="flex flex-col items-center gap-4 px-2 py-16 text-center">
               <p className="text-sm text-muted-foreground">{t(repo ? "project.emptyRepo" : "project.emptyAll")}</p>
@@ -611,10 +597,20 @@ export function ProjectRoute() {
               </nav>
               )}
 
-              {/* From sm up the filters keep their bar; on a phone they live behind the header's Filtre button. */}
-              <div className="sticky top-0 z-10 -mx-4 hidden items-start justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur sm:flex lg:-mx-6 lg:px-6">
-                {filterChips}
-                {foldAll}
+              {/* From sm up the filters keep their sticky bar; on a phone they live behind this one button. */}
+              <div className="-mx-4 flex items-start justify-end gap-2 bg-background/85 px-4 sm:sticky sm:top-0 sm:z-10 sm:justify-between sm:py-2.5 sm:backdrop-blur lg:-mx-6 lg:px-6">
+                <div className="hidden min-w-0 sm:block">{filterChips}</div>
+                <div className="hidden sm:block">{foldAll}</div>
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen(true)}
+                  aria-label={t("project.filter.button")}
+                  title={t("project.filter.button")}
+                  className="relative inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 sm:hidden"
+                >
+                  <ListFilter className="size-4" />
+                  {(filter !== "all" || mineOnly) && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" aria-hidden="true" />}
+                </button>
               </div>
 
               <ol className="flex flex-col gap-2">{current.map(section)}</ol>

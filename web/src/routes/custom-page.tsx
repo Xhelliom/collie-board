@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router";
 import { Maximize2, ShieldCheck, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { BoardTabs } from "@/components/board-tabs";
+import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { useT } from "@/i18n";
 import { loadRepoScope, repoName } from "@/lib/board";
 import { pageUrl } from "@/lib/docs";
@@ -21,8 +21,8 @@ export function CustomPageRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title={name} />
-      <BoardTabs repos={repo ? [{ path: repo, name: repoName(repo) }] : []} />
+      <AppHeader children={<RepoTitle repos={repo ? [{ path: repo, name: repoName(repo) }] : []} subtitle={name} />} />
+      <BoardTabs />
       <main className="flex min-h-0 flex-1 flex-col p-3 pb-24 lg:p-5">{repo && name && <PageFrame repo={repo} name={name} />}</main>
     </div>
   );
