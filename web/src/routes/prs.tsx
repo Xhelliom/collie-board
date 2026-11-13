@@ -1,31 +1,35 @@
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
-import { Check, ChevronRight, Clock, Play, RefreshCw } from "lucide-react";
+import { Check, ChevronRight, Clock, ExternalLink, GitMerge, Play, RefreshCw, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
+import { Panel, PanelLink } from "@/components/card-panel";
 import { t, useT, type MessageKey } from "@/i18n";
 import { Button } from "@/components/ui/button";
-import { SectionLabel } from "@/components/ui/section-label";
+import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import {
   boardErrorMessage,
   cardPath,
   fetchOpenPrs,
   integrateCard,
   loadRepoScope,
+  prGesture,
   repoName,
+  type GhPr,
   type OpenPr,
+  type PrsReading,
 } from "@/lib/board";
-import { prLabel } from "@/lib/board-groups";
 import { ago } from "@/lib/project-facts";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
-// The cards whose PR is still open — where to come back to once the base has moved on under them.
+// The pull requests still open — the cards', and the board's own off-card ones (`docs(plan)`).
 //
-// The list is the journal's (bridge/prs.ts) and costs nothing to open. GitHub is asked only when
-// Check is tapped: never on a timer, never on the poll tick (ADR 0014) — so the route opts out of
-// revalidation too. A check journals the PRs that are over, which is how they leave the list.
+// The loader paints the journal at once (bridge/prs.ts); the screen then reads GitHub ONCE on open,
+// and again only on « Re-read » — never on a timer, never on the poll tick (ADR 0014), so the route
+// opts out of revalidation. The bridge shares two reads closer than its floor. A read journals the
+// PRs that are over, which is how they leave. Every write to GitHub is a tap here.
 
 export type PrVerdict = "unchecked" | "unknown" | "conflict" | "mergeable" | "pending" | "merged" | "closed";
 
@@ -39,52 +43,113 @@ export function prVerdict(pr: OpenPr["pr"]): PrVerdict {
   return pr.mergeable ? "mergeable" : "pending";
 }
 
-const CHIP: Partial<Record<PrVerdict, { text: MessageKey; className: string; icon?: typeof Check }>> = {
-  conflict: { text: "prs.chip.conflict", className: "bg-status-blocked/16 text-status-blocked" },
-  mergeable: { text: "prs.chip.mergeable", className: "bg-status-done/16 text-status-done", icon: Check },
-  pending: { text: "prs.chip.pending", className: "bg-muted text-muted-foreground", icon: Clock },
-  unknown: { text: "prs.chip.unknown", className: "bg-muted text-muted-foreground" },
-};
+export type Lane = "ready" | "waiting" | "blocked" | "over" | "unread";
 
-/** One column on a phone, then as many as the width holds. */
-const GRID = "grid gap-2.5 sm:grid-cols-2 lg:gap-3 xl:grid-cols-3";
-
-/** The line under the header after a check. Pure + exported for the test. */
-export function checkSummary(verdicts: readonly PrVerdict[]): string {
-  const count = (v: PrVerdict) => verdicts.filter((x) => x === v).length;
-  const parts = [
-    count("conflict") && t("prs.sum.conflict", { count: count("conflict") }),
-    count("mergeable") && t("prs.sum.mergeable", { count: count("mergeable") }),
-    count("pending") && t("prs.sum.pending", { count: count("pending") }),
-    count("unknown") && t("prs.sum.unknown", { count: count("unknown") }),
-  ].filter(Boolean);
-  const retry = count("pending") ? t("prs.sum.retry") : ".";
-  return parts.length ? parts.join(" · ") + retry : "";
+/** One row of the screen, card or not. */
+export interface PrRow {
+  key: string;
+  number: number | null;
+  title: string;
+  url: string | null;
+  repoPath: string | null;
+  card: OpenPr["card"] | null;
+  origin: "card" | "plan" | "other";
+  openedAt: number;
+  lane: Lane;
+  /** Why it waits, or why it is stuck — in the reader's words. */
+  why: string;
+  autoMerge?: "armed" | "refused";
+  conflict: boolean;
+  mergedAt?: number | null;
 }
 
-function meta(row: OpenPr, tail: string): string {
-  return [row.card.repoPath && repoName(row.card.repoPath), row.url && prLabel(row.url, "").trim(), tail]
-    .filter(Boolean)
-    .join(" · ");
+const prNumber = (url: string | null) => Number(/\/pull\/(\d+)/.exec(url ?? "")?.[1]) || null;
+
+/** Where a PR stands, from what GitHub said. Pure + exported for the test. */
+export function laneOf(pr: OpenPr["pr"], gh?: GhPr): { lane: Lane; why: string } {
+  const v = prVerdict(pr);
+  if (v === "unchecked") return { lane: "unread", why: "" };
+  if (v === "merged" || v === "closed") return { lane: "over", why: "" };
+  if (v === "unknown") return { lane: "waiting", why: t("prs.chip.unknown") };
+  if (v === "conflict") return { lane: "blocked", why: t("prs.chip.conflict") };
+  if (gh?.checks?.state === "red") return { lane: "blocked", why: t("prs.why.red", { name: gh.checks.name }) };
+  if (gh?.review === "changes") return { lane: "blocked", why: t("prs.why.changes") };
+  if (gh?.review === "required") return { lane: "blocked", why: t("prs.why.review") };
+  if (gh?.draft) return { lane: "blocked", why: t("prs.why.draft") };
+  if (gh?.checks?.state === "pending") return { lane: "waiting", why: t("prs.why.running") };
+  if (v === "pending") return { lane: "waiting", why: t("prs.chip.pending") };
+  return { lane: "ready", why: gh?.checks?.state === "green" ? t("prs.why.green") : t("prs.chip.mergeable") };
+}
+
+/** The journal rows and GitHub's off-card ones, as one list. Pure + exported for the test. */
+export function rowsOf(reading: PrsReading): PrRow[] {
+  const cards: PrRow[] = reading.prs.map((r) => ({
+    key: r.card.id,
+    number: r.github?.number ?? prNumber(r.url),
+    title: r.card.title,
+    url: r.github?.url ?? r.url,
+    repoPath: r.card.repoPath,
+    card: r.card,
+    origin: "card",
+    openedAt: r.openedAt,
+    ...laneOf(r.pr, r.github),
+    ...(r.autoMerge ? { autoMerge: r.autoMerge } : {}),
+    conflict: !!r.pr?.conflicting,
+    ...(r.pr?.state === "merged" ? { mergedAt: r.pr.mergedAt } : {}),
+  }));
+  const others: PrRow[] = (reading.others ?? []).map((p) => ({
+    key: p.url,
+    number: p.number,
+    title: p.title,
+    url: p.url,
+    repoPath: p.repoPath,
+    card: null,
+    origin: p.origin,
+    openedAt: p.createdAt ?? 0,
+    ...laneOf({ state: "open", url: p.url, mergedAt: null, conflicting: p.conflicting, mergeable: p.mergeable }, p),
+    conflict: p.conflicting,
+  }));
+  return [...cards, ...others].sort((a, b) => b.openedAt - a.openedAt);
+}
+
+const ORIGIN: Record<PrRow["origin"], MessageKey> = { card: "prs.origin.card", plan: "prs.origin.plan", other: "prs.origin.other" };
+
+const LANE_TONE: Partial<Record<Lane, string>> = {
+  ready: "text-status-done",
+  blocked: "text-status-blocked",
+};
+
+/** The quiet text action on a row — the same look as a panel header's. */
+function RowAction({ onClick, disabled, children, danger }: { onClick: () => void; disabled?: boolean; children: ReactNode; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn("inline-flex min-h-9 items-center gap-1.5 text-[13px] font-medium disabled:opacity-50", danger ? "text-status-blocked" : "text-brand")}
+    >
+      {children}
+    </button>
+  );
 }
 
 export function PrsRoute() {
   const t = useT();
   const navigate = useNavigate();
-  const [all, setRows] = useState(useLoaderData() as OpenPr[]);
-  // The repo scope is the board's own, shared by its three views.
+  const [reading, setReading] = useState<PrsReading>({ prs: useLoaderData() as OpenPr[] });
   const scope = useSearchParams()[0].get("repo") ?? loadRepoScope();
-  const rows = scope ? all.filter((r) => r.card.repoPath === scope) : all;
-  const repos = [...new Set(all.map((r) => r.card.repoPath).filter((p): p is string => !!p))].map((path) => ({ path, name: repoName(path) }));
+  const all = rowsOf(reading);
+  const rows = scope ? all.filter((r) => r.repoPath === scope) : all;
+  const repos = [...new Set(all.map((r) => r.repoPath).filter((p): p is string => !!p))].map((path) => ({ path, name: repoName(path) }));
   const [checking, setChecking] = useState(false);
-  const [checkedAt, setCheckedAt] = useState<number | null>(null);
-  const [reopening, setReopening] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [showMerged, setShowMerged] = useState(false);
+  const confirm = usePendingConfirm(4000);
 
   async function check() {
     setChecking(true);
     try {
-      setRows((await fetchOpenPrs(true)).prs);
-      setCheckedAt(Date.now());
+      setReading(await fetchOpenPrs(true));
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     } finally {
@@ -92,9 +157,14 @@ export function PrsRoute() {
     }
   }
 
+  // Once, on open: the list a reader trusts is GitHub's, not a journal that missed a merge.
+  useEffect(() => {
+    void check();
+  }, []);
+
   // The card screen takes it from there: the wait for the agent, then Update the PR.
   async function reopen(cardId: string) {
-    setReopening(cardId);
+    setBusy(cardId);
     try {
       await integrateCard(cardId, "reopen");
       setStatus(t("prs.reopened"), "success");
@@ -102,27 +172,110 @@ export function PrsRoute() {
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     } finally {
-      setReopening(null);
+      setBusy(null);
     }
   }
 
-  const open = rows.filter((r) => r.pr?.state !== "merged" && r.pr?.state !== "closed");
-  const over = rows.filter((r) => r.pr?.state === "merged" || r.pr?.state === "closed");
-  const summary = checkedAt === null ? "" : checkSummary(open.map((r) => prVerdict(r.pr)));
+  /** A card's PR merges through its card (the landing is journaled there); any other by number. */
+  const mergeOne = (r: PrRow) => (r.card ? integrateCard(r.card.id, "merge") : prGesture(r.repoPath!, r.number!, "merge"));
+
+  async function merge(rs: PrRow[]) {
+    setBusy(rs.length > 1 ? "all" : rs[0]!.key);
+    let failed = 0;
+    // One at a time: each merge moves the base the next one is checked against.
+    for (const r of rs) {
+      try {
+        await mergeOne(r);
+      } catch (e) {
+        failed++;
+        setStatus(boardErrorMessage(e), "error", null);
+      }
+    }
+    if (!failed) setStatus(t("prs.mergedNow", { count: rs.length }), "success");
+    setBusy(null);
+    await check();
+  }
+
+  async function close(r: PrRow) {
+    if (!confirm.confirm(`close:${r.key}`)) return;
+    setBusy(r.key);
+    try {
+      await prGesture(r.repoPath!, r.number!, "close");
+      setStatus(t("prs.closedNow"), "success");
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    } finally {
+      setBusy(null);
+    }
+    await check();
+  }
+
+  const lane = (l: Lane) => rows.filter((r) => r.lane === l);
+  const ready = lane("ready").filter((r) => r.card || (r.repoPath && r.number));
+  const waiting = lane("waiting");
+  const blocked = lane("blocked");
+  const unread = lane("unread");
+  const over = lane("over");
+  const open = rows.length - over.length;
+  const merged = (reading.merged ?? []).filter((m) => !scope || m.repoPath === scope).slice(0, 10);
+  const subtitle =
+    t("prs.count", { count: open }) +
+    (reading.checkedAt ? t("prs.checkedAgo", { ago: ago(reading.checkedAt) }) : checking ? t("prs.reading") : "");
+
+  // A render function, not a component: defined here, a component would remount every row on each render.
+  function row(r: PrRow, children?: ReactNode) {
+    const title = <span className="min-w-0 truncate text-sm font-semibold leading-snug">{r.title}</span>;
+    return (
+      <li key={r.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 py-2 first:border-t-0 first:pt-0 lg:flex-nowrap">
+        <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">{r.number ? `#${r.number}` : "—"}</span>
+        {r.card ? (
+          <Link to={cardPath(r.card.id)} className="flex min-w-0 flex-1 basis-48 items-center gap-1">
+            {title}
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </Link>
+        ) : (
+          <a href={r.url ?? undefined} target="_blank" rel="noreferrer" className="flex min-w-0 flex-1 basis-48 items-center">
+            {title}
+          </a>
+        )}
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {t(ORIGIN[r.origin])}
+          {r.repoPath && !scope && repos.length > 1 ? ` · ${repoName(r.repoPath)}` : ""} · {ago(r.openedAt)}
+        </span>
+        {r.why && (
+          <span className={cn("inline-flex shrink-0 items-center gap-1 text-xs font-medium", LANE_TONE[r.lane] ?? "text-muted-foreground")}>
+            {r.lane === "ready" && <Check className="size-3" />}
+            {r.lane === "waiting" && <Clock className="size-3" />}
+            {r.why}
+          </span>
+        )}
+        {r.autoMerge && (
+          <span
+            className="shrink-0 text-xs text-muted-foreground"
+            title={t(r.autoMerge === "armed" ? "prs.auto.armed" : "prs.auto.refused")}
+          >
+            {t(r.autoMerge === "armed" ? "prs.auto.armedShort" : "prs.auto.refusedShort")}
+          </span>
+        )}
+        <span className="ml-auto flex shrink-0 items-center gap-3">{children}</span>
+      </li>
+    );
+  }
+
+  const gh = (r: PrRow) =>
+    r.url && (
+      <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 text-[13px] font-medium text-brand">
+        <ExternalLink className="size-3.5" />
+        {t("prs.github")}
+      </a>
+    );
 
   return (
-    // Same frame as every other screen: one phone-width column, the full width from `lg` — where the
-    // rows become a grid, since a list of tiles has no line length to protect.
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
-        children={<RepoTitle repos={repos} subtitle={`${t("prs.count", { count: open.length })}${checkedAt === null ? "" : t("prs.checkedAgo", { ago: ago(checkedAt) })}`} />}
+        children={<RepoTitle repos={repos} subtitle={subtitle} />}
         rightTrail={
-          <Button
-            variant="brand"
-            className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold"
-            disabled={checking || rows.length === 0}
-            onClick={() => void check()}
-          >
+          <Button variant="brand" className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold" disabled={checking} onClick={() => void check()}>
             <RefreshCw className={cn("size-4", checking && "animate-spin")} />
             {checking ? t("prs.checking") : t("prs.check")}
           </Button>
@@ -131,89 +284,124 @@ export function PrsRoute() {
       <BoardTabs />
       <h1 className="sr-only">{t("prs.title")}</h1>
 
-      <main className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3 pb-24 lg:gap-3 lg:p-5">
-        {rows.length === 0 ? (
+      <main className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 overflow-y-auto p-3 pb-24 lg:p-5">
+        {rows.length === 0 && !checking ? (
           <p className="px-2 py-16 text-center text-sm text-muted-foreground">{scope ? t("prs.emptyRepo", { repo: repoName(scope) }) : t("prs.empty")}</p>
         ) : (
           <>
-            {summary && <p className="mx-1 text-xs text-muted-foreground">{summary}</p>}
-            {checkedAt === null && (
-              <p className="mx-1 text-xs text-muted-foreground">{t("prs.unchecked")}</p>
-            )}
-            <div className={GRID}>
-              {open.map((row) => {
-                const verdict = prVerdict(row.pr);
-                const chip = CHIP[verdict];
-                return (
-                  <div key={row.card.id} className="flex flex-col gap-2.5 rounded-[14px] border bg-card p-3">
-                    <Link to={cardPath(row.card.id)} className="flex items-start gap-2">
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-sm font-semibold leading-snug">{row.card.title}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {meta(row, t("prs.opened", { ago: ago(row.openedAt) }))}
-                        </span>
-                      </div>
-                      <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    </Link>
-                    {row.autoMerge && (
-                      <p className="text-xs text-muted-foreground">
-                        {t(row.autoMerge === "armed" ? "prs.auto.armed" : "prs.auto.refused")}
-                      </p>
-                    )}
-                    {chip && (
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] text-xs font-semibold",
-                            chip.className,
-                          )}
-                        >
-                          {chip.icon && <chip.icon className="size-3" />}
-                          {t(chip.text)}
-                        </span>
-                        {verdict === "conflict" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-1.5"
-                            disabled={reopening !== null}
-                            onClick={() => void reopen(row.card.id)}
-                          >
-                            <Play className="size-3.5" />
-                            {reopening === row.card.id ? t("prs.reopening") : t("prs.reopen")}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {over.length > 0 && (
-              <>
-                <SectionLabel className="mx-1 mt-2.5">{t("prs.over")}</SectionLabel>
-                <div className={GRID}>
-                  {over.map((row) => (
-                    <Link
-                      key={row.card.id}
-                      to={cardPath(row.card.id)}
-                      className="flex flex-col gap-0.5 rounded-[14px] border border-dashed px-3 py-2.5 opacity-70"
-                    >
-                      <span className="text-sm font-semibold">{row.card.title}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {meta(
-                          row,
-                          row.pr?.state === "merged"
-                            ? t("prs.merged", { ago: ago(row.pr.mergedAt ?? row.openedAt) })
-                            : t("prs.closed"),
-                        )}
-                      </span>
-                    </Link>
+            {ready.length > 0 && (
+              <Panel
+                title={t("prs.lane.ready")}
+                count={ready.length}
+                tone="good"
+                actions={
+                  ready.length > 1 && (
+                    <PanelLink disabled={busy !== null} onClick={() => confirm.confirm("merge-all") && void merge(ready)}>
+                      <GitMerge className="size-3.5" />
+                      {confirm.pending === "merge-all" ? t("prs.mergeAllConfirm", { count: ready.length }) : t("prs.mergeAll", { count: ready.length })}
+                    </PanelLink>
+                  )
+                }
+              >
+                <ul>
+                  {ready.map((r) => (
+                    row(
+                      r,
+                      <>
+                      <RowAction disabled={busy !== null} onClick={() => void merge([r])}>
+                        <GitMerge className="size-3.5" />
+                        {busy === r.key ? t("prs.merging") : t("prs.merge")}
+                      </RowAction>
+                      </>,
+                    )
                   ))}
-                </div>
-              </>
+                </ul>
+              </Panel>
+            )}
+            {blocked.length > 0 && (
+              <Panel title={t("prs.lane.blocked")} count={blocked.length} tone="bad">
+                <ul>
+                  {blocked.map((r) => (
+                    row(
+                      r,
+                      <>
+                      {r.card && r.conflict && (
+                        <RowAction disabled={busy !== null} onClick={() => void reopen(r.card!.id)}>
+                          <Play className="size-3.5" />
+                          {busy === r.key ? t("prs.reopening") : t("prs.reopen")}
+                        </RowAction>
+                      )}
+                      {r.repoPath && r.number && (
+                        <RowAction danger disabled={busy !== null} onClick={() => void close(r)}>
+                          <X className="size-3.5" />
+                          {confirm.pending === `close:${r.key}` ? t("prs.closeConfirm") : t("prs.close")}
+                        </RowAction>
+                      )}
+                      {gh(r)}
+                      </>,
+                    )
+                  ))}
+                </ul>
+              </Panel>
+            )}
+            {waiting.length > 0 && (
+              <Panel title={t("prs.lane.waiting")} count={waiting.length}>
+                <ul>
+                  {waiting.map((r) => (
+                    row(
+                      r,
+                      <>
+                      {gh(r)}
+                      </>,
+                    )
+                  ))}
+                </ul>
+                {waiting.some((r) => r.why === t("prs.chip.pending") || r.why === t("prs.why.running")) && (
+                  <p className="text-xs text-muted-foreground">{t("prs.retry")}</p>
+                )}
+              </Panel>
+            )}
+            {unread.length > 0 && (
+              <Panel title={t("prs.lane.unread")} count={unread.length}>
+                <ul>
+                  {unread.map((r) => (
+                    row(r)
+                  ))}
+                </ul>
+              </Panel>
+            )}
+            {over.length > 0 && (
+              <Panel title={t("prs.over")} count={over.length} className="border-dashed opacity-80">
+                <ul>
+                  {over.map((r) => (
+                    row({ ...r, why: r.mergedAt !== undefined ? t("prs.merged", { ago: ago(r.mergedAt ?? r.openedAt) }) : t("prs.closed") })
+                  ))}
+                </ul>
+              </Panel>
             )}
           </>
+        )}
+        {merged.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <PanelLink expanded={showMerged} onClick={() => setShowMerged((v) => !v)}>
+              {showMerged ? t("prs.hideMerged") : t("prs.showMerged", { count: merged.length })}
+            </PanelLink>
+            {showMerged && (
+              <ul className="rounded-2xl border bg-card px-4 py-3">
+                {merged.map((m) => (
+                  <li key={m.url} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 py-2 first:border-t-0 first:pt-0">
+                    <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">#{m.number}</span>
+                    {m.cardId ? (
+                      <Link to={cardPath(m.cardId)} className="min-w-0 flex-1 truncate text-sm">{m.title}</Link>
+                    ) : (
+                      <a href={m.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm">{m.title}</a>
+                    )}
+                    <span className="shrink-0 text-xs text-muted-foreground">{t("prs.merged", { ago: ago(m.mergedAt ?? 0) })}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </main>
     </div>
