@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.305.0] - 2026-11-13
+
+### Added
+
+- Après un redémarrage, les agents Claude perdus sous hc qui travaillaient reprennent seuls leur conversation (une fois), les terminés et les endormis (12 h) sont laissés, une notification récapitule (bf718f9)
+
+### Fixed
+
+- Le lead et le copilote ne tapent plus leurs requêtes dans un shell : un pane redevenu shell est relancé (bf718f9)
+
 ## [0.304.1] - 2026-11-13
 
 ### Fixed
