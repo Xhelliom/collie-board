@@ -1420,8 +1420,8 @@ export async function listPrs(repoPath: string, state: "open" | "merged", gh: Gi
 }
 
 /** Retitle a PR by number — the board's rolling `docs(plan)` PR only. */
-export async function editPrTitle(repoPath: string, number: number, title: string, gh: GitRunner = runGh): Promise<{ ok: true } | { ok: false; error: string }> {
-  const r = await gh(["pr", "edit", String(number), "--title", title], repoPath);
+export async function editPrTitle(repoPath: string, number: number, title: string, gh: GitRunner = runGh, body?: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await gh(["pr", "edit", String(number), "--title", title, ...(body === undefined ? [] : ["--body", body])], repoPath);
   return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
 }
 
