@@ -7,6 +7,7 @@ import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { SpaceStrip } from "@/components/space-strip";
 import { SpaceView } from "@/components/space-view";
 import { TabStrip } from "@/components/tab-strip";
+import { projectOf } from "@/lib/agent-groups";
 import { NewSpaceSheet } from "@/components/new-space-sheet";
 import { UpdateBanner } from "@/components/update-banner";
 import { useSpaceActions } from "@/hooks/use-spaces";
@@ -45,6 +46,8 @@ export function SpaceRoute() {
   }
 
   const selectedWs = data.workspaces.find((w) => w.workspaceId === spaceId);
+  // The project of the space you're in: the new-space sheet picks its repo first.
+  const inSpace = [...data.agents, ...data.shellPanes].find((p) => p.workspaceId === spaceId);
 
   const toSpaces = useBack(spacesPath(data.session));
   const goSpaces = () => navigate(spacesPath(data.session));
@@ -125,7 +128,12 @@ export function SpaceRoute() {
         <UpdateBanner className="px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]" />
       </div>
 
-      <NewSpaceSheet open={newSpaceOpen} onClose={() => setNewSpaceOpen(false)} onCreate={newSpace} />
+      <NewSpaceSheet
+        open={newSpaceOpen}
+        onClose={() => setNewSpaceOpen(false)}
+        onCreate={newSpace}
+        project={inSpace && projectOf(inSpace.cwd)}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 
-import { SpaceOverview } from "./space-overview";
+import { AgentsPageView } from "./agents-page";
 import { SpaceStrip } from "./space-strip";
 import { TabStrip } from "./tab-strip";
 
@@ -20,9 +20,10 @@ describe("touch targets ≥ 44 px", () => {
     expect(is44(screen.getByRole("button", { name: "New space" }))).toBe(true);
   });
 
-  it("SpaceOverview +", () => {
-    render(<SpaceOverview workspaces={[]} tabs={[]} agents={[]} shellPanes={[]} onOpen={vi.fn()} onOpenPane={vi.fn()} onNewSpace={vi.fn()} />);
-    expect(is44(screen.getByRole("button", { name: "New space" }))).toBe(true);
+  it("Agents page + and search", () => {
+    render(<AgentsPageView herd={[]} internal={new Set()} machineCount={1} onOpen={vi.fn()} onNew={vi.fn()} />);
+    expect(is44(screen.getByRole("button", { name: "New agent" }))).toBe(true);
+    expect(is44(screen.getByRole("button", { name: "Search" }))).toBe(true);
   });
 
   it("AgentChat desktop View mode toggle", () => {
