@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.320.0] - 2026-11-13
+
+### Added
+
+- Design system Sémaphore, palette Balise : nouveaux jetons sombre et clair, angles droits, surfaces séparées par le ton (1cdfb26)
+- IBM Plex Sans auto-hébergée, chiffres tabulaires partout, plus aucune capitale espacée (1cdfb26)
+- Signal d'état unique (travaille, t'attend, bloqué, fini, au repos) : une forme par état, animée, coupée sous réduction des animations (1cdfb26)
+- Jetons d'acteurs A L C O B T dans l'historique des fiches et la Recette (1cdfb26)
+- Réglages › Apparence › Style : Sémaphore ou Classique (l'ancienne palette) (1cdfb26)
+
+### Changed
+
+- Toute action est un bouton visible ; un lien texte ne sert plus qu'à naviguer dans une phrase (1cdfb26)
+- « Bloqué », erreurs et refus en rouge ; l'orange est réservé à « t'attend » et à l'action (1cdfb26)
+
 ## [0.319.1] - 2026-11-13
 
 ### Fixed
