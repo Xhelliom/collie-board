@@ -1,231 +1,51 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 
-import { ThreadSidebar } from "./agent-sidebar";
-import { fixtureAgents, fixtureShellPanes, fixtureTabs } from "@/test/handlers";
 import type { AgentView } from "@/lib/types";
+import { ThreadSidebar } from "./agent-sidebar";
 
-const idleAgent: AgentView = {
-  paneId: "w3:p1",
-  workspaceId: "w3",
-  workspaceLabel: "sandbox",
-  workspaceNumber: 3,
-  tabId: "w3:t1",
-  agent: "claude",
-  status: "idle",
-  cwd: "/home/you/sandbox",
-  focused: false,
-};
+const pane = (paneId: string, extra: Partial<AgentView> = {}): AgentView => ({
+  paneId, workspaceId: "w1", workspaceLabel: "orchestrator-x", workspaceNumber: 1, tabId: "w1:t1", agent: "claude", status: "working", cwd: "/home/you/collie", focused: false, kind: "agent", ...extra,
+});
 
-const lonelyShell: AgentView = {
-  paneId: "w9:p1",
-  workspaceId: "w9",
-  workspaceLabel: "scratch",
-  workspaceNumber: 9,
-  tabId: "w9:t1",
-  agent: "shell",
-  status: "unknown",
-  cwd: "/home/you/scratch",
-  focused: false,
-  kind: "shell",
-};
+const herd = [
+  pane("p1", { cardId: "c1", cardTitle: "Fix login" }),
+  pane("p2", { cwd: "/home/you/webapp", status: "blocked", said: "Je lis le code." }),
+  pane("lead", { cardTitle: "Board lead" }),
+  pane("sh", { kind: "shell", agent: "shell", status: "unknown" }),
+];
 
-describe("ThreadSidebar", () => {
-  it("renders an empty state when there are no agents", () => {
-    render(<ThreadSidebar agents={[]} currentPaneId="" onSelect={vi.fn()} />);
-    expect(screen.getByText("No agents running.")).toBeInTheDocument();
+function list(onSelect: (id: string) => void = () => {}) {
+  render(
+    <MemoryRouter>
+      <ThreadSidebar herd={herd} internal={new Set(["lead"])} currentPaneId="p1" onSelect={onSelect} />
+    </MemoryRouter>,
+  );
+}
+
+describe("ThreadSidebar — the Agents page's list, compact", () => {
+  it("groups by project, never by herdr space", () => {
+    list();
+    expect(screen.getByRole("region", { name: "collie" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "webapp" })).toBeInTheDocument();
+    expect(screen.queryByText("orchestrator-x")).toBeNull();
   });
 
-  it("heads one group per space, not one per triage bucket", () => {
-    render(
-      <ThreadSidebar agents={[...fixtureAgents, idleAgent]} currentPaneId="" onSelect={vi.fn()} />,
-    );
-    for (const space of ["webapp", "collie", "sandbox"]) {
-      expect(screen.getByRole("heading", { name: space })).toBeInTheDocument();
-    }
-    expect(screen.queryByText("Needs you")).toBeNull();
+  it("highlights the open agent, hides the board's own panes and the terminals", () => {
+    list();
+    expect(screen.getByRole("button", { name: /Fix login/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByText("Board lead")).toBeNull();
+    expect(screen.queryByRole("button", { name: /terminal/i })).toBeNull();
   });
 
-  it("puts the space with a blocked agent first", () => {
-    // idle "sandbox" is listed before blocked "webapp" — the grouping has to reorder them.
-    const { container } = render(
-      <ThreadSidebar agents={[idleAgent, ...fixtureAgents]} currentPaneId="" onSelect={vi.fn()} />,
-    );
-    const headings = [...container.querySelectorAll("h3")].map((h) => h.textContent);
-    expect(headings).toEqual(["webapp", "collie", "sandbox"]);
-  });
-
-  it("shows the space's branch under its name when a pane in it backs a card", () => {
-    render(
-      <ThreadSidebar
-        agents={[{ ...idleAgent, branch: "board/regrouper-les-spaces" }]}
-        currentPaneId=""
-        onSelect={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("board/regrouper-les-spaces")).toBeInTheDocument();
-  });
-
-  it("falls back to the space's path when no branch is known — never a made-up ref", () => {
-    render(
-      <ThreadSidebar agents={[{ ...idleAgent, cwd: "/home/you/scratch" }]} currentPaneId="" onSelect={vi.fn()} />,
-    );
-    expect(screen.getByText("~/scratch")).toBeInTheDocument();
-  });
-
-  it("folds the spaces with no agent away, behind one count, unless you're in one", () => {
-    const { container, rerender } = render(
-      <ThreadSidebar agents={fixtureAgents} shellPanes={[lonelyShell]} currentPaneId="" onSelect={vi.fn()} />,
-    );
-    const fold = container.querySelector("details")!;
-    expect(fold).toHaveTextContent("1 without an agent");
-    expect(fold).toContainElement(screen.getByRole("heading", { name: "scratch" }));
-    expect(fold.open).toBe(false);
-    rerender(
-      <ThreadSidebar agents={fixtureAgents} shellPanes={[lonelyShell]} currentPaneId="w9:p1" onSelect={vi.fn()} />,
-    );
-    expect(container.querySelector("details")!.open).toBe(true);
-  });
-
-  it("says how long a settled pane has sat there", () => {
-    const statusSince = Date.now() - 5 * 60_000;
-    render(<ThreadSidebar agents={[{ ...idleAgent, statusSince }]} currentPaneId="" onSelect={vi.fn()} />);
-    expect(screen.getByText("· 5m ago")).toBeInTheDocument();
-  });
-
-  it("drops a path that only repeats the space's name", () => {
-    render(<ThreadSidebar agents={[idleAgent]} currentPaneId="" onSelect={vi.fn()} />);
-    expect(screen.queryByText("~/sandbox")).toBeNull();
-  });
-
-  it("counts the space's blocked agents in its header", () => {
-    render(<ThreadSidebar agents={fixtureAgents} currentPaneId="" onSelect={vi.fn()} />);
-    // "webapp" holds the one blocked agent; "collie" holds a working one and shows a plain count.
-    expect(screen.getByText("needing you")).toBeInTheDocument();
-  });
-
-  it("marks the current pane with aria-current='page'", () => {
-    render(<ThreadSidebar agents={fixtureAgents} currentPaneId="w2:p1" onSelect={vi.fn()} />);
-    const current = screen.getByRole("button", { current: "page" });
-    // w2:p1 is the codex agent in the "collie" workspace.
-    expect(current).toHaveTextContent("codex");
-  });
-
-  it("does not mark any pane current when the id matches nothing", () => {
-    render(<ThreadSidebar agents={fixtureAgents} currentPaneId="nope" onSelect={vi.fn()} />);
-    expect(screen.queryByRole("button", { current: "page" })).toBeNull();
-  });
-
-  it("tints the rail of the space holding the open pane, and only that one", () => {
-    const { container } = render(
-      <ThreadSidebar agents={fixtureAgents} currentPaneId="w2:p1" onSelect={vi.fn()} />,
-    );
-    // Every brand-tinted mark (header, rail stretches) belongs to that one space's section.
-    const tinted = [...container.querySelectorAll('[class*="bg-brand/"]')];
-    expect(tinted.length).toBeGreaterThan(0);
-    expect(new Set(tinted.map((el) => el.closest("section")))).toEqual(
-      new Set([screen.getByRole("heading", { name: "collie" }).closest("section")]),
-    );
-  });
-
-  it("fires onSelect with the pane id when a thread is tapped", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    render(<ThreadSidebar agents={fixtureAgents} currentPaneId="w2:p1" onSelect={onSelect} />);
-    await user.click(screen.getByRole("button", { name: /claude/ }));
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith("w1:p1");
-  });
-
-  const shellPane: AgentView = {
-    paneId: "w3:p2",
-    workspaceId: "w3",
-    workspaceLabel: "sandbox",
-    workspaceNumber: 3,
-    tabId: "w3:t2",
-    agent: "shell",
-    status: "unknown",
-    cwd: "/home/you/sandbox",
-    focused: false,
-    kind: "shell",
-  };
-
-  it("files a bare shell under its own space and makes it selectable", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    render(
-      <ThreadSidebar
-        agents={fixtureAgents}
-        shellPanes={[shellPane]}
-        currentPaneId=""
-        onSelect={onSelect}
-      />,
-    );
-    expect(screen.getByRole("heading", { name: "sandbox" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /shell/ }));
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith("w3:p2");
-  });
-
-  it("still renders shells when there are no agents (fresh space reachable)", () => {
-    render(<ThreadSidebar agents={[]} shellPanes={[shellPane]} currentPaneId="" onSelect={vi.fn()} />);
-    expect(screen.queryByText("No agents running.")).toBeNull();
-    expect(screen.getByRole("heading", { name: "sandbox" })).toBeInTheDocument();
-  });
-
-  it("is switch-only — no close control on any row", () => {
-    render(<ThreadSidebar agents={[fixtureAgents[0]!]} currentPaneId="" onSelect={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: /close/i })).toBeNull();
-  });
-
-  it("shows the context percentage only for panes that have one", () => {
-    render(
-      <ThreadSidebar
-        agents={[{ ...idleAgent, ctxPct: 42.4 }]}
-        shellPanes={[shellPane]}
-        currentPaneId=""
-        onSelect={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("· ctx 42%")).toBeInTheDocument();
-    // The shell pane has no ctxPct — it gets no gauge rather than a made-up 0%.
-    expect(screen.getByRole("button", { name: /shell/ })).not.toHaveTextContent(/ctx/);
-  });
-
-  it("names a row's tab only when its space actually spreads over several", () => {
-    const props = { tabs: fixtureTabs, currentPaneId: "", onSelect: vi.fn() };
-    // "collie" holds w2:p1 (tab "code") and the shell w2:p2 (tab "shell") — the tab tells them apart.
-    const two = render(<ThreadSidebar agents={fixtureAgents} shellPanes={fixtureShellPanes} {...props} />);
-    expect(screen.getByText("· code")).toBeInTheDocument();
-    two.unmount();
-    // Alone in its space, the pane's tab is the only tab there — herdr's "1" would be pure noise.
-    render(<ThreadSidebar agents={[fixtureAgents[1]!]} {...props} />);
-    expect(screen.queryByText("· code")).toBeNull();
-  });
-
-  it("keeps every row's own status readable after the regrouping", () => {
-    const { container } = render(
-      <ThreadSidebar
-        agents={[...fixtureAgents, idleAgent]}
-        shellPanes={[shellPane]}
-        currentPaneId=""
-        onSelect={vi.fn()}
-      />,
-    );
-    // One dot per row (plus the per-space summary), from the same palette the badges use.
-    for (const cls of ["bg-status-blocked", "bg-status-working", "bg-status-idle", "bg-status-unknown"]) {
-      expect(container.getElementsByClassName(cls).length).toBeGreaterThan(0);
-    }
-    // …and it reaches a screen reader through the row's name, not through colour alone.
-    expect(screen.getByRole("button", { name: "claude, needs you · webapp" })).toBeInTheDocument();
-  });
-
-  it("folds a space's only pane into its header — one entry, not a session and a stray row", () => {
-    const { container } = render(
-      <ThreadSidebar agents={[{ ...idleAgent, ctxPct: 20 }]} currentPaneId="" onSelect={vi.fn()} />,
-    );
-    const entry = screen.getByRole("button", { name: /^claude, idle · sandbox$/ });
-    expect(entry).toContainElement(screen.getByRole("heading", { name: "sandbox" }));
-    expect(entry).toHaveTextContent("ctx 20%");
-    // One dot: the header's. The pane has no rail dot of its own any more.
-    expect(container.getElementsByClassName("bg-status-idle")).toHaveLength(1);
+  it("folds its filters behind one icon, and switches pane on a tap", async () => {
+    const opened: string[] = [];
+    list((id) => opened.push(id));
+    expect(screen.queryByRole("group", { name: "Filters" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.getByRole("group", { name: "Filters" })).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole("region", { name: "webapp" })).getByRole("button"));
+    expect(opened).toEqual(["p2"]);
   });
 });

@@ -1,50 +1,28 @@
-import { SpacePaneTree } from "@/components/space-pane-tree";
-import type { AgentView, TabView } from "@/lib/types";
+import { AgentsPageView } from "@/components/agents-page";
+import type { AgentView } from "@/lib/types";
 import { useT } from "@/i18n";
 
 interface PaneListColumnProps {
-  agents: AgentView[];
-  shellPanes: AgentView[];
-  tabs: TabView[];
+  herd: AgentView[];
+  /** The board's own panes (lead, copilot): never listed. */
+  internal: ReadonlySet<string>;
   currentPaneId: string;
   onSelect: (paneId: string) => void;
 }
 
 /**
- * Desktop's 296px pane list (redesign §5 "three panes") — every pane in the herd, not just this
- * space, grouped by SPACE exactly as the pane switcher / ThreadSidebar groups them (both render one
- * `SpacePaneTree`), so the two never disagree about what a space holds. This is the desktop's ENTIRE
- * way to switch panes — below `lg` the same data renders as the pane-switcher sheet instead
- * (agent-chat.tsx's own ThreadSidebar mount).
+ * Desktop's 296px pane list (redesign §5 "three panes") — the Agents page's list, compact: one group
+ * per project, the open agent highlighted. This is the desktop's ENTIRE way to switch panes — below
+ * `2xl` the same list renders in the pane-switcher sheet instead (agent-sidebar.tsx).
  */
-export function PaneListColumn({
-  agents,
-  shellPanes,
-  tabs,
-  currentPaneId,
-  onSelect,
-}: PaneListColumnProps) {
+export function PaneListColumn({ herd, internal, currentPaneId, onSelect }: PaneListColumnProps) {
   const t = useT();
-  const total = agents.length + shellPanes.length;
   return (
     <nav
       aria-label={t("spaces.panes")}
       className="hidden w-[296px] flex-none flex-col overflow-y-auto border-r bg-muted dark:bg-[oklch(0.165_0.006_250)] 2xl:flex"
     >
-      <div className="flex h-14 flex-none items-center gap-2 border-b border-border/60 px-4">
-        <span className="text-sm font-semibold">{t("spaces.panes")}</span>
-        <span className="text-xs tabular-nums text-muted-foreground">{total}</span>
-      </div>
-      <SpacePaneTree
-        agents={agents}
-        shellPanes={shellPanes}
-        tabs={tabs}
-        currentPaneId={currentPaneId}
-        onSelect={onSelect}
-        dense
-        // The column paints its own shade, so the status dots' rail cut-out has to match it.
-        surfaceRing="ring-muted dark:ring-[oklch(0.165_0.006_250)]"
-      />
+      <AgentsPageView herd={herd} internal={internal} current={currentPaneId} onOpen={onSelect} compact title={t("nav.agents")} />
     </nav>
   );
 }
