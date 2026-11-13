@@ -51,7 +51,11 @@ export const history = defineMessages({
   "transcript.thinking": { en: "Thinking", fr: "Réflexion" },
   "transcript.truncated": { en: "… truncated", fr: "… tronqué" },
   "transcript.compacted": { en: "Context compacted", fr: "Contexte compacté" },
-  "transcript.system": { en: "System", fr: "Système" },
   "transcript.you": { en: "You", fr: "Toi" },
   "transcript.steps": { en: "{count} steps", fr: "{count} étapes" },
+  "transcript.stepsNamed": {
+    en: { one: "{count} step: {names}", other: "{count} steps: {names}" },
+    fr: { one: "{count} étape : {names}", other: "{count} étapes : {names}" },
+  },
+  "transcript.systemMessage": { en: "System message", fr: "Message système" },
 });

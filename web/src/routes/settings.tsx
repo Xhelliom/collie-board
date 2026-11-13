@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, ChevronRight, Images, Loader2, SquareTerminal } from "lucide-react";
+import { Bell, ChevronRight, Images, Loader2 } from "lucide-react";
 import { Link, useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
@@ -25,7 +25,6 @@ import { Switch } from "@/components/ui/switch";
 import { useT } from "@/i18n";
 import { fetchConfig } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePushControl } from "@/hooks/use-push";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { galleryPath } from "@/lib/nav";
@@ -106,7 +105,6 @@ export function SettingsRoute() {
           <>
             <ThemeControl />
             <LanguageControl />
-            <StatusLineControl />
 
             {/* The gallery isn't a root tab: it's something you go and look at now and then, not one of
                 the four places the app is about. A row here rather than a fifth item in the nav bar. */}
@@ -204,28 +202,6 @@ export function SettingsRoute() {
         </div>
       </main>
     </div>
-  );
-}
-
-/** Per-device display pref: the agent's statusline strip above the composer on the pane screen. */
-function StatusLineControl() {
-  const t = useT();
-  const { prefs, setStatusLine } = useDisplayPrefs();
-  return (
-    <Card className="gap-0 py-0">
-      <div className="flex items-center justify-between gap-4 p-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <SquareTerminal className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-          <div className="min-w-0">
-            <div className="font-medium">{t("settings.statusLine.title")}</div>
-            <p className="text-sm text-muted-foreground">
-              {t("settings.statusLine.hint")}
-            </p>
-          </div>
-        </div>
-        <Switch checked={prefs.statusLine} onCheckedChange={setStatusLine} aria-label={t("settings.statusLine.title")} />
-      </div>
-    </Card>
   );
 }
 

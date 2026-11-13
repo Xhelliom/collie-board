@@ -16,7 +16,7 @@ it("speaks French on the pane screen — composer chrome and the Keys dock — w
         <Composer
           paneId="w1:p1" agent="claude" isShell={false} gone={false} readOnly={false} dialogPresent={false}
           text="" mirrorText="" terminalDraft={null} rawTerminalDraft={null}
-          prefs={{ wrap: true, fontSize: 11, rawTerminal: false, reading: false, statusLine: true }}
+          prefs={{ wrap: true, fontSize: 11, rawTerminal: false, reading: false }}
           setWrap={vi.fn()} stepFontSize={vi.fn()} setRawTerminal={vi.fn()} onSent={vi.fn()}
         />
       ),

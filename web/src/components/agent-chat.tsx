@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/i18n";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { useNavigate, useRevalidator } from "react-router";
 import {
   ArrowUpToLine,
   BookOpenText,
-  ChevronRight,
   Columns3,
   EllipsisVertical,
   FileCode2,
   Images,
+  LayoutGrid,
+  PanelTop,
   Loader2,
   ScrollText,
   Maximize2,
+  Pin,
   Search,
   TerminalSquare,
   XCircle,
@@ -23,7 +25,6 @@ import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
 import { closePane, fetchHistory, sendKeys } from "@/lib/api";
-import { ModelTag } from "@/components/model-tag";
 import { BlockedScreenBanner } from "@/components/blocked-screen-banner";
 import { submitFreeText, type FreeTextModel } from "@/lib/free-text-action";
 import { boardErrorMessage, cardPath, handoffCard } from "@/lib/board";
@@ -40,16 +41,14 @@ import { splitLines } from "@/lib/blocks";
 import { adapterFor } from "@/lib/harness";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import { FindBar } from "@/components/find-bar";
-import { PaneMenu } from "@/components/pane-menu";
 import { ABOVE_TAB_BAR } from "@/components/app-nav";
 import { Composer, type ComposerHandle } from "@/components/composer";
-import { CtxBar } from "@/components/ctx-bar";
+import { AgentViewIdentity, ContextMeter } from "@/components/agent-view-header";
 import { SubagentsLine } from "@/components/subagents-line";
 import { WorkMark } from "@/components/work-mark";
-import { PinButton } from "@/components/pin-button";
+import { PinButton, useAgentPin } from "@/components/pin-button";
 import { ThreadSidebar } from "@/components/agent-sidebar";
 import { PaneListColumn } from "@/components/pane-list-column";
-import { ContextRailColumn } from "@/components/context-rail-column";
 import { AgentIcon } from "@/components/agent-icon";
 import { TabStrip } from "@/components/tab-strip";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
@@ -58,14 +57,13 @@ import { HeldControl } from "@/components/held";
 import { ReadingView } from "@/components/reading-view";
 import { LastTurnButtons } from "@/components/last-turn-buttons";
 import { HC_SPACE, isHcAgent, isOrchestrator, placeOf } from "@/lib/agent-groups";
-import { ShellBadge, StatusBadge } from "@/components/status-badge";
+import { nameOf } from "@/lib/agent-identity";
 import { submitPromptOption } from "@/lib/prompt-action";
 import { submitWizardKeys } from "@/lib/wizard-action";
 import { submitPreviewKeys, submitPreviewNote, submitPreviewOption } from "@/lib/preview-action";
 import { submitMultiSelectIntent, type MultiSelectIntent } from "@/lib/multi-select-action";
 import type { PreviewBlockAction } from "@/components/preview-select-block";
 import { canGrowRequestedLines, growRequestedLines, HISTORY_PAGE_SIZE } from "@/lib/loaders";
-import { shortCwd } from "@/lib/format";
 import { historyPath, homePath, paneArtifactsPath, panePath, spacePath, zoomPath } from "@/lib/nav";
 import { isReadOnly } from "@/lib/types";
 import type { AgentView, BridgeStatus, DeviceAuth, TabView } from "@/lib/types";
@@ -174,9 +172,6 @@ export function AgentChat({
   // unrepresentable to violate.
   const [drawer, setDrawer] = useState<Drawer>(null);
   const closeDrawer = () => setDrawer(null);
-  // The mobile context row has room for one number — tap to swap which one (redesign's fuller
-  // "N tokens" figure otherwise only lives in the statusline above the composer).
-  const [ctxShowTokens, setCtxShowTokens] = useState(false);
   const listRef = useRef<ChatMessageListHandle>(null);
   const composerRef = useRef<ComposerHandle>(null);
 
@@ -621,14 +616,8 @@ export function AgentChat({
     if (id !== paneId) onSelect(id);
   }
 
-  // The breadcrumb's pane menu switches WITHIN this space (agents and shells alike) — the whole-herd
-  // list belongs to the pane switcher. Empty while the pane isn't in the snapshot yet.
-  // hc has no space nor tab: the breadcrumb names the project instead (ADR 0052 phase 4).
+  // hc has no space nor tab (ADR 0052 phase 4): no tabs row in « ⋯ ».
   const hc = !!agent && isHcAgent(agent);
-  const place = agent ? placeOf(agent) : "";
-  const spacePanes = agent
-    ? [...agents, ...shellPanes].filter((p) => p.workspaceId === agent.workspaceId)
-    : [];
 
   // Jump to another tab in this space by opening one of its panes (the in-pane tab bar).
   function goToTab(tabId: string) {
@@ -660,19 +649,56 @@ export function AgentChat({
     composerRef.current?.focusInput();
   }
 
-  // The pane's name: a user-set pane label leads (the identifier they chose), then Claude's own
-  // /rename session name, otherwise the default space › tab. Shown in the header title block AND
-  // used as the screen's h1 — one string so the two can't drift.
-  const paneTitle = agent
-    ? (agent.paneLabel ??
-      agent.sessionName ??
-      (hc ? place : `${agent.workspaceLabel}${tabLabel ? ` › ${tabLabel}` : ""}`))
-    : tr("pane.agentGone");
+  // The agent's name as the Agents page writes it (its card, « Orchestrateur », its own name): the
+  // screen's h1 and the « ⋯ » sheet's title, so the two can't drift from the header.
+  const paneTitle = agent ? nameOf(agent, tr("agents.orchestrator")) : tr("pane.agentGone");
 
   // The card this pane backs — undefined for a hand-launched pane (`withCardFields` resolves none).
   // A `const`, so the narrowing survives into the row's onClick below.
   const cardId = agent?.cardId;
   const cardLabel = agent?.cardTitle ?? tr("pane.cardCarried");
+  const pin = useAgentPin(agent);
+
+  function toggleReading() {
+    if (!reading) setNoReading(null);
+    setReading(!reading);
+  }
+
+  // Find takes the header over while open, at both widths.
+  const findBar = (
+    <FindBar
+      query={findQuery}
+      onQueryChange={setFindQuery}
+      count={matchCount}
+      current={currentMatch}
+      onPrev={() => gotoMatch(-1)}
+      onNext={() => gotoMatch(1)}
+      onClose={closeFind}
+    />
+  );
+  const moreButton = (
+    <button
+      type="button"
+      onClick={() => setDrawer("more")}
+      aria-label={tr("pane.more")}
+      title={tr("pane.more")}
+      className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
+    >
+      <EllipsisVertical className="size-4" />
+    </button>
+  );
+  // A row of the « ⋯ » sheet that closes it first.
+  const row = (icon: ReactNode, label: string, run: () => void) => (
+    <ActionRow
+      icon={icon}
+      label={label}
+      onClick={() => {
+        closeDrawer();
+        run();
+      }}
+    />
+  );
+  const rowIcon = "size-4 shrink-0 text-muted-foreground";
 
   // The ONE handoff call this screen makes — the desktop rail's button and the composer's Quick dock
   // both fire it, so "hand off from the session" can't drift into two behaviours. Same request the
@@ -706,132 +732,30 @@ export function AgentChat({
           screen's h1, then the content region (statusline/mirror/composer) — unchanged below this
           point regardless of breakpoint. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* Header — the SAME AppHeader toolbar shell every screen mounts, plus the back chevron (this
-            is an entered screen). Mobile only from here (`lg:hidden`) — the desktop toolbar below
-            replaces it there, since the nav sidebar (app-nav.tsx) is the way back on desktop,
-            not a chevron. The pane's own bits ride in via slots: the `space › tab` breadcrumb as the
-            center, the agent StatusBadge as the right-cluster lead, and the find bar as the full-row
-            takeover while searching. bridge/error/stalled still drive `connecting` below (the
-            StatusBadge dimming) — the toolbar itself no longer reads them; the connection mark moved
-            to the nav (app-nav.tsx). */}
+        {/* Phone: back to the agents list, then who this is on three short lines (name + state;
+            project, machine, model; the gauge). Everything else this view can do is behind « ⋯ ». */}
         <div className="lg:hidden">
-        <AppHeader
-        onBack={onBack}
-        override={
-          findOpen ? (
-            <FindBar
-              query={findQuery}
-              onQueryChange={setFindQuery}
-              count={matchCount}
-              current={currentMatch}
-              onPrev={() => gotoMatch(-1)}
-              onNext={() => gotoMatch(1)}
-              onClose={closeFind}
-            />
-          ) : undefined
-        }
-        // Right cluster, in reading order: the Terminal⇄Reading control and History (desktop-visible
-        // toolbar items, per the mirror column's own toolbar spec — see the desktop layout below),
-        // Find (both breakpoints), then "⋯" (both breakpoints — desktop already shows the two items
-        // above it individually, so there its only job is Close pane; mobile has no other way to
-        // reach any of the three, so they all live there too), then the agent status pill. The pill
-        // is the rightmost item on every pane screen (it's the thing you glance at).
-        //
-        // Find-in-output lives in the header, next to the other pane-chrome controls, so the composer
-        // stays a single action row. Shown whenever there's buffered output to search (independent of
-        // `agent`, since the mirror can still show output after a pane goes gone).
-        //
-        // History opens the agent's own transcript, the only real conversation history a Claude pane
-        // has: its terminal runs on the alternate screen, so the mirror below can never show more
-        // than the visible viewport. Offered only when the pane reported an agent session id (i.e. a
-        // transcript can exist at all), so the button never leads to an empty screen.
-        //
-        // The status pill is dimmed while the connection isn't live, so a frozen "working"/"idle"
-        // from the last snapshot doesn't masquerade as current. A bare shell shows a muted "shell" tag.
-        rightLead={
-          <>
-            {/* Terminal ⇄ Reading and History used to live here too; this whole header is mobile-only
-                now (`lg:hidden`, see its wrapper below — the desktop toolbar carries its own copies
-                of both, always visible there), and on mobile the doc's own spec keeps the header to
-                identity + Search + "⋯" — both moved into the "⋯" sheet below. */}
-            {/* Find searches the MIRROR's buffer, so it belongs to terminal mode — reading mode has
-                its own source, and History is where a search across the whole thread lives. */}
-            {display && !reading && (
-              <button
-                type="button"
-                onClick={openFind}
-                aria-label={tr("find.label.output")}
-                title={tr("find.label.output")}
-                className="-mr-1 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
-              >
-                <Search className="size-4" />
-              </button>
-            )}
-            {display && !reading && (
-              <button
-                type="button"
-                onClick={() => navigate(zoomPath(paneId, session))}
-                aria-label={tr("zoom.open")}
-                title={tr("zoom.open")}
-                className="-mr-1 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
-              >
-                <Maximize2 className="size-4" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setDrawer("more")}
-              aria-label={tr("pane.more")}
-              className="-mr-1 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
-            >
-              <EllipsisVertical className="size-4" />
-            </button>
-            {/* No status pill here any more — this whole header is `lg:hidden` (see its wrapper
-                below), and the mobile context row it sits above already carries one. The desktop
-                toolbar (also below) carries its own, independently — the two can never both be
-                visible at once, so there is exactly one pill per breakpoint, not a shared one. */}
-          </>
-        }
-      >
-        {/* Title block: identity only now — the space › tab › pane breadcrumb moved to the context
-            row below (redesign §5). The agent's brand logo leads (the agent name would just repeat
-            it, so it's dropped), cwd on the subline. Tapping it leaves the pane for the space
-            overview (all its tabs + panes). */}
-        {agent ? (
-          <button
-            type="button"
-            onClick={() => openSpace(agent.workspaceId)}
-            aria-label={tr("pane.openOverview", { space: place })}
-            className="-mx-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left transition-colors hover:bg-muted/60 active:bg-muted/60"
+          <AppHeader
+            onBack={onBack}
+            backLabel={tr("pane.backToAgents")}
+            override={findOpen ? findBar : undefined}
+            rightLead={moreButton}
           >
-            {isShell ? (
-              <div className="flex size-[26px] shrink-0 items-center justify-center rounded-full border bg-muted">
-                <TerminalSquare className="size-3 text-muted-foreground" />
-              </div>
+            {agent ? (
+              <AgentViewIdentity agent={agent} stale={connecting} phone />
             ) : (
-              <AgentIcon agent={agent.agent} className="size-[26px]" />
+              <span className="min-w-0 flex-1 truncate font-semibold">{tr("pane.agentGone")}</span>
             )}
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-base font-semibold leading-tight">{paneTitle}</div>
-              <div className="truncate font-mono text-[11px] leading-tight text-muted-foreground">
-                {shortCwd(agent.cwd)}
-              </div>
-            </div>
-          </button>
-        ) : (
-          <div className="min-w-0 flex-1">
-            <span className="truncate font-semibold">{tr("pane.agentGone")}</span>
-          </div>
-        )}
-        </AppHeader>
+          </AppHeader>
         </div>
 
-        {/* Desktop toolbar (redesign §5 "three panes") — replaces AppHeader entirely from `lg` up:
-            identity + breadcrumb on the left (no back chevron; the nav sidebar is the way back
-            on desktop), the SAME view/find/history/more controls on the right, just always visible
-            rather than folded into "⋯" (mobile has no room for both; desktop does). */}
-        <div className="hidden h-14 flex-none items-center gap-3 border-b border-border px-5 lg:flex">
-          {agent ? (
+        {/* Desktop: the same identity on two lines with the gauge beside it, then three actions —
+            terminal ⇄ reading, the pin, « ⋯ » — and the bell every screen ends on. No back chevron:
+            the nav sidebar is the way back on desktop. */}
+        <div className="hidden min-h-14 flex-none items-center gap-3 border-b border-border px-5 py-2 lg:flex">
+          {findOpen ? (
+            findBar
+          ) : agent ? (
             <>
               {isShell ? (
                 <div className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-muted">
@@ -840,151 +764,32 @@ export function AgentChat({
               ) : (
                 <AgentIcon agent={agent.agent} className="size-7 shrink-0" />
               )}
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <span className="shrink-0 truncate text-sm font-semibold">{paneTitle}</span>
-                <span className="flex min-w-0 items-center gap-1 truncate font-mono text-[11px] text-muted-foreground">
-                  <span className="shrink-0 text-muted-foreground/50">·</span>
-                  <button
-                    type="button"
-                    onClick={() => openSpace(agent.workspaceId)}
-                    className="max-w-[12rem] truncate transition-colors hover:text-foreground"
-                  >
-                    {place}
-                  </button>
-                  {tabLabel && !hc && (
-                    <>
-                      <span className="shrink-0 text-muted-foreground/50">›</span>
-                      <button
-                        type="button"
-                        onClick={() => setDrawer("tabs")}
-                        className="max-w-[12rem] truncate transition-colors hover:text-foreground"
-                      >
-                        {tabLabel}
-                      </button>
-                    </>
-                  )}
-                </span>
-                {/* The pane segment. OUTSIDE the truncating span above — that one is
-                    overflow:hidden, which would clip the menu's dropdown. Without this segment two
-                    panes of the same space+tab (two Claude sessions in one repo) render an
-                    IDENTICAL header, so switching between them looks like it did nothing. */}
-                <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground">
-                  <span className="shrink-0 text-muted-foreground/50">›</span>
-                  <PaneMenu panes={spacePanes} currentPaneId={paneId} onSelect={switchTo} />
-                </span>
-              </div>
+              <AgentViewIdentity agent={agent} stale={connecting} />
+              <ContextMeter agent={agent} />
             </>
           ) : (
             <span className="min-w-0 flex-1 truncate font-semibold">{tr("pane.agentGone")}</span>
           )}
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             {historyAvailable && (
-              <div
-                role="group"
-                aria-label={tr("pane.viewMode")}
-                className="flex items-center overflow-hidden rounded-lg border"
-              >
-                <button
-                  type="button"
-                  onClick={() => setReading(false)}
-                  aria-pressed={!reading}
-                  aria-label={tr("pane.terminalView")}
-                  title={tr("pane.terminal")}
-                  className={`flex size-11 items-center justify-center transition-colors ${
-                    reading ? "text-muted-foreground hover:bg-muted/60" : "bg-muted text-foreground"
-                  }`}
-                >
-                  <TerminalSquare className="size-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNoReading(null);
-                    setReading(true);
-                  }}
-                  aria-pressed={reading}
-                  aria-label={tr("pane.readingView")}
-                  title={tr("pane.reading")}
-                  className={`flex size-11 items-center justify-center border-l transition-colors ${
-                    reading ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  }`}
-                >
-                  <BookOpenText className="size-3.5" />
-                </button>
-              </div>
-            )}
-            {display && !reading && (
               <button
                 type="button"
-                onClick={openFind}
-                aria-label={tr("find.label.output")}
-                title={tr("find.label.output")}
+                onClick={toggleReading}
+                aria-label={reading ? tr("pane.toTerminal") : tr("pane.toReading")}
+                title={reading ? tr("pane.toTerminal") : tr("pane.toReading")}
                 className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
-                <Search className="size-4" />
-              </button>
-            )}
-            {display && !reading && (
-              <button
-                type="button"
-                onClick={() => navigate(zoomPath(paneId, session))}
-                aria-label={tr("zoom.open")}
-                title={tr("zoom.open")}
-                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
-              >
-                <Maximize2 className="size-4" />
-              </button>
-            )}
-            {agent && historyAvailable && (
-              <button
-                type="button"
-                onClick={() => navigate(historyPath(paneId, session))}
-                aria-label={tr("pane.history.label")}
-                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
-              >
-                <ScrollText className="size-4" />
-              </button>
-            )}
-            {/* The session's worktree artifacts — screenshots, reports and pages the agent WROTE to
-                disk (docs/hero-recette/*.png, *.md, a validation *.html). Card-backed panes only: the
-                reader is confined to the CARD's worktree, so a hand-launched pane has no root. Visible
-                in both modes, like History — the artwork is a fact of the session, not of a mode. */}
-            {cardId && (
-              <button
-                type="button"
-                onClick={() => navigate(paneArtifactsPath(paneId, session))}
-                aria-label={tr("pane.artifacts.label")}
-                title={tr("pane.artifacts")}
-                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
-              >
-                <FileCode2 className="size-4" />
+                {reading ? <TerminalSquare className="size-4" /> : <BookOpenText className="size-4" />}
               </button>
             )}
             {agent && <PinButton agent={agent} />}
-            <button
-              type="button"
-              onClick={() => setDrawer("more")}
-              aria-label={tr("pane.more")}
-              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
-            >
-              <EllipsisVertical className="size-4" />
-            </button>
-            {agent &&
-              (isShell ? (
-                <ShellBadge stale={connecting} />
-              ) : (
-                <StatusBadge status={agent.status} stale={connecting} />
-              ))}
-            {/* The bell, last — same anchored slot it holds in AppHeader (app-header.tsx). This
-                toolbar REPLACES that shell from `lg` up, so without this the one control that's meant
-                to be on every screen vanishes the moment you open a pane on a desktop. */}
+            {moreButton}
+            {/* The bell, last — same anchored slot it holds in AppHeader, which this toolbar replaces. */}
             <NotificationBell />
           </div>
         </div>
 
-      {/* The screen's one h1. sr-only because the visible pane title lives inside the header's
-          "open the space" button, and a heading inside a button isn't exposed as one — so without
-          this, the pane switcher's section headings had no parent to hang off. */}
+      {/* The screen's one h1, for the sheets' headings to hang off. */}
       <h1 className="sr-only">{paneTitle}</h1>
 
       {/* Content region below the header — the mirror inside is the scroller. */}
@@ -992,66 +797,8 @@ export function AgentChat({
         {/* Read-only notice when this device isn't allowlisted (the composer below is disabled too). */}
         <ReadOnlyBanner device={device} />
 
-        {/* The context row (redesign §5): one row replacing the old TabStrip + PaneStrip pair above
-            the mirror. `space › tab › pane` — the first two segments are plain selectors (space opens
-            the space overview, tab opens the SAME TabStrip's tab list, now inside a sheet instead of
-            an always-visible strip), the last is a chip opening the pane switcher that
-            already existed. Right: a live ctx bar + the status chip. ~96px handed back to the mirror
-            versus the two strips it replaces. */}
-        {agent && (
-          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/60 px-3 lg:hidden">
-            <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-[11px]">
-              <button
-                type="button"
-                onClick={() => openSpace(agent.workspaceId)}
-                className="max-w-[40%] truncate text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {place}
-              </button>
-              {tabLabel && !hc && (
-                <>
-                  <span className="shrink-0 text-muted-foreground/50">›</span>
-                  <button
-                    type="button"
-                    onClick={() => setDrawer("tabs")}
-                    className="max-w-[40%] truncate text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {tabLabel}
-                  </button>
-                </>
-              )}
-              <span className="shrink-0 text-muted-foreground/50">›</span>
-              {/* Same segment as the desktop toolbar: this space's panes only. The whole herd stays
-                  one tap away on the composer's "Switch pane" button. */}
-              <PaneMenu panes={spacePanes} currentPaneId={paneId} onSelect={switchTo} />
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <PinButton agent={agent} className="size-8" />
-              <ModelTag model={agent.model} effort={agent.effort} className="text-[11px] text-muted-foreground" />
-              {agent.ctxPct != null && (
-                <button
-                  type="button"
-                  onClick={() => setCtxShowTokens((v) => !v)}
-                  aria-label={tr("pane.ctxUnits")}
-                  className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
-                >
-                  <CtxBar pct={agent.ctxPct} className="w-[34px]" />
-                  {ctxShowTokens && agent.ctxTokens != null
-                    ? `${Math.round(agent.ctxTokens / 1000)}k`
-                    : `${Math.round(agent.ctxPct)}%`}
-                </button>
-              )}
-              {isShell ? (
-                <ShellBadge stale={connecting} />
-              ) : (
-                <StatusBadge status={agent.status} stale={connecting} />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Both breakpoints: the mobile header and the desktop toolbar each end above this strip. */}
-        <SubagentsLine subagents={agent?.subagents} className="shrink-0 border-b border-border/60 px-3 py-1" />
+        {/* Phone: the sub-agents the desktop header names on its second line. */}
+        <SubagentsLine subagents={agent?.subagents} className="shrink-0 border-b border-border/60 px-3 py-1 lg:hidden" />
         <WorkMark agent={agent} className="shrink-0 border-b border-border/60 px-3 py-1" />
 
         {/* The screen's body: the terminal mirror, or the reading view over the same conversation.
@@ -1179,41 +926,6 @@ export function AgentChat({
             (see composer.tsx), which costs the mirror nothing. */}
         <div className="relative">
 
-          {/* The card this pane backs. Third of the blocks this bottom region mirrors from the
-              desktop rail (with the statusline and the gauge below) — and the one that was missing:
-              ContextRailColumn is `lg:flex`, so below that breakpoint the card a session works on
-              was unreachable from the session at all. Same destination as the rail's "Ouvrir la
-              carte", one row instead of a block; absent entirely when the pane backs no card, so a
-              hand-launched pane shows no empty affordance. The rail's OTHER button (Handoff) reaches
-              mobile through the composer's Quick dock instead, where it's one tap from the reply box
-              at any ctx level. */}
-          {cardId && (
-            <button
-              type="button"
-              onClick={() => navigate(cardPath(cardId))}
-              aria-label={tr("pane.openCard", { title: cardLabel })}
-              className="flex w-full items-center gap-2 border-t border-border/40 px-3 py-1.5 text-left transition-colors active:bg-muted/50 lg:hidden"
-            >
-              <Columns3 className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate text-xs font-medium">{cardLabel}</span>
-              <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-            </button>
-          )}
-
-          {/* The agent's statusline, re-surfaced as app chrome (its branch/model/ctx would otherwise
-              vanish with the stripped input box). Sits directly above the composer, as it did in the
-              TUI. Verbatim text — a React text node, so no XSS surface. `lg:hidden`: at that
-              breakpoint `ContextRailColumn` already carries this same text, under its own heading. */}
-          {prefs.statusLine && statusLines.length > 0 && (
-            <div className="border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80 lg:hidden">
-              {statusLines.map((line, i) => (
-                <div key={i} className="truncate">
-                  {line}
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* Right above the reply box, at every breakpoint: the reply is what would reload the cache. */}
           {cardId && agent?.handoffReady && <ResumeOffer cardId={cardId} />}
           {/* « En main » (ADR 0058): writing here takes the card by itself; the button is for taking it before, and giving it back. */}
@@ -1245,19 +957,11 @@ export function AgentChat({
             }
             onHandoff={cardId ? () => runHandoff(cardId) : undefined}
             working={agent?.status === "working"}
+            agentName={agent ? paneTitle : undefined}
           />
         </div>
       </div>
       </div>
-
-      {/* Desktop-only, 308px: the ctx gauge as a large figure, the card this pane backs, and the
-          agent's statusline verbatim. */}
-      <ContextRailColumn
-        agent={agent}
-        statusLines={statusLines}
-        onOpenCard={(cardId) => navigate(cardPath(cardId))}
-        onHandoff={runHandoff}
-      />
 
       {/* Swipe-up quick switcher — just the panes (agents + shells), reached by the thumb gesture.
           Switch-only: pane closing lives in the pane pill's long-press sheet, not here. */}
@@ -1297,63 +1001,40 @@ export function AgentChat({
         </BottomSheet>
       )}
 
-      {/* The header's "⋯" (redesign §5): Terminal/Reading + History (already visible individually
-          from `lg` up — redundant there, but harmless) and Close pane, which has no other home now
-          that PaneStrip's long-press sheet isn't reachable from the main chrome. Same two-tap shape
-          PaneActionsSheet uses for the same action, duplicated rather than nested — a sheet opening a
-          sheet is a back-button trap on a phone. */}
+      {/* « ⋯ »: everything this view does beyond reading and replying. The agent's status line (its
+          mode, its shells) heads it — information, not an action. Desktop shows the view toggle and
+          the pin in the toolbar too; the phone has only this. */}
       <BottomSheet open={drawer === "more"} onClose={closeDrawer} title={paneTitle}>
         <div className="flex flex-col gap-1">
-          {historyAvailable && (
-            <ActionRow
-              icon={
-                reading ? (
-                  <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
-                ) : (
-                  <BookOpenText className="size-4 shrink-0 text-muted-foreground" />
-                )
-              }
-              label={reading ? tr("pane.toTerminal") : tr("pane.toReading")}
-              onClick={() => {
-                if (!reading) setNoReading(null);
-                setReading(!reading);
-                closeDrawer();
-              }}
-            />
+          {statusLines.length > 0 && (
+            <section aria-label={tr("pane.statusLine")} className="mb-2 flex flex-col gap-0.5 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              {statusLines.map((line, i) => (
+                <div key={i} className="truncate">
+                  {line}
+                </div>
+              ))}
+            </section>
           )}
-          {agent && historyAvailable && (
-            <ActionRow
-              icon={<ScrollText className="size-4 shrink-0 text-muted-foreground" />}
-              label={tr("pane.history")}
-              onClick={() => {
-                closeDrawer();
-                navigate(historyPath(paneId, session));
-              }}
-            />
+          {cardId && row(<Columns3 className={rowIcon} />, tr("pane.openCard", { title: cardLabel }), () => navigate(cardPath(cardId)))}
+          {historyAvailable &&
+            row(
+              reading ? <TerminalSquare className={rowIcon} /> : <BookOpenText className={rowIcon} />,
+              reading ? tr("pane.toTerminal") : tr("pane.toReading"),
+              toggleReading,
+            )}
+          {pin && (
+            <div className="lg:hidden">
+              {row(<Pin className={rowIcon} />, tr(pin.on ? "pin.remove" : "pin.add"), pin.toggle)}
+            </div>
           )}
-          {agent && historyAvailable && (
-            <ActionRow
-              icon={<Images className="size-4 shrink-0 text-muted-foreground" />}
-              label={tr("pane.images")}
-              onClick={() => {
-                closeDrawer();
-                void openSessionImages();
-              }}
-            />
-          )}
-          {/* The mobile home of the artifact reader — History/Images live in this sheet, so the
-              worktree files do too. Card-backed panes only (the reader is confined to the CARD's
-              worktree); a hand-launched pane has no root. */}
-          {cardId && (
-            <ActionRow
-              icon={<FileCode2 className="size-4 shrink-0 text-muted-foreground" />}
-              label={tr("pane.artifacts")}
-              onClick={() => {
-                closeDrawer();
-                navigate(paneArtifactsPath(paneId, session));
-              }}
-            />
-          )}
+          {display && !reading && row(<Search className={rowIcon} />, tr("find.label.output"), openFind)}
+          {display && !reading && row(<Maximize2 className={rowIcon} />, tr("zoom.open"), () => navigate(zoomPath(paneId, session)))}
+          {agent && historyAvailable && row(<ScrollText className={rowIcon} />, tr("pane.history"), () => navigate(historyPath(paneId, session)))}
+          {agent && historyAvailable && row(<Images className={rowIcon} />, tr("pane.images"), () => void openSessionImages())}
+          {/* The worktree files the session wrote — card-backed panes only (the reader is confined to the CARD's worktree). */}
+          {cardId && row(<FileCode2 className={rowIcon} />, tr("pane.artifacts"), () => navigate(paneArtifactsPath(paneId, session)))}
+          {agent && row(<LayoutGrid className={rowIcon} />, tr("pane.openOverview", { space: placeOf(agent) }), () => openSpace(agent.workspaceId))}
+          {agent && tabLabel && !hc && row(<PanelTop className={rowIcon} />, tr("pane.tabs"), () => setDrawer("tabs"))}
           {/* Mounted with the sheet only: it asks the bridge. On success the agent lives in another pane — follow it. */}
           {agent && drawer === "more" && (
             <MigrateHcButton

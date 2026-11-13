@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
 import { useRevalidator } from "react-router";
-import { AArrowDown, AArrowUp, Check, Copy, ImagePlus, Keyboard, Loader2, PanelsTopLeft, Send, Slash, SlidersHorizontal, Square, Terminal, WrapText, X, Zap } from "lucide-react";
+import { AArrowDown, AArrowUp, Check, Copy, EllipsisVertical, ImagePlus, Keyboard, Loader2, PanelsTopLeft, Send, Slash, SlidersHorizontal, Square, Terminal, WrapText, X, Zap } from "lucide-react";
 
 import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
@@ -112,7 +112,16 @@ interface ComposerProps {
   onHandoff?: () => Promise<void>;
   /** The agent is mid-turn: Stop shows, and a message sent now waits in the agent's queue. */
   working?: boolean;
+  /** Who a reply goes to, as the header names it: « Répondre à <nom>… ». */
+  agentName?: string;
 }
+
+/** A card title as a reply target: long enough to recognise, short enough to stay on one line. */
+// The message's own « … » closes a cut name, so the cut adds none.
+const shortName = (name: string) => (name.length > 20 ? name.slice(0, 20).trimEnd() : name);
+
+/** The send shortcut's modifier as this keyboard prints it. Either key sends (onKeyDown). */
+const SEND_MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘" : "Ctrl";
 
 // The composer cluster at the bottom of the pane view — everything a phone keyboard can't do on its
 // own: quick actions, an agent-aware slash-command palette, an inline key tray (via
@@ -167,7 +176,7 @@ function ComposerDock({
 }
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  { paneId, session, agent, hc, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane, onHandoff, working = false },
+  { paneId, session, agent, hc, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane, onHandoff, working = false, agentName },
   ref,
 ) {
   const tr = useT();
@@ -213,6 +222,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [previewLatched, setPreviewLatched] = useState(false);
   // Composer sheets are mutually exclusive — at most one open (Keys / Quick / View / Agent).
   const [drawer, setDrawer] = useState<ComposerDrawer>(null);
+  // Phone: the secondary actions, folded behind « ⋯ » (always shown from `lg` up).
+  const [more, setMore] = useState(false);
   const closeDrawer = () => setDrawer(null);
   // View row's Copy button — copies the mirror's displayed buffer (mirrorText), not the composer input.
   const { canCopy: canCopyMirror, copied: mirrorCopied, copy: copyMirror } = useCopy();
@@ -523,7 +534,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   return (
     <>
       {/* Below `lg` the tab bar under it already pays the safe area (agent-chat's ABOVE_TAB_BAR). */}
-      <div className="border-t border-border/60 bg-chrome px-3 pb-2 pt-2.5 lg:pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]">
+      {/* From `lg` up the bar spans the view but its content keeps the reading column's 760px. */}
+      <div className="border-t border-border/60 bg-chrome px-3 pb-2 pt-2.5 lg:px-[max(1.5rem,calc((100%-760px)/2))] lg:pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]">
         {/* Pending-send preview: visible from send until the mirror echoes back (or 6s). Shows the
             user what landed so they don't double-tap while waiting for the terminal to update. */}
         {lastSent && (
@@ -684,11 +696,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           onEdit={(n, text) => setPastes((prev) => prev.map((c) => (c.n === n ? { ...c, text } : c)))}
           onRemove={removePaste}
         />
-        <div className="lg:flex lg:items-end lg:gap-2">
-          <div className="relative lg:min-w-0 lg:flex-1">
-            {/* Reply input — full width, its own line below `lg` (UI_AUDIT C1). No side buttons
-                compete for space here anymore (attach/Send moved to the action row), so the textarea
-                gets the whole composer width instead of the ~270px it used to share with them. */}
+        {/* Reply input + actions, one row. Phone: image and Send beside the input, the rest behind
+            « ⋯ » — opening it lays them out as a row of their own above the input. From `lg` up the
+            whole set sits in the row, after the input. Every target is 44px. Keys/Quick/View are
+            TOGGLES for the in-flow dock above; the secondary variant marks the one that's open. */}
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-1.5">
+          <div className="relative min-w-0 flex-1">
             <ChatInput
               ref={inputRef}
               value={input}
@@ -707,27 +720,22 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                     ? tr("pane.input.readOnly")
                     : isShell
                       ? tr("pane.input.shell")
-                      : tr("pane.input.reply")
+                      : agentName
+                        ? tr("pane.input.replyTo", { name: shortName(agentName) })
+                        : tr("pane.input.reply")
               }
+              aria-label={agentName ? tr("pane.input.replyTo", { name: agentName }) : tr("pane.input.reply")}
               disabled={locked}
               rows={1}
-              className="mb-2 lg:mb-0 lg:pr-24"
+              className="lg:pr-28"
             />
+            {/* A physical keyboard is the norm only from `lg` up. */}
             <span className="pointer-events-none absolute bottom-2.5 right-3 hidden text-[11px] opacity-70 lg:block">
-              {tr("pane.input.hint")}
+              {tr("pane.input.hint", { mod: SEND_MOD })}
             </span>
           </div>
-          {/* Action row — the composer's one permanent control row (UI_AUDIT C1), replacing the old
-              View + Controls rows (~80px of 28-32px targets). Every target here is 44px (Apple/Material
-              minimum). Keys/Quick/View are TOGGLES for the in-flow dock above (not overlays): tap to
-              open, tap again to close; secondary variant marks the one that's open. Agent only appears
-              when the pane's agent has slash-commands. Send is anchored to the far side (thumb corner). */}
-            <div className="flex items-center gap-2">
-              {/* Pane switcher. It USED to be a grab handle in a band of its own above the composer:
-                  an affordance that reads "drag me" with no label, no target of its own, and ~34px
-                  of the mirror spent on it permanently. A labelled icon button in the row that
-                  already exists costs zero vertical space, sits in the same thumb arc as Send, and
-                  says what it does. Sheet-still-opens-the-same-sheet — only the trigger moved. */}
+          <div className={`${more ? "flex" : "hidden"} order-first basis-full items-center gap-2 lg:order-none lg:flex lg:basis-auto`}>
+              {/* Pane switcher — the phone's way to another agent without going back to the list. */}
               {onSwitchPane && (
                 <Button
                   variant="ghost"
@@ -777,25 +785,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   <Slash className="size-4" />
                 </Button>
               )}
-              {/* Attach image — moved off the input line (UI_AUDIT C1) so it no longer eats input
-                  width. preventDefault keeps the textarea focused so the picker opens without the
-                  soft keyboard collapsing first. */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-11 text-muted-foreground"
-                disabled={upload.uploading || locked}
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => fileRef.current?.click()}
-                aria-label={tr("pane.attach")}
-              >
-                {upload.uploading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <ImagePlus className="size-4" />
-                )}
-              </Button>
               <Button
                 variant={drawer === "view" ? "secondary" : "ghost"}
                 size="icon"
@@ -812,7 +801,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 <Button
                   variant="outline"
                   size="icon"
-                  className="ml-auto size-11 shrink-0 rounded-full"
+                  className="size-11 shrink-0 rounded-full"
                   onClick={() => pressKeys(["Escape"])}
                   aria-label={tr("pane.stop")}
                   title={tr("pane.stop")}
@@ -820,10 +809,42 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   <Square className="size-4 fill-current" />
                 </Button>
               )}
+          </div>
+          <div className="flex items-center gap-1 lg:gap-2">
+              <Button
+                variant={more ? "secondary" : "ghost"}
+                size="icon"
+                className="size-11 text-muted-foreground lg:hidden"
+                aria-expanded={more}
+                aria-label={tr("pane.composer.more")}
+                title={tr("pane.composer.more")}
+                onClick={() => setMore(!more)}
+              >
+                <EllipsisVertical className="size-4" />
+              </Button>
+              {/* Attach image. preventDefault keeps the textarea focused so the picker opens without
+                  the soft keyboard collapsing first. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-11 text-muted-foreground"
+                disabled={upload.uploading || locked}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => fileRef.current?.click()}
+                aria-label={tr("pane.attach")}
+                title={tr("pane.attach")}
+              >
+                {upload.uploading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ImagePlus className="size-4" />
+                )}
+              </Button>
               {confirmingSend ? (
                 <Button
                   variant="destructive"
-                  className={`${showStop ? "" : "ml-auto "}h-11 shrink-0 rounded-full px-4 text-sm font-semibold`}
+                  className="h-11 shrink-0 rounded-full px-4 text-sm font-semibold"
                   onClick={onSendClick}
                   disabled={locked || !input.trim() || sending}
                   aria-label={tr("pane.send.really")}
@@ -834,10 +855,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 <Button
                   variant="brand"
                   size="icon"
-                  className={`${showStop ? "" : "ml-auto "}size-11 shrink-0 rounded-full`}
+                  className="size-11 shrink-0 rounded-full"
                   onClick={onSendClick}
                   disabled={locked || !input.trim() || sending}
                   aria-label={tr("pane.send")}
+                  title={tr("pane.send")}
                 >
                   {sending ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -848,9 +870,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   )}
                 </Button>
               )}
-            </div>
           </div>
         </div>
+      </div>
 
       {/* Slash-command palette */}
       <CommandPalette

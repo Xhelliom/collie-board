@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, Info, TriangleAlert, User, Wrench } from "lucide-react";
 
-import { useT } from "@/i18n";
+import { getLocale, useT } from "@/i18n";
 import { AgentIcon } from "@/components/agent-icon";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { GalleryImg } from "@/components/gallery-img";
@@ -34,11 +34,26 @@ const ThreadImagesContext = createContext<string[]>([]);
 const TIME_FMT = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 const DAY_FMT = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
-/** Times only — the date lives on the day divider, and a phone row has no width to spare. */
+/** Times only — the date lives on the day divider, and a phone row has no width to spare. French writes « 10 h 17 ». */
 function clockTime(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : TIME_FMT.format(d);
+  if (Number.isNaN(d.getTime())) return "";
+  return getLocale() === "fr" ? `${d.getHours()} h ${String(d.getMinutes()).padStart(2, "0")}` : TIME_FMT.format(d);
+}
+
+/** « Claude, 10 h 17 » — a speaker and its time, in the sentence's own case. */
+const said = (who: string, time: string) => (time ? `${who}, ${time}` : who);
+
+// Text the harness slipped into the thread under the user's name — a whole message wrapped in one
+// tag (`<task-notification>…</task-notification>`, `<agent-message …>…</agent-message>`). The bridge
+// drops or reduces the envelopes it knows; this catches the shape of the ones it doesn't.
+const ENVELOPE = /^\s*<([a-z][\w-]*)(\s[^>]*)?>[\s\S]*<\/\1>\s*$/i;
+
+/** Not speech: a system note, or a user turn that is only injected envelopes. Folded behind « Message système ». */
+export function isInjected(entry: TranscriptEntry): boolean {
+  if (entry.role === "note") return true;
+  return entry.role === "user" && entry.parts.length > 0 && entry.parts.every((p) => p.kind === "text" && ENVELOPE.test(p.text));
 }
 
 function dayKey(iso: string): string {
@@ -235,10 +250,9 @@ function TurnBody({
     // Claude's compaction summary is pages long and restates what's above it — folded.
     return (
       <details open={query.trim() !== ""} className="group rounded-lg border border-dashed bg-muted/30 px-3 py-2">
-        <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs text-muted-foreground">
           <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
-          {t("transcript.compacted")}
-          {time && ` · ${time}`}
+          {said(t("transcript.compacted"), time)}
         </summary>
         <div className="mt-1">
           {entry.parts.map((part, i) => (
@@ -248,18 +262,21 @@ function TurnBody({
       </details>
     );
   }
-  if (entry.role === "note") {
+  if (isInjected(entry)) {
+    // Folded: what the harness tells the agent is not what you came to read. A find query unfolds it.
     return (
-      <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2">
-        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+      <details open={query.trim() !== ""} className="group rounded-lg border border-dashed bg-muted/30 px-3 py-2">
+        <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs text-muted-foreground">
+          <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
           <Info className="size-3" />
-          {t("transcript.system")}
-          {time && ` · ${time}`}
+          {said(t("transcript.systemMessage"), time)}
+        </summary>
+        <div className="mt-1">
+          {entry.parts.map((part, i) => (
+            <Part key={i} part={part} query={query} />
+          ))}
         </div>
-        {entry.parts.map((part, i) => (
-          <Part key={i} part={part} query={query} />
-        ))}
-      </div>
+      </details>
     );
   }
 
@@ -273,10 +290,9 @@ function TurnBody({
           ) : (
             <AgentIcon agent={agent ?? "claude"} className="size-4" />
           )}
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            {isUser ? t("transcript.you") : (agent ?? t("pane.agent"))}
+          <span className="text-xs text-muted-foreground">
+            {said(isUser ? t("transcript.you") : agent ? agent.charAt(0).toUpperCase() + agent.slice(1) : t("pane.agent"), time)}
           </span>
-          {time && <span className="text-xs text-muted-foreground">{time}</span>}
         </div>
       )}
       {/* What you sent — a pasted file, a loaded skill — is the long part of a thread and the part you
@@ -327,7 +343,7 @@ export function TranscriptView({
   const threadImages = images ?? derived;
   // Consecutive turns from the same speaker are GROUPED — only the first of a run carries the
   // role/time header. A real thread is overwhelmingly long runs of assistant turns (892 of 914 in a
-  // measured session), so repeating "CLAUDE 06:43 PM" above every tool call would roughly double the
+  // measured session), so repeating "Claude, 06:43 PM" above every tool call would roughly double the
   // scroll length with nothing new in it. A day divider always restarts a run.
   let lastDay = "";
   let lastRole = "";
@@ -335,8 +351,9 @@ export function TranscriptView({
     const day = dayKey(entry.ts);
     const newDay = day !== "" && day !== lastDay;
     if (newDay) lastDay = day;
-    const showHeader = newDay || entry.role !== lastRole;
-    lastRole = entry.role;
+    const role = isInjected(entry) ? "note" : entry.role;
+    const showHeader = newDay || role !== lastRole;
+    lastRole = role;
     return { entry, day, newDay, showHeader };
   });
   const renderRow = ({ entry, day, newDay, showHeader }: (typeof rows)[number]) => (
@@ -363,6 +380,13 @@ export function TranscriptView({
   // "N steps" line — that run is most of a thread, and the prose between runs is what you read.
   // Only headerless rows join a run, so the speaker/time line and day dividers stay visible. Unfolded
   // by a find query, or when it holds the turn a find/jump landed on.
+  // « 3 étapes : Bash, Read, Read » — one step per tool call, named; a run of thinking alone is counted by turn.
+  const stepsLabel = (run: TranscriptEntry[]) => {
+    const names = run.flatMap((e) => e.parts.flatMap((p) => (p.kind === "tool" ? [p.name] : [])));
+    return names.length > 0
+      ? t("transcript.stepsNamed", { count: names.length, names: names.join(", ") })
+      : t("transcript.steps", { count: run.length });
+  };
   const out: ReactNode[] = [];
   for (let i = 0; i < rows.length; ) {
     let j = i;
@@ -374,8 +398,8 @@ export function TranscriptView({
         <details key={`steps-${run[0]!.entry.uuid}`} open={open} className="group px-1">
           <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1 text-xs text-muted-foreground">
             <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
-            <Wrench className="size-3" />
-            {t("transcript.steps", { count: run.length })}
+            <Wrench className="size-3 shrink-0" />
+            <span className="min-w-0 truncate">{stepsLabel(run.map((r) => r.entry))}</span>
           </summary>
           <div className="mt-2 space-y-3">{run.map(renderRow)}</div>
         </details>,

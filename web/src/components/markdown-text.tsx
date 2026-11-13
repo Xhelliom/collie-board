@@ -78,7 +78,7 @@ function Span({ span }: { span: MdSpan }) {
   switch (span.kind) {
     case "bold":
       return (
-        <strong className="font-semibold text-md-strong">
+        <strong className="font-semibold">
           <Spans spans={span.spans} />
         </strong>
       );

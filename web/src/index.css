@@ -53,10 +53,9 @@
   --find-hit: oklch(0.879 0.169 91.605 / 70%);
   --find-hit-current: oklch(0.769 0.188 70.08);
 
-  /* Markdown reader accents (markdown-text.tsx) — the terminal's own cues: bold orange, headings and
+  /* Markdown reader accents (markdown-text.tsx) — the terminal's own cues: headings and
      table headers violet, inline code blue, diff lines green/red. Each clears AA (4.5:1) on both
      --background and --muted, in both themes. */
-  --md-strong: oklch(0.555 0.163 49);
   --md-heading: oklch(0.491 0.27 292.6);
   --md-code: oklch(0.5 0.134 242.7);
   --diff-add: oklch(0.527 0.154 150);
@@ -124,7 +123,6 @@
   --find-hit: oklch(0.769 0.188 70.08 / 40%);
   --find-hit-current: oklch(0.852 0.199 91.936);
 
-  --md-strong: oklch(0.75 0.183 55.9);
   --md-heading: oklch(0.702 0.183 293.5);
   --md-code: oklch(0.746 0.16 232.7);
   --diff-add: oklch(0.792 0.209 151.7);
@@ -169,7 +167,6 @@
   --color-find-hit: var(--find-hit);
   --color-find-hit-current: var(--find-hit-current);
 
-  --color-md-strong: var(--md-strong);
   --color-md-heading: var(--md-heading);
   --color-md-code: var(--md-code);
   --color-diff-add: var(--diff-add);

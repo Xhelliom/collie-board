@@ -43,6 +43,17 @@ export function PinButton({ agent, className }: { agent: AgentView; className?: 
   return <PinToggle target={{ session: key }} name={`${paneDisplayName(agent)} · ${placeOf(agent)}`} className={className} />;
 }
 
+/** The same pin as a menu row needs it: its state and its toggle. Null where PinButton shows nothing. */
+export function useAgentPin(agent: AgentView | undefined): { on: boolean; toggle: () => void } | null {
+  const t = useT();
+  const pins = usePins();
+  const key = agent ? pinKey(agent) : null;
+  if (!agent || !key) return null;
+  const target = { session: key };
+  const on = pins.some((p) => pinId(p) === pinId(target));
+  return { on, toggle: () => void toggle(target, `${paneDisplayName(agent)} · ${placeOf(agent)}`, !on, t("pin.failed")) };
+}
+
 /** A pin whose target no longer exists: greyed, its last name, and the one thing to do with it. */
 export function GonePin({ pin, className }: { pin: Pin; className?: string }) {
   const t = useT();

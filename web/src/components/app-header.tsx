@@ -16,6 +16,8 @@ interface AppHeaderProps {
    *  Settings) omit it — the nav (AppNav) is the way there now. A screen you enter (card, pane, a
    *  drilled-into space, history) sets it. */
   onBack?: () => void;
+  /** Where back leads, when it is not just « back » (the agent view: « Retour aux agents »). */
+  backLabel?: string;
   /** A leading mark before title/subtitle — the dashboard only, mobile only (`lg:hidden` on the
    *  caller's own element): below `lg` the nav's Collie mark lives in the tab bar, shoulder to
    *  shoulder with three other icons, so the one screen that used to anchor the brand mark gets a
@@ -41,6 +43,7 @@ export function AppHeader({
   title,
   subtitle,
   onBack,
+  backLabel,
   icon,
   children,
   rightLead,
@@ -56,7 +59,8 @@ export function AppHeader({
             <button
               type="button"
               onClick={onBack}
-              aria-label={t("common.back")}
+              aria-label={backLabel ?? t("common.back")}
+              title={backLabel ?? t("common.back")}
               className="-ml-2.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted"
             >
               <ArrowLeft className="size-5" />
