@@ -5,7 +5,7 @@ import { ModelTag } from "@/components/model-tag";
 import { AgentIcon } from "@/components/agent-icon";
 import { settledFor } from "@/components/agent-card";
 import { StatusDot } from "@/components/status-badge";
-import { groupPanesBySpace, type SpaceGroup } from "@/lib/spaces";
+import { groupPanesBySpace, isHcGroup, spaceKey, type SpaceGroup } from "@/lib/spaces";
 import { shortCwd } from "@/lib/format";
 import { repoName } from "@/lib/board";
 import { paneDisplayName, STATUS_LABEL } from "@/lib/types";
@@ -78,9 +78,8 @@ export function SpacePaneTree({
   const t = useT();
   const groups = groupPanesBySpace(agents, shellPanes, workspaces);
   // The space you're reading, not the one Herdr's TUI happens to focus — this list is a phone's.
-  const active =
-    activeWorkspaceId ??
-    [...agents, ...shellPanes].find((p) => p.paneId === currentPaneId)?.workspaceId;
+  const current = [...agents, ...shellPanes].find((p) => p.paneId === currentPaneId);
+  const active = activeWorkspaceId ?? (current && spaceKey(current));
 
   const section = (g: SpaceGroup) => (
     <SpaceSection
@@ -156,6 +155,8 @@ function SpaceSection({
   parentTone?: string;
 }) {
   const t = useT();
+  // An hc group is a directory, not a space herdr can open: its header has nothing to drill into.
+  if (isHcGroup(group.workspaceId)) onOpenSpace = undefined;
   const active = group.workspaceId === activeWorkspaceId;
   const spansTabs = new Set(group.panes.map((p) => p.tabId)).size > 1;
   const rail = railX(depth);

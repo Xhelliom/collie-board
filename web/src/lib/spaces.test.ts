@@ -180,4 +180,38 @@ describe("groupPanesBySpace", () => {
     // …and not when it isn't: the pane switcher lists what you can switch to.
     expect(groupPanesBySpace([], [])).toEqual([]);
   });
+
+  // hc has no spaces: the bridge files every terminal under one "hc" id. Grouping by it would lump
+  // orchestrators, card agents of several repos and shells together under the first pane's branch.
+  describe("under hc", () => {
+    const hc = (paneId: string, cwd: string, extra: Partial<AgentView> = {}) =>
+      agent({ paneId, workspaceId: "hc", workspaceLabel: "hc", tabId: "hc", cwd, ...extra });
+    const collie = hc("t1", "/home/you/git/collie");
+    const overgate = hc("t2", "/home/you/git/overgate", { status: "working" });
+    const card = hc("t3", "/home/you/.herdr/worktrees/boarding/board-docs", { branch: "board/docs", status: "blocked" });
+    const cardOfCollie = hc("t4", "/home/you/.herdr/worktrees/collie/board-x", { branch: "board/x" });
+    const shell = hc("t5", "/home/you/tmp", { kind: "shell", status: "unknown" });
+    const hcSpace: WorkspaceView = { workspaceId: "hc", number: 1, label: "hc", focused: true, activeTabId: "hc", tabCount: 1, paneCount: 5 };
+
+    const groups = groupPanesBySpace([collie, overgate, card, cardOfCollie], [shell], [hcSpace]);
+    const labels = (gs: typeof groups): string[] => gs.map((g) => g.label);
+
+    it("makes one group per repo, titled by it, and no « hc » group", () => {
+      expect(labels(groups)).toEqual(["boarding", "overgate", "collie", "tmp"]);
+      expect(groups.flatMap((g) => [g, ...g.children]).some((g) => g.label === "hc")).toBe(false);
+    });
+
+    it("hangs a card's worktree under its own repo, opening the repo's header when none is open", () => {
+      const [boarding, , collieGroup] = groups;
+      expect(boarding?.panes).toEqual([]);
+      expect(boarding?.children.map((c) => c.panes[0]?.paneId)).toEqual(["t3"]);
+      expect(collieGroup?.children.map((c) => c.branch)).toEqual(["board/x"]);
+      expect(collieGroup?.branch).toBeNull(); // not borrowed from a card pane of another directory
+    });
+
+    it("keeps a shell outside any repo in a group of its own folder", () => {
+      expect(groups[3]?.panes.map((p) => p.paneId)).toEqual(["t5"]);
+      expect(groups[3]?.status).toBeNull();
+    });
+  });
 });
