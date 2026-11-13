@@ -43,156 +43,186 @@
 - **divers 07/11/2026** — validated 2026-11-07, 27 steps
 - **Nœud Windows fiable** — validated 2026-11-09, 11 steps
 - **Test instable : mcp finish_card « Merge et terminé » dépasse 5 s sur la CI** — validated 2026-11-07, 1 step
+- **Autonomie par objectif** — validated 2026-11-10, 9 steps
+- **Le projet au-delà du code** — validated 2026-11-10, 6 steps
+- **Pilotage robuste** — validated 2026-11-10, 8 steps
+- **Objectif co-écrit, arrêts clairs** — validated 2026-11-10, 2 steps
+- **Merge sûr, phases lisibles** — validated 2026-11-10, 2 steps
+- **Parler aux agents sans accroc** — validated 2026-11-10, 3 steps
+- **Désengagement de l'upstream** — validated 2026-11-11, 4 steps
+- **Fiabilité git et hc** — validated 2026-11-11, 3 steps
+- **Vivre sans herdr 0.9** — validated 2026-11-11, 2 steps
+- **Toutes les machines sur hc** — validated 2026-11-11, 3 steps
+- **Recette et terrain** — validated 2026-11-12, 2 steps
 
-## Phase 38 — Autonomie par objectif
+## Phase 49 — Interface simplifiée
 
-Un lot ne s'arrête plus en silence, et l'orchestrateur reprend seul ce qui est mécanique ; ensuite, l'objet Objectif.
+Moins d informations, plus simple à utiliser : panneau par panneau, en commençant par la navigation.
 
-### Lot — Enchaînement fiable (launched, 3 at a time)
+### Lot — Navigation simplifiée (launched, one at a time)
 
-- **L'orchestrateur reprend un lot arrêté pour une raison mécanique** — done
+- **Onglets du projet : quatre au lieu de sept** — done
+  - after: Navigation : une seule entrée Projets, et sous elle seulement ce que j épingle
 
-  Décidé par l'opérateur le 09/11. Aujourd'hui POST /api/runs/:id/resume refuse tout pane (bridge/project-routes.ts:251 « resuming is the operator's gesture »).
+  web/src/components/board-tabs.tsx montre 7 onglets + le sélecteur de dépôt : Board, Projet, Roadmap, PR ouvertes, Recette, Documents, Réglages. Passer à 4 : Projet (page d entrée du projet), Cartes (l actuel Board, avec un filtre « tous les projets » qui remplace l ancien Board global), Recette, et « Plus » (menu : Roadmap, PR ouvertes, Documents, Réglages). Les routes existantes restent (liens et favoris intacts) ; seul l accès change. Même chose sur téléphone. Style : onglets soulignés sur une règle pleine largeur (app-screens §4.4).
   
-  Faire : sous autonomie activée, accepter la reprise depuis le pane orchestrateur quand la raison du halt est mécanique : PR pas à jour, pre-push rouge, lead muet, travail non commité, démarrage raté. Classer les raisons dans une fonction pure. Borne : N reprises par lot (ex. 3), ensuite geste opérateur. Les halts de décision (tours du lead épuisés, lead fini sans commit, verdicts) restent à l'opérateur. Lot d'un autre poste : toujours refusé. Écrire l'ADR qui amende la règle et mettre à jour skills/collie-board/SKILL.md.
-
-  - [x] Depuis le pane orchestrateur, un lot halté « PR pas à jour » se reprend
-  - [x] Un halt « tours épuisés » reste refusé (403)
-  - [x] Au-delà de la borne : 403
-  - [x] Autonomie éteinte : 403 comme aujourd'hui
-  - [x] ADR + SKILL.md + test bun de la classification
-- **Chaque arrêt d'enchaînement est tracé dans le journal** — done
-
-  endOfLot() (bridge/autonomy.ts) et idleStart() décident si le lot suivant part ; leur raison (« why ») n'est écrite nulle part sauf dans le message à l'orchestrateur, donc on ne peut pas mesurer pourquoi l'enchaînement s'arrête.
+  Téléphone (constat 13/11) : trois couches de navigation s empilent avant le contenu (en-tête titre + Orchestrateur + machine + cloche ; 7 onglets en icônes dont seul l actif a un libellé ; une ligne sélecteur de dépôt + filtre + « + »). Cible : les 4 onglets AVEC libellé, et le sélecteur de dépôt fusionné dans le titre de l en-tête (toucher le nom du projet pour en changer) — la ligne sélecteur disparaît, filtre et « + » vont dans l onglet Cartes où ils servent. Utiliser le skill frontend-design.
   
-  Faire : un événement run.chain {go, why, next} à chaque fin de lot (et à chaque refus de lancement par l'orchestrateur : autre poste, lot ouvert, borne, rouge). Lisible dans le journal du lot.
-
-  - [x] Fin de lot : un run.chain avec go ou la raison d'arrêt
-  - [x] Un refus de lancement depuis le pane orchestrateur laisse un run.chain avec la raison
-  - [x] Test bun
-- **Le résumé de fin de carte expire à l'heure** — done
-
-  bridge/wrapup.ts a WRAPUP_DEADLINE_MS = 30 min, mais le journal montre wrapup.requested → wrapup.expired après 10 à 35 h : l'expiration ne semble évaluée que quand quelque chose bouge. Vérifier la cause, faire expirer à l'échéance (sans nouvelle boucle : réutiliser un tick existant) et raccourcir le délai à quelques minutes.
-
-  - [x] Un résumé jamais rendu expire quelques minutes après la demande, même si le troupeau est calme
-  - [x] Le nettoyage de la carte suit
-  - [x] Test bun de l'échéance
-- **Merge refusé « branche pas à jour » : le board remet la PR à jour et réessaie** — done
-
-  27 halts « PR not merged: … the head branch is not up to date with the base branch » (surtout CrewDesign), et des PR qui attendent leur merge 6 à 21 h sans halt (run.merge puis automerge_refused, plus rien).
+  CORRECTION (opérateur 13/11) — remplace le « 4 onglets fixes » ci-dessus : on montre TOUS les onglets qui tiennent dans la largeur (Projet, Cartes, Recette, Roadmap, PR ouvertes, Documents, Réglages, dans cet ordre de priorité) ; seuls ceux qui ne tiennent pas passent derrière « Plus », qui n apparaît que s il cache quelque chose (motif « priority+ », mesuré à la largeur réelle, recalculé au redimensionnement, sans boucle de poll : ResizeObserver). Sur grand écran tout est visible, sur téléphone on garde Projet, Cartes, Recette + Plus. L onglet actif reste toujours visible (s il est dans le reste, il prend la dernière place visible). Tous les onglets gardent un libellé.
   
-  Faire : quand le merge est refusé pour une base en avance, mettre la branche à jour (gh pr update-branch, par bridge/git.ts — seul shell-out) puis réessayer une fois la CI verte. Halt seulement en cas de conflit réel. Le board ne laisse plus une PR en attente sans halt ni réveil de l'orchestrateur.
-
-  - [x] Une PR en retard sur la base est mise à jour et mergée sans geste
-  - [x] Un vrai conflit halte toujours avec sa raison
-  - [x] Aucune PR de lot n'attend en silence : soit elle avance, soit halt/réveil
-  - [x] Test de la classification des refus de merge
-- **Un agent de carte bloqué ou muet réveille l'orchestrateur** — done
-
-  Aujourd'hui seul le lead est surveillé (bridge/lead.ts : « the lead is not answering »). Un agent de carte d'un lot qui se bloque (question, permission, modal, quota) ou meurt laisse la carte « en cours » sans aucun événement : le journal montre des attentes de 6 à 32 h que seul un message de l'opérateur débloque.
+  Consigne opérateur (13/11) : GARDER les icônes actuelles de la navigation et des onglets (celles de app-nav.tsx et board-tabs.tsx aujourd hui : Dog, Columns3, FolderKanban, LayoutGrid, Settings, et celles des onglets), icône + libellé. On ne revoit que leur disposition, pas leur dessin. « Agents » reprend l icône actuelle de Spaces (LayoutGrid) sauf si une icône lucide d agent existe déjà dans le code.
   
-  Faire : quand une carte d'un lot lancé est « working » et que son pane est blocked, ou idle/absent sans progrès depuis N minutes (constante, ~10 min), réveiller l'orchestrateur du dépôt (voie orchestrator-nudge.ts) avec le titre de la carte, l'état du pane et ses dernières lignes, pour qu'il débloque ou relance. Pas de notification à l'opérateur (ADR 0011 : le pane signale déjà blocked). Une seule fois par épisode : réarmé quand la carte bouge. Accroché à engine.onUpdate, pas de nouvelle boucle ; ignorer un snapshot disconnected.
+  Objectif dans l en-tête (constat opérateur 13/11 sur boarding-pass) : aujourd hui (web/src/routes/project.tsx:436-448, goal-chip.tsx) le titre est enfermé dans une boîte teintée bordée (GOAL_SURFACE) qui déborde sur la rangée d onglets, avec une pastille « Objectif · actif » (pilule + point médian), et l objectif lui-même n est pas lisible. Cible : plus de boîte ni de pilule. Le titre du projet reste nu (et sert de sélecteur de projet, cf. plus haut). La 2e ligne de l en-tête devient l objectif lui-même : icône Target (l icône actuelle) colorée selon l état (vert actif, orange en pause, couleur brand « atteint ? à valider »), puis la première phrase de l objectif tronquée sur une ligne ; un mot d état seulement hors état actif (« en pause », « atteint ? à valider »). Toucher la ligne fait défiler / ouvre le bloc Objectif de la page. Sans objectif ouvert, la 2e ligne reste la phase en cours comme aujourd hui. Même traitement sur la tuile du projet à l accueil si elle utilise GoalChip (home-dashboard.tsx), pour rester cohérent. Hauteur de l en-tête inchangée, rien ne déborde sur les onglets.
 
-  - [x] Une carte de lot dont l'agent attend une permission depuis N min réveille l'orchestrateur avec la fin de l'écran
-  - [x] Pas de second réveil tant que la carte n'a pas bougé
-  - [x] Aucune notification opérateur ajoutée
-  - [x] Test bun de la règle pure (seuil, réarmement)
+  - [x] Sur grand écran, tous les onglets sont visibles, sans « Plus »
+  - [x] Quand la largeur manque, les derniers onglets passent derrière « Plus », qui n apparaît que dans ce cas
+  - [x] L onglet actif reste toujours visible
+  - [x] Cartes propose « tous les projets »
+  - [x] Anciennes adresses toujours valides
+  - [x] Téléphone : Projet, Cartes, Recette + Plus, tous avec libellé
+  - [x] Avec un objectif ouvert, l en-tête montre l objectif en une ligne (icône colorée selon l état), sans boîte ni pilule, sans déborder sur les onglets
+- **Navigation : une seule entrée Projets, et sous elle seulement ce que j épingle** — done
 
-### Lot — Mode objectif (launched, 2 at a time)
-
-- **Pendant un objectif : points d'étape au lieu d'un bilan par lot** — done
-  - after: Un objectif par projet : critères, budget, statut
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  Retours opérateur 13/11 sur la barre latérale (web/src/components/app-nav.tsx, et sa version téléphone) :
+  1. « Board » et « Projects » mènent au même endroit : fusionner en UNE entrée « Projets ». Entrées du haut : Accueil (le troupeau), Projets. Spaces seulement si herdr 0.9 est là (déjà le cas), Réglages en bas.
+  2. Sous les entrées : UNIQUEMENT des éléments épinglés par l opérateur. Les sections PROJECTS, ORCHESTRATORS et SPACES automatiques disparaissent de la barre (la liste des projets reste sur la page Projets / l accueil).
+  3. Épingler : un projet (= un dépôt dans Collie : un seul type, l épingle ouvre sa page Projet ; son point dit l état de son orchestrateur, un compte seulement si quelque chose attend l opérateur, ex. « 2 pour toi ») et un agent (les épingles d agents existent déjà : /api/board/pins, sessions). Pas d épingle d orchestrateur séparée : il est le point de son projet. Généraliser /api/board/pins pour accepter un projet (repoPath) à côté d une session, durable en base, documenté dans skills/collie-board/SKILL.md (test skill). Épingler / désépingler depuis la page du projet (et la liste des projets) et depuis le pane d un agent.
+  4. Section épinglés : visible seulement si non vide ; ordre : projets puis agents, réordonnables plus tard (hors périmètre).
+  5. Style (skill design-taste-frontend, app-screens §3.2) : titres de groupe en casse normale, 12-13 px, pas de capitales espacées ; une ligne par élément, pas de 2e ligne de détail ; la version sort de la barre (elle reste dans Réglages).
+  Ne pas toucher aux onglets du projet (carte suivante).
   
-  En mode objectif, l'opérateur n'est plus sollicité à chaque fin de lot : le bilan de lot va au journal de l'objectif, et l'opérateur reçoit un point d'étape regroupé (lots mergés, ce qui bloque, budget consommé, recette ajoutée) seulement aux moments utiles : décision demandée, budget à 50 % et atteint, objectif déclaré. Une page/onglet Objectif montre la progression.
-
-  - [x] Pas de notification par fin de lot en mode objectif
-  - [x] Point d'étape aux seuils et décisions
-  - [x] La page Objectif montre critères, progression, budget
-- **Déclarer l'objectif atteint, l'opérateur valide ou relance** — done
-  - after: Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  Téléphone (constat 13/11, 400 px) : la barre du bas a 5 entrées (Herd, Board, Projects, Spaces, Settings) → 3 : Accueil, Projets, Réglages (Spaces seulement avec herdr 0.9). Les épinglés sur téléphone : en tête de la page Projets.
   
-  L'orchestrateur déclare l'objectif atteint avec une preuve par critère (POST …/claim) : statut claimed, une notification à l'opérateur, qui se retire à sa réponse (ADR 0011). L'opérateur valide (achieved : clôt les phases de l'objectif) ou refuse avec un commentaire (retour en active, le commentaire est remis à l'orchestrateur au réveil suivant).
-
-  - [x] La déclaration montre chaque critère avec sa preuve
-  - [x] Valider clôt l'objectif et ses phases
-  - [x] Refuser relance la boucle avec le commentaire
-  - [x] Un pane agent ne peut pas valider
-- **Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but** — done
-  - after: Un objectif par projet : critères, budget, statut
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  Utiliser le skill frontend-design (plugin officiel Anthropic, installé) : pas de capitales espacées pour les titres, pas de libellés « A · B · C » ni de petites étiquettes en monospace dans la navigation, noms simples côté utilisateur (« Accueil » plutôt que « Herd »).
   
-  Sous un objectif actif, l'orchestrateur peut créer cartes, lots et phases rattachés à l'objectif et lancer ses propres lots sans geste opérateur (un lot à la fois). À la fin d'un lot, quand rien n'est planifié, endOfLot() ne s'arrête plus : le board réveille l'orchestrateur avec « objectif pas atteint : relis les critères, planifie et lance la suite ». Une décision qui attend l'opérateur ne bloque que sa branche : le réveil le rappelle à l'orchestrateur. Bornes : budget (lots, quota, échéance), stopOnRed après la borne de reprises du lot 1 ; une borne atteinte met l'objectif en pause et prévient l'opérateur une fois. Pas de nouvelle boucle : tout part du réveil de fin de lot (ADR 0028).
+  Renommage (opérateur 13/11) : « Spaces » ne parle à personne. L entrée devient « Agents » (même icône ou une icône d agent) : la liste de tous les agents et terminaux en cours, rangés par projet (même regroupement que la barre latérale depuis #373), visible sous hc comme sous herdr 0.9 — plus de gate « seulement avec herdr 0.9 ». Les gestes propres aux espaces herdr 0.9 (ouvrir/créer un espace) restent dedans quand herdr 0.9 est là. Barre du bas téléphone : Accueil, Projets, Agents, Réglages. Mettre à jour libellés i18n (fr/en) et les mots « espace/space » visibles par l utilisateur dans la navigation.
   
-  Tranché le 09/11 par l'opérateur : objectif déclaré (claimed) = arrêt net. Plus aucun lot créé ni lancé, plus de réveil de fin de lot, budget gelé, jusqu'à la réponse de l'opérateur, même après 24 h d'absence. Seul un refus avec commentaire relance la boucle. Pendant un objectif, les phases découpées par l'orchestrateur ne se valident pas une à une (sinon chaque phase attendrait l'opérateur) : la validation de l'objectif les clôt.
-
-  - [x] Objectif actif, plus rien de planifié : l orchestrateur est réveillé pour planifier, et peut lancer le lot qu il a créé
-  - [x] Objectif déclaré : aucun lot lancé, aucun réveil, tant que l opérateur n a pas répondu
-  - [x] Les cartes et lots créés sont rattachés à l objectif
-  - [x] Budget atteint : pause + une notification
-  - [x] Sans objectif : comportement d aujourd hui inchangé
-  - [x] Tests bun du verdict de fin de lot
-- **Un objectif par projet : critères, budget, statut** — done
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  Ajout (opérateur 13/11) : en plus des épinglés, la barre montre d emblée les agents EN COURS, sans rien épingler : une section « En cours » avec les agents qui travaillent et ceux qui t attendent (bloqués / question), ceux qui t attendent en premier ; une ligne par agent (nom + projet + point d état) ; ni les agents au repos ni les terminaux ; masquée si vide. Lue du snapshot, aucun état persisté. Un agent à la fois épinglé et en cours n apparaît qu une fois (dans « En cours »). Ordre de la barre : entrées, En cours, Épinglés. Sur téléphone, la même section « En cours » en tête de la page Agents.
   
-  Faire l'objet Objectif (goal) : texte, critères de réussite (liste), budget {maxLots, quotaPct, deadline?}, statut active / paused / claimed / achieved / abandoned. Routes /api/goals (création, édition, pause, abandon = gestes de l'opérateur ; un pane agent ne crée ni ne valide). Un seul objectif actif par dépôt. UI dans la page projet : définir l'objectif, voir critères, budget consommé et lots/cartes rattachés. Écrire l'ADR du mode objectif (amende 0030/0047). Documenter dans skills/collie-board/SKILL.md.
+  Ajout (opérateur 13/11, maquette validée : https://claude.ai/artifact/R1eVYcR8nTKeUtV26wuEpq) : on peut aussi épingler une CARTE (depuis la carte). Chaque épinglé porte une petite puce de type : « projet », « agent » ou « carte » (11 px, fond discret, une teinte par type), à côté de son nom. Ordre dans Épinglés : projets, cartes, agents. Une carte épinglée ouvre sa fiche ; son point dit son état.
+  
+  Ajout de l opérateur (13/11), à intégrer dans ta carte : 1) chaque section de la barre latérale (« Épinglés », « En cours ») se replie et se déplie d un clic sur son titre (chevron), état retenu par appareil (localStorage, comme les autres préférences d affichage) ; repliée, la section garde une ligne avec son titre et le nombre d éléments (ex. « En cours 3 »), et un agent qui t attend reste signalé par un point sur ce titre. 2) Ordre : les Épinglés EN PREMIER, juste sous les entrées, puis En cours. Si tu as déjà commité, ajoute un commit.
+  
+  Consigne opérateur (13/11) : GARDER les icônes actuelles de la navigation et des onglets (celles de app-nav.tsx et board-tabs.tsx aujourd hui : Dog, Columns3, FolderKanban, LayoutGrid, Settings, et celles des onglets), icône + libellé. On ne revoit que leur disposition, pas leur dessin. « Agents » reprend l icône actuelle de Spaces (LayoutGrid) sauf si une icône lucide d agent existe déjà dans le code.
 
-  - [x] L'opérateur crée un objectif avec critères et budget depuis la page projet
-  - [x] Un pane agent reçoit 403 sur création et validation
-  - [x] Un seul objectif actif par dépôt
-  - [x] ADR + SKILL.md + tests bun
+  - [x] Une seule entrée Projets, plus d entrée Board séparée
+  - [x] « Spaces » devient « Agents » : tous les agents et terminaux par projet, sous hc comme sous herdr 0.9
+  - [x] Sous les entrées, seulement les éléments épinglés (projets et agents), section masquée si vide
+  - [x] On épingle / désépingle un projet depuis sa page et un agent depuis son pane, et ça reste après redémarrage
+  - [x] Téléphone : Accueil, Projets, Agents, Réglages
+  - [x] Titres en casse normale, une ligne par élément, version hors de la barre
+  - [x] La barre montre d emblée les agents en cours (qui travaillent ou t attendent), sans épingle, masquée si vide
+  - [x] On épingle aussi une carte ; chaque épinglé porte une puce projet / agent / carte
 
-## Phase 39 — Le projet au-delà du code
+### Lot — Accueil plus clair (launched, one at a time)
 
-Collie gère aussi le business d'un projet : pages sur mesure, cartes non-code, décisions produit.
+- **Accueil plus clair : titre-phrase, agents au travail, projets en cours en lignes, machines** — done
 
-### Lot — Pages du projet (launched, 2 at a time)
+  Refonte de l accueil (web/src/components/home-dashboard.tsx et ses composants), validée par l opérateur le 13/11 sur la maquette : https://claude.ai/artifact/R1eVYcR8nTKeUtV26wuEpq (écrans « Ordinateur : Accueil » et « Téléphone : Accueil »). La maquette fixe la DISPOSITION et le contenu ; GARDER le style d origine de Collie (tokens, composants, rayons, couleurs du thème) et les ICÔNES d origine (lucide actuelles) — les icônes et teintes de la maquette sont des dessins d exemple.
+  
+  Colonne principale, de haut en bas :
+  1. Titre = la phrase d état (« Rien ne t attend, N agents travaillent » / « K t attendent… ») en h1 ; dessous une ligne « X cartes à relire, Y bloquées, Z prêtes à lancer » (liens vers les vues filtrées) — remplace « Herd » / « N spaces », la ligne « ● HERD · LIVE » et les 4 cases TO REVIEW/STUCK/READY/DELIVERED.
+  2. À droite du titre, l anneau des agents AVEC LE MÊME COMPOSANT que l anneau de progression des projets : proportion « N au travail sur M ».
+  3. « T attendent » (si non vide) puis « Au travail » : un agent par ligne — point d état, nom, projet, puce de la machine (« Ce PC », « dev »…) ; plus de méta « claude · Opus · medium · ctx » ni d étiquette 0.9/hc ni d épingle visible (épingle au survol). Filtres à droite du titre de section : « Avec les orchestrateurs » (désactivé par défaut : les orchestrateurs sont exclus du titre, de l anneau et de la liste ; choix retenu par appareil) et un filtre par machine (repris des filtres actuels). Un orchestrateur qui attend l opérateur reste toujours dans « T attendent ». Un seul classement, par état (plus de groupes par projet pour hc et par état pour 0.9).
+  4. « Projets en cours » : UN PROJET PAR LIGNE, colonnes alignées : nom | objectif (icône Target colorée selon l état + première phrase, et dessous « lot a sur b, budget c % » ; sinon « Pas d objectif » + lot en cours) | phase en cours (nom, « x sur y », barre) | activité (« N au travail » ou « au repos », puis « K pour toi » / « 1 bloquée » / « 3 à tester »). Les projets où quelque chose tourne d abord ; 5 lignes puis « Tous les projets (N) ». Sur téléphone, une carte par projet empilée (nom + agents au travail, objectif sur une ligne, phase + barre).
+  5. « Agents au repos (N) » replié.
+  Colonne de droite (ordinateur seulement) : « Machines » (chaque machine pairée + celle-ci : point d état, nom, moteur et nombre d agents, « injoignable » en rouge ; remplace la ligne d erreur « Dell-5550-Stef — unreachable snapshot: … ») ; « PR ouvertes N » en une ligne ; « Ton compte Claude » : le quota avec le MÊME anneau. Téléphone : la colonne de droite devient une ligne « Machines » de points en bas.
+  Style : titres de section en casse normale (plus de capitales espacées, plus de « A · B · C », plus d étiquettes monospace). Aucune donnée inventée : tout vient du snapshot / des routes existantes ; pas de nouvelle boucle de poll. Utiliser le skill frontend-design.
 
-- **La page roadmap est générée par le board** — done
+  - [x] Le titre de l accueil est la phrase d état ; les 4 cases de cartes deviennent une ligne de liens
+  - [x] Un seul modèle d anneau (celui des projets) pour agents et quota
+  - [x] Au travail : un agent par ligne avec projet et machine ; orchestrateurs exclus par défaut, filtre pour les remettre
+  - [x] Projets en cours : un par ligne avec objectif, phase et barre, activité
+  - [x] Colonne Machines avec état de chaque machine ; quota à part
+  - [x] Style et icônes d origine conservés ; pas de capitales espacées
+  - [x] Téléphone conforme à la maquette
 
-  docs/pages/roadmap.html est aujourd'hui produite par un script de l'orchestrateur (hors dépôt). Faire : le board rend une vue roadmap jolie et dynamique (étapes, statut, phases, décisions) depuis /api/roadmap, toujours à jour, sans fichier à régénérer. Peut remplacer la page statique.
+### Lot — Page Agents plus claire (launched, one at a time)
 
-  - [x] La vue reflète un changement de roadmap sans régénération
-  - [x] Lisible au téléphone, thème clair et sombre
-- **Une carte « page » produit une page docs/pages à partir d'une brève** — done
+- **Page Agents plus claire : groupes par projet, une ligne par agent, filtres, et choix du dépôt pour un nouvel agent** — done
 
-  Les pages custom existent (docs/pages/<nom>.html, inertes, ADR 0053). Faire : depuis Documents, « Nouvelle page » demande un nom et une brève (plan marketing, direction artistique, offre…) et crée une carte dont le livrable est docs/pages/<nom>.html ; la spec de la carte rappelle le contrat (pas de script, CSS inline, iframe sandbox). L'agent construit la page, la PR la livre, elle apparaît dans l'explorateur.
+  Refonte de la page Agents (web/src/routes/spaces.tsx et ses composants : space-pane-tree…), validée par l opérateur le 13/11 sur la maquette https://claude.ai/artifact/R1eVYcR8nTKeUtV26wuEpq (écrans « Ordinateur : page Agents » et « Téléphone : page Agents »). La maquette fixe la DISPOSITION et le contenu ; GARDER le style d origine de Collie et les ICÔNES d origine (lucide actuelles).
+  
+  1. En-tête : titre « Agents », phrase de résumé (« K t attendent, N travaillent, M au repos, sur X machines »), recherche (nom d agent, titre de carte, projet), bouton « Nouvel agent ».
+  2. Filtres : état (Tous / T attendent / Au travail / Au repos, avec leur nombre), machine (une puce par machine), « Masquer les orchestrateurs » (désactivé par défaut ici ; un orchestrateur qui attend l opérateur reste visible), « Afficher les terminaux » (désactivé par défaut : les shells nus sont cachés). Choix retenus par appareil.
+  3. Groupes = un par PROJET (nom du dépôt, nombre d agents), plus de noms d espace herdr (orchestrator-xxx, « ~ », « board ») ni de chemin en monospace ; les agents internes du board (lead, copilote) ne sont pas listés. Projets avec quelque chose qui tourne d abord ; les projets entièrement au repos repliés en une ligne « N autres projets, au repos ».
+  4. Une ligne par agent, colonnes alignées : point d état | vrai nom (titre de la carte, « Orchestrateur », ou nom de l agent libre) | rôle (carte / orchestrateur / agent libre) | puce de la machine | état + durée (« t attend depuis 12 min », « travaille depuis 7 min », « fini il y a 2 h ») | petite jauge de contexte. Plus de « claude · Opus · medium · ctx » ni de points médians. Ligne qui t attend surlignée, lignes au repos atténuées. Toucher la ligne ouvre le pane.
+  5. Téléphone : mêmes groupes ; filtres en rangée défilante ; ligne sur deux niveaux (nom ; rôle + état) + puce machine.
+  6. « Nouvel agent » (web/src/components/new-space-sheet.tsx, et le « Nouvel agent » de la page Projet s il partage ce code) : remplacer le champ texte « Dossier » par une LISTE DÉROULANTE des dépôts connus du board (GET /api/repos, nom du dépôt + chemin court), préremplie avec le projet courant quand on vient d un projet ; garder une option « Autre dossier… » qui rouvre le champ libre. Sous herdr 0.9 comme sous hc.
+  Pas de nouvelle boucle de poll ; tout vient du snapshot et des routes existantes. Utiliser le skill frontend-design.
 
-  - [x] « Nouvelle page » dans Documents crée la carte avec le contrat dans sa spec
-  - [x] La page livrée s'ouvre en plein écran dans Documents
-  - [x] FR et EN
+  - [x] Groupes nommés par projet, sans espaces herdr ni agents internes du board
+  - [x] Une ligne par agent : vrai nom, rôle, machine, état avec durée, jauge
+  - [x] Filtres état, machine, Masquer les orchestrateurs, Afficher les terminaux
+  - [x] Recherche par agent, carte ou projet
+  - [x] Nouvel agent : liste déroulante des dépôts connus, option Autre dossier
+  - [x] Style et icônes d origine conservés ; téléphone conforme à la maquette
 
-### Lot — Cartes non-code (planned, 2 at a time)
+### Lot — Agents parlants (planned, one at a time)
 
-- **Filtre code / business sur le board** — backlog
 
-  Un filtre sur le board et la recette pour ne voir que les cartes code ou business.
+### Lot — Agents parlants, liste commune et vue d un agent (launched, one at a time)
 
-  - [ ] Le filtre sépare les deux sortes et se retient par appareil
-- **Une carte « business » : livrable document, sans CI ni gate** — backlog
+- **Vue d un agent : en-tête parlant, conversation lisible, plus de colonne de droite** — done
+  - after: Vue d un agent : la colonne des panes reprend la liste de la page Agents (composant commun)
 
-  Une sorte de carte pour le travail non-code (rédaction, marketing, offre) : pas de gate, pas de CI requise, son livrable est un document ou une page ; sa recette est une relecture (« à relire ») plutôt qu'un test.
+  Vue d un agent (route /pane/:paneId), validée par l opérateur le 13/11 sur la maquette https://claude.ai/artifact/R1eVYcR8nTKeUtV26wuEpq (écrans « Ordinateur : vue d un agent » et « Téléphone : vue d un agent »). La maquette fixe la DISPOSITION et le contenu ; GARDER le style d origine de Collie et les ICÔNES d origine (lucide actuelles). La colonne de gauche (liste commune compacte) est faite par la carte précédente du lot : la réutiliser, ajouter seulement son bouton « Replier la colonne » (état retenu par appareil).
+  1. Supprimer la colonne de droite (jauge de contexte + « AGENT STATUSLINE » en capitales/monospace) : la jauge monte dans l en-tête ; la ligne d état de l agent (auto mode, shells, sous-agents) devient une info de l en-tête ou de « ⋯ ».
+  2. En-tête : ligne 1 = vrai nom de l agent (titre de carte / Orchestrateur / nom) + état avec durée (« travaille depuis 12 min », « t attend depuis… ») ; ligne 2 = projet, puce machine, modèle + effort en mots (même calcul que la page Agents, rien si inconnu), sous-agents en cours. Plus d identifiant de pane (p1) ni de fil d Ariane monospace. Actions visibles : terminal, épingle, « ⋯ » (le reste des icônes actuelles passe dans « ⋯ »), chacune avec infobulle et aria-label.
+  3. Conversation : colonne de lecture centrée (max ~760 px / ~80 caractères). Le gras de l agent garde la couleur du texte (plus d accent orange sur <strong>) ; les en-têtes de message en casse normale « Claude, 10 h 17 » / « Système, 10 h 17 » (plus de CLAUDE / SYSTEM en capitales) ; les textes injectés par l outil dans le fil (messages système / <agent-message> / rappels du harnais, repérables par leur forme) repliés derrière une ligne « Message système » dépliable ; les étapes d outils restent groupées et résumées (« 3 étapes : Bash, Read, Read »).
+  4. Zone de réponse : libellés en français (« Répondre à <nom>… », raccourci écrit « Ctrl + Entrée » / « ⌘ + Entrée » selon la plateforme), infobulles + aria-label sur chaque icône. Téléphone : image + envoyer visibles, le reste dans « ⋯ ».
+  5. Téléphone : retour vers la liste des agents, en-tête sur trois lignes courtes (nom + état ; projet, machine, modèle ; jauge), pas de colonne.
+  Pas de nouvelle boucle de poll. Utiliser le skill frontend-design.
+  
+  L en-tête de la vue d agent réutilise la fonction et les composants d identité d agent de la première carte du lot (nom, état + durée, puce machine, modèle + effort, jauge), sans les recopier.
 
-  - [ ] Une carte business se termine sans gate ni CI
-  - [ ] Sa recette apparaît comme « à relire»
-  - [ ] Le lead ne la renvoie pas faute de code
+  - [x] Plus de colonne de droite ; jauge de contexte dans l en-tête
+  - [x] En-tête : vrai nom, état avec durée, projet, machine, modèle et effort ; plus de p1
+  - [x] Gras sans orange, en-têtes de message en casse normale, messages système repliés
+  - [x] Zone de réponse en français, icônes avec infobulles
+  - [x] Colonne de gauche repliable
+  - [x] Téléphone conforme à la maquette ; style et icônes d origine
+- **Vue d un agent : la colonne des panes reprend la liste de la page Agents (composant commun)** — done
+  - after: Page Agents : la carte ou l activité de chaque agent, et son modèle avec son effort
 
-### Lot — Décisions produit (planned, 2 at a time)
+  Sur la vue d un agent (route /pane/:paneId), la colonne de gauche « Panes 31 » (web/src/components/pane-list-column.tsx, et le sélecteur de panes du téléphone agent-sidebar.tsx, tous deux sur space-pane-tree.tsx) est restée dans l ancien style : groupes nommés par espace herdr (orchestrator-xxx, « ~ », « board », « lead »), chemins en monospace, lignes « claude · p1 · Opus 5.5 · medium · ctx 12% », terminaux mêlés, agents internes du board (lead, copilote) listés, « 6 sans agent » en bas. Capture opérateur 13/11.
+  Cible : la MÊME liste que la page Agents refaite (#383, et sa suite « carte/activité + modèle et effort »), en version compacte pour une colonne étroite : groupes par projet, une ligne par agent (point d état, vrai nom = titre de carte / Orchestrateur / agent libre, en 2e ligne la carte ou l activité ; modèle + effort et machine en discret), l agent ouvert surligné, mêmes filtres repliés derrière une icône (état, machine, masquer les orchestrateurs, afficher les terminaux), agents internes du board non listés. FAIRE UN COMPOSANT COMMUN : extraire la liste de la page Agents en un composant partagé (variante pleine page / variante colonne compacte) utilisé par la page Agents, la colonne de la vue agent et le sélecteur de panes du téléphone ; supprimer space-pane-tree.tsx s il n a plus d usage (ou ne le garder que pour ce qui relève encore des espaces herdr 0.9). Garder style et icônes d origine. Pas de nouvelle boucle de poll.
+  
+  Réutiliser la fonction et les composants d identité d agent créés par la carte précédente du lot (agent-identity), sans les recopier.
 
-- **Les décisions visibles comme une page dans Documents** — backlog
+  - [x] La colonne de gauche de la vue agent montre la liste de la page Agents en version compacte, groupée par projet
+  - [x] Même composant pour la page Agents, cette colonne et le sélecteur de panes du téléphone
+  - [x] L agent ouvert est surligné ; agents internes du board non listés ; terminaux cachés par défaut
+  - [x] Plus de noms d espaces herdr ni de méta « claude · p1 · … »
+- **Page Agents : la carte ou l activité de chaque agent, et son modèle avec son effort** — done
 
-  Une entrée « Décisions » dans l'explorateur de Documents liste les décisions avec statut (ouverte, tranchée) et catégorie, filtrables.
+  Suite de la page Agents (#383), demande opérateur 13/11 : un agent nommé « claude » ne dit rien. Sur chaque ligne de la page Agents (ordinateur et téléphone), et sur les lignes « Au travail » de l accueil si la place le permet :
+  1. La CARTE associée : quand l agent travaille pour une carte (worker, relais), son titre court et un lien vers la carte ; pour un orchestrateur, son projet ; pour un agent libre, « agent libre » + ce qu il fait : la dernière ligne de sa conversation déjà lue pour le sous-titre des notifications (le « subtitle » du journal / du transcript, sans appeler le copilote en plus), tronquée sur une ligne.
+  2. Le MODÈLE et l EFFORT : réutiliser ce que #366 calcule déjà pour la jauge (modelLabel, effort quand il est connu de façon sûre) : « Opus 5.5, medium », « Fable 5.2, low », « Sonnet 5.5 » ; rien plutôt qu une valeur devinée. Libellés courts ; l effort en mots (« faible », « moyen », « élevé », « très élevé ») en français.
+  Disposition : sur ordinateur une colonne de plus (modèle + effort) à côté de la jauge, le titre de carte ou l activité en 2e ligne sous le nom ; sur téléphone la 2e ligne porte rôle + carte/activité, et le modèle va en 3e ligne discrète. Garder style et icônes d origine. Pas de nouvelle boucle de poll.
+  
+  COMPOSANTS COMMUNS (consigne opérateur 13/11) : ce que cette carte calcule et affiche pour un agent — vrai nom (titre de carte / Orchestrateur / nom), rôle, carte ou activité, état + durée, puce machine, modèle + effort en mots, jauge de contexte — va dans UNE source : une fonction pure (ex. web/src/lib/agent-identity.ts, testée) qui rend ces champs depuis le snapshot, et de petits composants d affichage partagés (ligne d agent, puce machine, libellé modèle/effort, état avec durée). Les remplacer partout où l accueil (#381) et la page Agents (#383) ont leur propre version. Les deux cartes suivantes du lot (liste commune, vue d un agent) les réutilisent, sans recopier.
 
-  - [ ] Documents montre les décisions avec statut et catégorie
-  - [ ] Un tap sur une décision ouverte mène à sa carte ou à la roadmap
-- **Décisions classées produit / technique** — backlog
+  - [x] Un agent de carte montre le titre de sa carte, avec un lien
+  - [x] Un agent libre montre ce qu il fait (sa dernière ligne), pas seulement « claude »
+  - [x] Chaque agent Claude montre son modèle et, quand il est connu, son effort en mots
+  - [x] Rien de deviné : sans info fiable, rien ne s affiche
+  - [x] Ordinateur et téléphone
 
-  Les décisions de la roadmap (POST /api/roadmap/decision) prennent une catégorie produit/business ou technique, posée par l'orchestrateur ou l'opérateur.
+### Lot — Page Cartes plus claire (planned, one at a time)
 
-  - [ ] Une décision porte sa catégorie
-  - [ ] Les anciennes restent valides (technique par défaut ou sans catégorie)
+- **Page Cartes : colonnes qui s adaptent, tuile en trois lignes avec un état lisible** — backlog
+
+  Page Cartes (onglet Cartes d un projet, route /board, web/src/routes/board.tsx et la tuile de carte), validée par l opérateur le 13/11 sur la maquette https://claude.ai/artifact/R1eVYcR8nTKeUtV26wuEpq (écrans « Ordinateur : Cartes » et « Téléphone : Cartes »). La maquette fixe la DISPOSITION et le contenu ; GARDER le style d origine de Collie et les ICÔNES d origine.
+  1. Colonnes renommées en français, casse normale : À faire, En cours, À relire, Fini (avec leur nombre ; plus de TO DO / DOING en capitales). Une colonne vide se réduit à une bande étroite (nom, 0, une phrase courte) ; les colonnes non vides se partagent la largeur.
+  2. « Fini » ne montre que les 7 derniers jours (« N cette semaine ») et un lien « Historique » vers l existant ; plus de « Show 433 more » en bas de colonne.
+  3. Tuile de carte en trois lignes : titre ; phase en texte simple (ou « Hors phase ») ; UN état lisible calculé depuis ce que la carte sait déjà : « prête à lancer », « attend : <titre de la carte précédente> » (gris, pas rouge), « agent au travail depuis 7 min », « t attend » / « question en attente », « PR ouverte », « bloquée : <raison> » (rouge, seul cas rouge), « mergée il y a 1 h » (vert). Retirés de la tuile (restent dans la fiche) : l étiquette d origine « AGENT », la pastille phase avec point médian, la rangée de points, la branche en monospace, le compteur de critères. Réutiliser les composants d identité d agent (agent-identity, lot précédent) pour « agent au travail ».
+  4. En-tête : « Nouvelle carte » bouton principal ; « Sélectionner » et « Filtrer » discrets ; libellés en français.
+  5. Téléphone : « À faire » d abord ; colonnes vides repliées en une ligne (« En cours 0, À relire 0 ») ; « Fini cette semaine » en dernier, replié ; en-tête filtrer + « + ».
+  Glisser-déposer, sélection multiple et filtres existants conservés. Pas de nouvelle boucle de poll. Utiliser le skill frontend-design.
+
+  - [ ] Colonnes À faire, En cours, À relire, Fini ; vides réduites en bande
+  - [ ] Fini limité à la semaine avec lien Historique
+  - [ ] Tuile : titre, phase, un état lisible ; rouge seulement pour un blocage
+  - [ ] En-tête : Nouvelle carte principal, Sélectionner et Filtrer discrets
+  - [ ] Téléphone conforme à la maquette ; glisser-déposer et sélection conservés
