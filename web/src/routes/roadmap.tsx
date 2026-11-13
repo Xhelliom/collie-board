@@ -2,7 +2,7 @@ import { useLoaderData } from "react-router";
 import { Check, ChevronDown } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { BoardTabs } from "@/components/board-tabs";
+import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { MarkdownText } from "@/components/markdown-text";
 import { useT, type MessageKey } from "@/i18n";
 import { repoName, type Decision, type DecisionStatus, type RoadmapStatus } from "@/lib/board";
@@ -63,8 +63,8 @@ export function RoadmapRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title={t("tabs.roadmap")} />
-      <BoardTabs repos={repo ? [{ path: repo, name: repoName(repo) }] : []} />
+      <AppHeader children={<RepoTitle repos={repo ? [{ path: repo, name: repoName(repo) }] : []} />} />
+      <BoardTabs />
       <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-5">
         {!repo ? (
           <p className="text-sm text-muted-foreground">{t("roadmap.view.pickRepo")}</p>

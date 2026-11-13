@@ -2,7 +2,8 @@ import { defineMessages } from "../define";
 
 export const board = defineMessages({
   "tabs.aria": { en: "Board views", fr: "Vues du board" },
-  "tabs.board": { en: "Board", fr: "Board" },
+  "tabs.board": { en: "Cards", fr: "Cartes" },
+  "tabs.more": { en: "More", fr: "Plus" },
   "tabs.project": { en: "Project", fr: "Projet" },
   "tabs.prs": { en: "Open PRs", fr: "PR ouvertes" },
   "tabs.roadmap": { en: "Roadmap", fr: "Roadmap" },
@@ -11,7 +12,7 @@ export const board = defineMessages({
   "tabs.settings": { en: "Settings", fr: "Réglages" },
   "settings.repo.pick": { en: "Pick a repo to set it up.", fr: "Choisis un dépôt pour le régler." },
   "repo.label": { en: "Repository", fr: "Dépôt" },
-  "repo.all": { en: "All repos", fr: "Tous les dépôts" },
+  "repo.all": { en: "All projects", fr: "Tous les projets" },
   "tile.copilot": { en: "copilot", fr: "copilote" },
   "tile.auto": { en: "auto", fr: "auto" },
   "tile.agent": { en: "agent", fr: "agent" },

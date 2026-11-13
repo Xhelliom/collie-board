@@ -3,7 +3,7 @@ import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router"
 import { Check, ChevronRight, Clock, Play, RefreshCw } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { BoardTabs } from "@/components/board-tabs";
+import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { t, useT, type MessageKey } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -115,8 +115,7 @@ export function PrsRoute() {
     // rows become a grid, since a list of tiles has no line length to protect.
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
-        title={t("prs.title")}
-        subtitle={`${t("prs.count", { count: open.length })}${checkedAt === null ? "" : t("prs.checkedAgo", { ago: ago(checkedAt) })}`}
+        children={<RepoTitle repos={repos} subtitle={`${t("prs.count", { count: open.length })}${checkedAt === null ? "" : t("prs.checkedAgo", { ago: ago(checkedAt) })}`} />}
         rightTrail={
           <Button
             variant="brand"
@@ -129,7 +128,7 @@ export function PrsRoute() {
           </Button>
         }
       />
-      <BoardTabs repos={repos} />
+      <BoardTabs />
       <h1 className="sr-only">{t("prs.title")}</h1>
 
       <main className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3 pb-24 lg:gap-3 lg:p-5">

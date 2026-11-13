@@ -3,7 +3,7 @@ import { Link, useLoaderData, useNavigate } from "react-router";
 import { Check, ChevronDown, ChevronRight, CircleDashed, CircleHelp, GitPullRequest, Images, RotateCcw, Search, SkipForward, X, ZoomIn } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { BoardTabs } from "@/components/board-tabs";
+import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { GalleryImg } from "@/components/gallery-img";
 import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -97,8 +97,8 @@ export function RecetteRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title={t("recette.title")} subtitle={t("recette.count", { count: counts.todo })} />
-      <BoardTabs repos={repo ? [{ path: repo, name: repoName(repo) }] : []} />
+      <AppHeader children={<RepoTitle repos={repo ? [{ path: repo, name: repoName(repo) }] : []} subtitle={t("recette.count", { count: counts.todo })} />} />
+      <BoardTabs />
       <h1 className="sr-only">{t("recette.title")}</h1>
 
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 pb-24 lg:p-5">
