@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.326.0] - 2026-11-13
+
+### Added
+
+- Fiche d'une PR ouverte dans Collie : description, fichiers, diff, Fusionner / Fermer ; la liste y mène (cb9888e)
+- `GET /api/board/prs/<n>?repo=` (lecture seule) (cb9888e)
+
+### Changed
+
+- « Ouvrir sur GitHub » passe dans le ⋯ de chaque ligne de PR (cb9888e)
+
 ## [0.325.1] - 2026-11-13
 
 ### Fixed
