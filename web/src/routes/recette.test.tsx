@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setPreference } from "@/i18n";
 import { useLightbox } from "@/lib/lightbox";
-import { byDelivery, isPending, matchesQuery, prLabel, recetteLoader, type RecetteEntry, type RecetteGroup } from "@/lib/recette";
+import { byDelivery, dayMark, isPending, matchesQuery, prLabel, recetteLoader, stepDevice, stepTarget, type RecetteEntry, type RecetteGroup } from "@/lib/recette";
 import { server } from "@/test/setup";
 
 import { RecetteChip, RecetteRoute } from "./recette";
@@ -73,42 +73,176 @@ function Shown() {
   return lb ? <output aria-label="lightbox">{`${lb.index}/${lb.images.length}`}</output> : null;
 }
 
+describe("timeline helpers", () => {
+  it("reads the device and the screen off a step's words, the card's page otherwise", () => {
+    expect(stepDevice({ text: "Ouvrir Cartes sur le téléphone" })).toBe("phone");
+    expect(stepDevice({ text: "Ouvrir Cartes" })).toBe("desktop");
+    expect(stepTarget({ text: "Ouvrir l'onglet Cartes" }, "c1", "/r/app")).toEqual({ to: "/board?repo=%2Fr%2Fapp", where: "board" });
+    expect(stepTarget({ text: "Valider une étape", expected: "la Recette se met à jour" }, "c1", null)).toEqual({ to: "/board/recette", where: "recette" });
+    expect(stepTarget({ text: "Lancer l'agent" }, "c 1", "/r/app")).toEqual({ to: "/card/c%201", where: "card" });
+  });
+
+  it("marks today and yesterday", () => {
+    const now = new Date(2026, 10, 13, 12).getTime();
+    expect(dayMark(now - 3_600_000, now)).toBe("today");
+    expect(dayMark(now - 86_400_000, now)).toBe("yesterday");
+    expect(dayMark(now - 3 * 86_400_000, now)).toBeNull();
+  });
+});
+
 describe("RecetteRoute", () => {
-  function mount(groups: RecetteGroup[]) {
+  function mount(groups: RecetteGroup[], url = "/board/recette?repo=%2Fr%2Fapp") {
     server.use(http.get("/api/recette", () => HttpResponse.json({ groups })));
     const router = createMemoryRouter(
       [
         { path: "/board/recette", loader: recetteLoader, element: <><RecetteRoute /><Shown /></> },
         { path: "/card/:cardId", element: <p>card screen</p> },
+        { path: "/board", element: <p>cards tab</p> },
       ],
-      { initialEntries: ["/board/recette?repo=%2Fr%2Fapp"] },
+      { initialEntries: [url] },
     );
     render(<RouterProvider router={router} />);
     return router;
   }
 
-  it("unfolds a few entries in place: Do / Expect, captures, the step's own capture, a text link to the card", async () => {
+  it("a timeline: the newest waiting delivery opens with its phase, its card, its visual and its steps", async () => {
+    setPreference("fr");
     mount([
-      { usage: "Drive another machine", entries: [entry(), entry({ cardId: "c2", capability: "Already fine", state: "ok", shots: [] })] },
+      {
+        usage: "Piloter",
+        entries: [
+          entry({ title: "Carte dev", phaseId: "p", steps: [
+            { id: "a", text: "Choisir dev dans Environnement", expected: "le chip dev s'affiche", shot: "chip.png", verdict: null },
+            { id: "b", text: "Démarrer la carte", verdict: { status: "ok", by: "operator", at: 1 } },
+            { id: "c", text: "Ouvrir la carte sur le téléphone", verdict: null },
+          ] }),
+          entry({ cardId: "old", capability: "Plus ancienne", deliveredAt: Date.now() - 3 * 86_400_000 }),
+        ],
+      },
     ]);
-    expect(await screen.findByText("Launch a card on dev from the editor")).toBeInTheDocument();
-    expect(screen.getByText("Drive another machine")).toBeInTheDocument();
-    expect(screen.getByText("1 step to test")).toBeInTheDocument();
-    const step = screen.getByText("Pick dev in Environment").closest("li")!;
-    expect(within(step).getByText("Do:")).toBeInTheDocument();
-    expect(within(step).getByText("Expect:")).toBeInTheDocument();
-    expect(within(step).getByText("the dev chip shows")).toBeInTheDocument();
-    // The step's capture opens the card's series on it; the strip opens it on its own.
-    await userEvent.click(within(step).getByRole("button", { name: "Open chip.png" }));
-    expect(screen.getByRole("status", { name: "lightbox" })).toHaveTextContent("1/2");
-    await userEvent.click(screen.getAllByRole("button", { name: "Open dev.png" })[0]!);
+    expect(await screen.findByText("Ce qui a été livré, à vérifier")).toBeInTheDocument();
+    expect(screen.getAllByText("Aujourd'hui").length).toBeGreaterThan(0);
+    const thread = screen.getAllByRole("navigation", { name: "D'où ça vient" })[0]!;
+    expect(within(thread).getByRole("link", { name: "Phase 1" })).toBeInTheDocument();
+    expect(within(thread).getByRole("link", { name: "carte : Carte dev" })).toHaveAttribute("href", "/card/c1");
+    // The current step: its text, its expected, two buttons and where they lead; no « Faire / Attendu ».
+    const step = screen.getByText("Choisir dev dans Environnement").closest("li")!;
+    expect(within(step).getByText("le chip dev s'affiche")).toBeInTheDocument();
+    expect(screen.queryByText("Faire :")).toBeNull();
+    expect(within(step).getByRole("link", { name: "Aller voir" })).toHaveAttribute("href", "/card/c1");
+    expect(within(step).getByRole("button", { name: "Me préparer le test" })).toBeInTheDocument();
+    expect(within(step).getByRole("button", { name: "C'est bon" })).toBeInTheDocument();
+    // Only the current step carries the verdicts; the phone step says so.
+    expect(screen.getAllByRole("button", { name: "Pas bon" })).toHaveLength(1);
+    expect(screen.getByText("Ouvrir la carte sur le téléphone").closest("li")).toHaveTextContent("téléphone");
+    // Each capture once: the large one, and a thumbnail per capture to switch.
+    await userEvent.click(within(step).getByRole("button", { name: "voir la capture" }));
+    expect(screen.getByRole("button", { name: "chip.png" })).toHaveAttribute("aria-pressed", "true");
+    // The older delivery: one line, « Vérifier ».
+    const old = screen.getByText("Plus ancienne").closest("article")!;
+    expect(within(old).getByText("2 vérifications, 1 faite")).toBeInTheDocument();
+    await userEvent.click(within(old).getByRole("button", { name: "Vérifier" }));
+    expect(within(screen.getByText("Plus ancienne").closest("article")!).getAllByRole("listitem").length).toBeGreaterThan(0);
+  });
+
+  it("« Tout l'historique » keeps what is validated, folded in green", async () => {
+    setPreference("fr");
+    mount([{ usage: null, entries: [entry(), entry({ cardId: "c2", capability: "Déjà validée", state: "ok", shots: [] })] }]);
+    await screen.findByText("Launch a card on dev from the editor");
+    expect(screen.queryByText("Déjà validée")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Tout l'historique" }));
+    const done = screen.getByText("Déjà validée").closest("article")!;
+    expect(within(done).getByText("Validée")).toBeInTheDocument();
+    expect(within(done).getByRole("button", { name: /Déjà validée/ })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("« Pas bon » asks no cause, files the correction card, says where it goes; a note is optional", async () => {
+    setPreference("fr");
+    const sent: unknown[] = [];
+    server.use(
+      http.post("/api/cards/c1/checks/a", async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json({ ok: true, followUp: { id: "f1" } });
+      }),
+    );
+    const router = mount([{ usage: null, entries: [entry({ title: "Carte dev", fixCardId: "f0" })] }]);
+    const step = (await screen.findByText("Pick dev in Environment")).closest("li")!;
+    expect(screen.getByText(/Une carte de correction est créée dans « Phase 1 », rattachée à « Carte dev »/)).toBeInTheDocument();
+    await userEvent.click(within(step).getByRole("button", { name: "Pas bon" }));
+    expect(sent[0]).toEqual({ status: "ko", followUp: true });
+    expect(router.state.location.pathname).toBe("/board/recette"); // no detour: the check goes on
+    expect(screen.getByRole("link", { name: "Ouvrir la carte de correction" })).toHaveAttribute("href", "/card/f0");
+  });
+
+  it("« Me préparer le test » prompts the orchestrator; without one, says how to start it", async () => {
+    setPreference("fr");
+    let calls = 0;
+    server.use(http.post("/api/cards/c1/checks/a/prepare", () => (++calls === 1 ? HttpResponse.json({ ok: true, paneId: "p9" }) : HttpResponse.json({ ok: false, kind: "no-session" }, { status: 409 }))));
+    mount([{ usage: null, entries: [entry()] }]);
+    const step = (await screen.findByText("Pick dev in Environment")).closest("li")!;
+    await userEvent.click(within(step).getByRole("button", { name: "Me préparer le test" }));
+    expect(calls).toBe(1);
+  });
+
+  it("the one-by-one session: a step at a time, O/N/P, filtered by device", async () => {
+    setPreference("fr");
+    const sent: string[] = [];
+    server.use(
+      http.post("/api/cards/:id/checks/:step", async ({ params, request }) => {
+        sent.push(`${params.step}:${((await request.json()) as { status: string }).status}`);
+        return HttpResponse.json({ ok: true, followUp: null });
+      }),
+    );
+    const router = mount([
+      {
+        usage: null,
+        entries: [entry({ shots: [], steps: [
+          { id: "a", text: "Ouvrir la Recette", expected: "la chronologie", verdict: null },
+          { id: "b", text: "Ouvrir Cartes sur le téléphone", verdict: null },
+        ] })],
+      },
+    ]);
+    await userEvent.click(await screen.findByRole("button", { name: "Vérifier une à une" }));
+    // Each move goes through the URL, so the router (and its loader) settles first: wait, never assume.
+    const dialog = await screen.findByRole("dialog", { name: "Vérifier une à une" });
+    expect(within(dialog).getByText("Étape 1 sur 2")).toBeInTheDocument();
+    expect(within(dialog).getByText("la chronologie")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Aller voir" })).toHaveAttribute("href", "/board/recette?repo=%2Fr%2Fapp");
+    await userEvent.keyboard("o");
+    await waitFor(() => expect(router.state.location.search).toContain("step=c1%2Fb"));
+    expect(sent).toEqual(["a:ok"]);
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Ordinateur" }));
+    await waitFor(() => expect(within(screen.getByRole("dialog")).queryByText("Ouvrir Cartes sur le téléphone")).toBeNull());
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Téléphone" }));
+    expect(await within(screen.getByRole("dialog")).findByText("Ouvrir Cartes sur le téléphone")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("Étape 1 sur 1")).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Quitter la session" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("no feature is lost: filters, groupings, search, gallery, note, correction card, card detail, help", async () => {
+    setPreference("fr");
+    mount([{ usage: "Piloter", entries: [entry({ fixCardId: "f0", phaseId: "p", runId: "r", prUrl: "https://github.com/o/r/pull/5", steps: [
+      { id: "a", text: "Pick dev in Environment", verdict: { status: "ko", by: "operator", at: 1, note: "rien" } },
+      { id: "b", text: "Start the card", verdict: null },
+    ] })] }]);
+    await screen.findByText("Launch a card on dev from the editor");
+    for (const name of ["À vérifier", "Tout l'historique", "Chronologie", "Par usage", "Par livraison", "Vérifier une à une", "2 captures"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("searchbox")).toBeInTheDocument();
+    expect(screen.getByText("Comment ça marche")).toBeInTheDocument();
+    // A KO step, picked again: its note, optional, goes to the correction card.
+    await userEvent.click(screen.getByText("Pick dev in Environment"));
+    expect(screen.getByText("rien")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Qu'est-ce qui s'est passé ? (facultatif)" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ouvrir la carte de correction" })).toHaveAttribute("href", "/card/f0");
+    expect(screen.getByRole("link", { name: "Détail technique de la carte" })).toHaveAttribute("href", "/card/c1");
+    expect(screen.getByRole("link", { name: "PR #5" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Aller voir" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Me préparer le test" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "2 captures" }));
     expect(screen.getByRole("status", { name: "lightbox" })).toHaveTextContent("0/2");
-    expect(screen.getByText("1 step validated")).toBeInTheDocument();
-    expect(screen.queryByText("Already fine")).toBeNull();
-    // No PR, no file name in the entry — one explicit text link to the card.
-    expect(screen.getByRole("link", { name: "Card technical details" })).toHaveAttribute("href", "/card/c1");
-    await userEvent.click(screen.getByRole("button", { name: "Everything" }));
-    expect(screen.getByText("Already fine")).toBeInTheDocument();
   });
 
   it("a business card's recette reads « à relire », not « à tester »", async () => {
@@ -134,37 +268,13 @@ describe("RecetteRoute", () => {
     expect(screen.queryByText("Offer page")).toBeNull();
   });
 
-  it("folds the list when more than three are to test, and a click unfolds one in place", async () => {
-    mount([{ usage: null, entries: ["c1", "c2", "c3", "c4"].map((id) => entry({ cardId: id, capability: `Capability ${id}` })) }]);
-    const toggle = (await screen.findByText("Capability c2")).closest("button")!;
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("Pick dev in Environment")).toBeNull();
-    await userEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getAllByText("Pick dev in Environment")).toHaveLength(1);
-  });
-
-  it("labels each verdict and says its effect; a return to the page hides nothing", async () => {
-    localStorage.setItem("collie-board-recette-visit:/r/app", String(Date.now() + 60_000)); // an old visit mark: ignored
-    mount([{ usage: null, entries: [entry({ prUrl: "https://github.com/o/r/pull/7", phaseId: "p", runId: "r" })] }]);
-    const step = (await screen.findByText("Pick dev in Environment")).closest("li")!;
-    expect(within(step).getByRole("button", { name: "It works" })).toHaveAttribute("title", expect.stringContaining("leaves « To test »"));
-    expect(within(step).getByRole("button", { name: "Skip" })).toHaveAttribute("title", expect.stringContaining("not as passed"));
-    expect(within(step).getByRole("button", { name: "It doesn't work" })).toHaveAttribute("title", expect.stringContaining("follow-up card"));
-    expect(screen.queryByRole("button", { name: "Since my last visit" })).toBeNull();
-    // The thread: phase, lot, card, PR — each a link.
-    const thread = screen.getByRole("navigation", { name: "Where it comes from" });
-    expect(within(thread).getByRole("link", { name: "Phase 1" })).toHaveAttribute("href", "/board/project?repo=%2Fr%2Fapp");
-    expect(within(thread).getByRole("link", { name: "Card" })).toHaveAttribute("href", "/card/c1");
-    expect(within(thread).getByRole("link", { name: "PR #7" })).toHaveAttribute("href", "https://github.com/o/r/pull/7");
-    expect(screen.getByText("How it works")).toBeInTheDocument();
-  });
-
-  it("groups by delivery, and remembers the choice", async () => {
+  it("groups by use or by delivery, and remembers the choice", async () => {
     mount([{ usage: "Use", entries: [entry({ phaseId: "p", runId: "r", prUrl: "https://github.com/o/r/pull/5" })] }]);
     await userEvent.click(await screen.findByRole("button", { name: "By delivery" }));
     expect(screen.getByRole("heading", { name: /Lot A/ })).toHaveTextContent("PR #5");
     expect(localStorage.getItem("collie-board-recette-grouping")).toBe("delivery");
+    await userEvent.click(screen.getByRole("button", { name: "By use" }));
+    expect(screen.getByText("Use")).toBeInTheDocument();
   });
 
   it("filters by search", async () => {
@@ -173,25 +283,6 @@ describe("RecetteRoute", () => {
     await userEvent.type(screen.getByRole("searchbox"), "dev.png");
     expect(screen.queryByText("Share a board")).toBeNull();
     expect(screen.getByText("Launch a card on dev from the editor")).toBeInTheDocument();
-  });
-
-  it("a KO with a note creates the follow-up card and opens it", async () => {
-    let sent: unknown = null;
-    server.use(
-      http.post("/api/cards/c1/checks/a", async ({ request }) => {
-        sent = await request.json();
-        return HttpResponse.json({ ok: true, followUp: { id: "f1" } });
-      }),
-    );
-    const router = mount([{ usage: null, entries: [entry()] }]);
-    const step = (await screen.findByText("Pick dev in Environment")).closest("li")!;
-    await userEvent.click(within(step).getByRole("button", { name: "It doesn't work" }));
-    const followUp = screen.getByRole("button", { name: "Create a follow-up card" });
-    expect(followUp).toBeDisabled(); // a follow-up needs a note
-    await userEvent.type(screen.getByRole("textbox", { name: "What happened?" }), "nothing shows");
-    await userEvent.click(followUp);
-    expect(sent).toEqual({ status: "ko", note: "nothing shows", followUp: true });
-    expect(router.state.location.pathname).toBe("/card/f1");
   });
 });
 
