@@ -3,3 +3,5 @@
 {"v":1,"hlc":"1794594908614.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Revue design de la page Projet (skill frontend-design) et corrections","status":"backlog"},"ts":1794594902541}}
 {"v":1,"hlc":"1794594908614.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"b9fbc6c8-597e-4983-bf16-18a7aa992a0f"}}
 {"v":1,"hlc":"1794594908614.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"f762ab6f-dff4-44c7-a0df-04cfd7c2302a"}}
+{"v":1,"hlc":"1794594938873.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":null}}
+{"v":1,"hlc":"1794594938873.0001.49d81004837e","type":"card.deleted","by":"stephane.wetterwald@gmail.com","fields":{}}
