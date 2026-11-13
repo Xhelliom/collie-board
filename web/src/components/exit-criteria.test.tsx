@@ -28,14 +28,15 @@ test("shows the four criteria held or not, and ticks the two manual ones", async
   );
   render(<ExitCriteria />);
 
-  expect(await screen.findByText("Sortie de herdr 0.9 (1/4)")).toBeInTheDocument();
+  expect(await screen.findByText("Conditions de départ : 1 sur 4 tenues")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Voir" }));
   expect(screen.getByTestId("exit-protocol")).toHaveTextContent(/protocole 1 \(hc 0\.1\.20\).*pas tenu/);
   expect(screen.getByTestId("exit-machines")).toHaveTextContent(/Machines sous hc : 1\/2.*dell : herdr-core · dev : inconnu.*pas tenu/);
   expect(screen.getByTestId("exit-harnesses")).toHaveTextContent(/coché à la main\s*tenu$/);
   expect(screen.getAllByRole("switch")).toHaveLength(2);
 
   await userEvent.click(screen.getByRole("switch", { name: /herdr 0.9 ne reçoit plus/ }));
-  expect(await screen.findByText("Sortie de herdr 0.9 (2/4)")).toBeInTheDocument();
+  expect(await screen.findByText("Conditions de départ : 2 sur 4 tenues")).toBeInTheDocument();
   expect(posted).toEqual([{ herdr09Frozen: true }]);
   expect(screen.getByTestId("exit-herdr09")).not.toHaveTextContent("pas tenu");
 });

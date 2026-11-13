@@ -36,6 +36,25 @@ export function PinToggle({ target, name, className }: { target: PinTarget; name
   );
 }
 
+/** The project's pin as a row of a « ⋯ » menu (the project page on a phone). */
+export function PinMenuItem({ target, name, className }: { target: PinTarget; name: string; className?: string }) {
+  const t = useT();
+  const pins = usePins();
+  const on = pins.some((p) => pinId(p) === pinId(target));
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      aria-pressed={on}
+      onClick={() => void toggle(target, name, !on, t("pin.failed"))}
+      className={cn("flex h-10 items-center gap-2.5 rounded-lg px-3 text-left font-medium hover:bg-muted/60", className)}
+    >
+      <PinIcon className={cn("size-4 text-muted-foreground", on && "fill-current text-brand")} />
+      {t(on ? "pin.remove" : "pin.add")}
+    </button>
+  );
+}
+
 /** An agent's pin. Nothing for a pane herdr gave no session (a shell, a fresh agent). */
 export function PinButton({ agent, className }: { agent: AgentView; className?: string }) {
   const key = pinKey(agent);
