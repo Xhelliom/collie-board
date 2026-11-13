@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -203,20 +203,21 @@ describe("RecetteRoute", () => {
       },
     ]);
     await userEvent.click(await screen.findByRole("button", { name: "Vérifier une à une" }));
-    const dialog = screen.getByRole("dialog", { name: "Vérifier une à une" });
+    // Each move goes through the URL, so the router (and its loader) settles first: wait, never assume.
+    const dialog = await screen.findByRole("dialog", { name: "Vérifier une à une" });
     expect(within(dialog).getByText("Étape 1 sur 2")).toBeInTheDocument();
     expect(within(dialog).getByText("la chronologie")).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: "Aller voir" })).toHaveAttribute("href", "/board/recette?repo=%2Fr%2Fapp");
     await userEvent.keyboard("o");
+    await waitFor(() => expect(router.state.location.search).toContain("step=c1%2Fb"));
     expect(sent).toEqual(["a:ok"]);
-    expect(router.state.location.search).toContain("step=c1%2Fb");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Ordinateur" }));
-    expect(within(dialog).queryByText("Ouvrir Cartes sur le téléphone")).toBeNull();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Téléphone" }));
-    expect(within(dialog).getByText("Ouvrir Cartes sur le téléphone")).toBeInTheDocument();
-    expect(within(dialog).getByText("Étape 1 sur 1")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Quitter la session" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Ordinateur" }));
+    await waitFor(() => expect(within(screen.getByRole("dialog")).queryByText("Ouvrir Cartes sur le téléphone")).toBeNull());
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Téléphone" }));
+    expect(await within(screen.getByRole("dialog")).findByText("Ouvrir Cartes sur le téléphone")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("Étape 1 sur 1")).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Quitter la session" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("no feature is lost: filters, groupings, search, gallery, note, correction card, card detail, help", async () => {
