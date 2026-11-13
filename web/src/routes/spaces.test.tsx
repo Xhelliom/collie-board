@@ -25,10 +25,11 @@ function renderAt(path: string) {
 }
 
 describe("Spaces screens (390 px, one title, one count)", () => {
-  it("Spaces shows the count once", async () => {
+  it("Agents is titled once, and keeps the new-space button under herdr 0.9", async () => {
     renderAt("/spaces");
     await screen.findByText("proj-alpha");
-    expect(screen.getAllByText(/\b2 spaces\b|\(2\)/)).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Agents" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New space" })).toBeInTheDocument();
   });
 
   it("a space shows its name once visibly: the header's, the h1 is screen-reader only", async () => {

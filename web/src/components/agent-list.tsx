@@ -10,8 +10,7 @@ import { useFold } from "./fold";
 import { Button } from "./ui/button";
 import { Chip } from "./ui/chip";
 import { IdleDoneRow, NeedsYouCard, WorkingCard } from "./agent-card";
-import { usePins } from "@/lib/pins";
-import { GonePin, PinButton, resolvePins } from "./pin-button";
+import { PinButton } from "./pin-button";
 import { TidySheet } from "./tidy-sheet";
 
 interface AgentListProps {
@@ -45,7 +44,6 @@ export function AgentList({
   const [machine, setMachine] = useState<string | null>(null);
   const machines = [...new Set(agents.flatMap((a) => (a.peer ? [a.peer] : [])))];
   const hasOrch = agents.some(isOrchestrator);
-  const pins = usePins(agents);
   if (agents.length === 0) {
     if (!emptyState) return null;
     return (
@@ -70,23 +68,6 @@ export function AgentList({
 
   return (
     <div className="flex flex-col gap-7">
-      {/* Phone only: the desktop sidebar already lists them under the orchestrators. */}
-      {pins.length > 0 && (
-        <section className="flex flex-col gap-2.5 lg:hidden">
-          <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-            {t("quick.pinned")}
-          </h2>
-          <div className="flex flex-col">
-            {resolvePins(pins, agents).map(({ pin, agent: a }) =>
-              a ? (
-                <IdleDoneRow key={pin.session} agent={a} onClick={() => onOpen(a.paneId)} />
-              ) : (
-                <GonePin key={pin.session} pin={pin} className="px-3 py-1.5 text-sm" />
-              ),
-            )}
-          </div>
-        </section>
-      )}
       <div className="-mb-3 flex items-center gap-2">
         {(hasOrch || orchOnly || machines.length > 0 || machine !== null) && (
           <Chip

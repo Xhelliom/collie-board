@@ -50,7 +50,7 @@ const props = {
 describe("SpaceOverview", () => {
   it("shows an empty state when there are no spaces", () => {
     render(<SpaceOverview {...props} workspaces={[]} />);
-    expect(screen.getByText(/no spaces yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no agent or terminal yet/i)).toBeInTheDocument();
   });
 
   it("lists a space even when no pane of it is in the snapshot", () => {

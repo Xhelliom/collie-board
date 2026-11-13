@@ -41,6 +41,7 @@ import type {
   CardCategory,
   CardPatch,
   CardStatus,
+  PinTarget,
   ReviewTodo,
   TinyTodo,
 } from "./db.ts";
@@ -127,7 +128,7 @@ const REPOS_ENVIRONMENTS_ROUTE = "/api/repos/environments";
 /** `/api/board/prefs` — the board-wide switches (see BoardDb's `board_pref`). */
 const BOARD_PREFS_ROUTE = "/api/board/prefs";
 
-/** `/api/board/pins` — the agent sessions pinned to the quick access (BoardDb `pins`). */
+/** `/api/board/pins` — what the operator pinned to the sidebar: agent sessions, projects, cards (BoardDb `pins`). */
 const BOARD_PINS_ROUTE = "/api/board/pins";
 
 /** `/api/board/launch-engine` — where a new launch goes: hc, or herdr 0.9 and whether as a fallback (ADR 0052 §4.2). */
@@ -742,7 +743,9 @@ async function route(
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      return ctx.json({ pins: ctx.db.pins() });
+      // A pinned card's dot is its column, read now — never stored on the pin.
+      const pins = ctx.db.pins().map((p) => ("cardId" in p ? { ...p, status: ctx.db.getCard(p.cardId)?.status ?? null } : p));
+      return ctx.json({ pins });
     }
     if (req.method === "POST") {
       const denied = ctx.guard("write");
@@ -753,12 +756,19 @@ async function route(
       } catch {
         return ctx.text("bad body", 400);
       }
-      const { session, name, pinned } = (body ?? {}) as { session?: unknown; name?: unknown; pinned?: unknown };
-      if (typeof session !== "string" || !session.trim() || session.length > 1024) return ctx.text("session required", 400);
+      const { session, repoPath, cardId, name, pinned } = (body ?? {}) as Record<string, unknown>;
+      // Exactly one target, each a bounded non-blank string; the rest of the body is ignored.
+      const given = { session, repoPath, cardId };
+      const keys = (Object.keys(given) as (keyof typeof given)[]).filter((k) => given[k] !== undefined);
+      const value = keys.length === 1 ? given[keys[0]!] : undefined;
+      if (typeof value !== "string" || !value.trim() || value.length > 1024) {
+        return ctx.text("exactly one of session, repoPath, cardId required", 400);
+      }
       if (typeof pinned !== "boolean") return ctx.text("pinned must be a boolean", 400);
       if (pinned && (typeof name !== "string" || !name.trim() || name.length > 200)) return ctx.text("name required", 400);
-      const pins = ctx.db.setPin(session, pinned ? (name as string).trim() : "", pinned);
-      ctx.audit.record({ action: "board.pin", session: ctx.session, device: ctx.device, detail: { agentSession: session, pinned } });
+      const target = { [keys[0]!]: value } as PinTarget;
+      const pins = ctx.db.setPin(target, pinned ? (name as string).trim() : "", pinned);
+      ctx.audit.record({ action: "board.pin", session: ctx.session, device: ctx.device, detail: { ...target, pinned } });
       return ctx.json({ pins });
     }
     return ctx.text("method not allowed", 405);

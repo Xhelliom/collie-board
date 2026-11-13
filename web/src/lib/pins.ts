@@ -3,14 +3,18 @@ import { useEffect, useSyncExternalStore } from "react";
 import { apiRequest } from "./api";
 import type { AgentView } from "./types";
 
-// The agent sessions the operator pinned to the quick access (bridge `/api/board/pins`). Stored on the
-// bridge, so the phone and the PC share them. One module store for every pin button and list: the
-// hook asks again on the caller's tick, throttled — no loop of its own (CLAUDE.md).
+// What the operator pinned to the sidebar (bridge `/api/board/pins`): agent sessions, projects, cards.
+// Stored on the bridge, so the phone and the PC share them. One module store for every pin button and
+// list: the hook asks again on the caller's tick, throttled — no loop of its own (CLAUDE.md).
 
-export interface Pin {
-  session: string;
-  name: string;
-}
+/** Exactly one target: an agent `session`, a project `repoPath`, or a `cardId`. */
+export type PinTarget = { session: string } | { repoPath: string } | { cardId: string };
+/** `status`: a card pin's live column, added by the bridge on read. */
+export type Pin = PinTarget & { name: string; status?: string | null };
+
+/** The pin's one target as a comparable key. */
+export const pinId = (p: PinTarget): string =>
+  "session" in p ? `session:${p.session}` : "repoPath" in p ? `repoPath:${p.repoPath}` : `cardId:${p.cardId}`;
 
 /** herdr's agent session — it survives a reboot, the pane id doesn't. A pane without one can't be pinned. */
 export const pinKey = (a: Pick<AgentView, "agentSessionId" | "agentSessionPath">): string | null =>
@@ -43,12 +47,13 @@ export function usePins(tick?: unknown): Pin[] {
   return useSyncExternalStore(subscribe, () => pins);
 }
 
-export async function setPinned(session: string, name: string, pinned: boolean): Promise<void> {
+export async function setPinned(target: PinTarget, name: string, pinned: boolean): Promise<void> {
   const r = await apiRequest<{ pins: Pin[] }>("/api/board/pins", {
     method: "POST",
-    body: JSON.stringify({ session, name, pinned }),
+    body: JSON.stringify({ ...target, name, pinned }),
   });
   publish(r.pins);
+  last = 0; // the next tick re-reads, so a fresh card pin gets its status
 }
 
 /** Tests only: the store outlives a render. */
