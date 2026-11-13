@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.304.0] - 2026-11-13
+
+### Added
+
+- Une carte créée sans `spec` ni `rawInput` répond avec `warnings` : l'agent partirait sans brief (a4f4565)
+
+### Changed
+
+- `POST`/`PATCH /api/cards` refusent un champ inconnu (400 qui nomme le champ voulu, ex. `description` → `spec`) au lieu de l'ignorer (a4f4565)
+
 ## [0.303.0] - 2026-11-12
 
 ### Added
