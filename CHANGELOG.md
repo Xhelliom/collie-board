@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.306.0] - 2026-11-13
+
+### Added
+
+- Barre latérale : section « En cours » (agents qui travaillent ou t'attendent), sans rien épingler (56c34ff)
+- Épingler un projet (depuis sa page) et une carte (depuis sa fiche), à côté des agents ; puce projet / carte / agent (56c34ff)
+- `/api/board/pins` accepte `repoPath` et `cardId` à côté de `session` (56c34ff)
+- Sections « Épinglés » et « En cours » repliables, état retenu par appareil (56c34ff)
+
+### Changed
+
+- Navigation : Accueil, Projets, Agents, Réglages — plus d'entrée « Board » séparée, « Spaces » devient « Agents », visible sous hc aussi (56c34ff)
+- Sous les entrées, plus de listes automatiques (projets, orchestrateurs, spaces) ni de version ; titres en casse normale, une ligne par élément (56c34ff)
+- Téléphone : épinglés en tête de la page Projets, « En cours » en tête de la page Agents (56c34ff)
+
 ## [0.305.1] - 2026-11-13
 
 ### Fixed
