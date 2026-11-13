@@ -9,6 +9,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.315.0] - 2026-11-13
+
+### Added
+
+- Onglet Cartes : filtre `?phase=none` (cartes sans phase) (85f2fd4)
+
+### Changed
+
+- Page Projet en panneaux : ce qui t'attend d'abord, objectif compact avec jauges, phase en cours, phases en une ligne, cartes hors phase vers l'onglet Cartes (85f2fd4)
+- Une carte tient en une ligne sur la page Projet (titre vers sa fiche, icônes carte et agent) ; plus de carte dépliée (85f2fd4)
+- Un lot arrêté s'explique en une phrase ; l'erreur brute reste dans l'historique de la carte (85f2fd4)
+- En-tête du projet : « Nouvel agent » et un menu « Actions » (Nouveau terminal, Tout migrer vers herdr-core) (85f2fd4)
+- Orchestrateur : point d'état, nom, modèle, plein écran en icône (85f2fd4)
+
 ## [0.314.0] - 2026-11-13
 
 ### Changed
