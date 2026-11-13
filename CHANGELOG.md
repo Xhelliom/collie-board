@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.325.0] - 2026-11-13
+
+### Changed
+
+- Réglages › Apparence : plus de choix de style, le Sémaphore est le seul look (un « Classique » mémorisé est effacé). (ec0a65d)
+
+### Fixed
+
+- Un redémarrage du bridge pendant l'export du plan ne perd plus la PR docs(plan) : au démarrage, les lots finis sans export réussi sont réexportés (une fois par dépôt, rattrapage compris). (c10e801)
+- Un échec d'export est journalisé dans le journal du lot (`plan.exported`) en plus du log. (c10e801)
+
 ## [0.324.0] - 2026-11-13
 
 ### Changed
