@@ -89,7 +89,7 @@ function GoalJournal({ goal }: { goal: Goal }) {
       ) : (
         <ul className="mt-1 flex max-h-72 flex-col gap-1.5 overflow-y-auto">
           {goal.journal.map((j, i) => (
-            <li key={`${j.ts}-${i}`} className={`rounded-lg border p-2 text-xs ${j.type === "goal.checkpoint" ? "border-brand/45" : ""}`}>
+            <li key={`${j.ts}-${i}`} className={`rounded-lg border p-2 text-xs ${j.type === "goal.checkpoint" ? "border-status-blocked/45" : ""}`}>
               <div className="flex justify-between gap-2 text-muted-foreground">
                 <span className="font-medium">{t(j.reason ? `goal.entry.${j.reason}` : "goal.entry.lot")}</span>
                 <time dateTime={new Date(j.ts).toISOString()}>{new Date(j.ts).toLocaleString()}</time>
@@ -307,7 +307,7 @@ export function GoalPanel({
           {shown === "journal" && <GoalJournal goal={open} />}
           {open.status === "claimed" && (
             <>
-              <p className="rounded-lg border border-brand/45 p-2 text-xs">{t("goal.claimedHint")}</p>
+              <p className="rounded-lg border border-status-blocked/45 p-2 text-xs">{t("goal.claimedHint")}</p>
               <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                 {t("goal.refusal")}
                 <textarea value={refusal} onChange={(e) => setRefusal(e.target.value)} rows={2} maxLength={2000} className={field} />
@@ -315,7 +315,7 @@ export function GoalPanel({
             </>
           )}
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void move("achieve")} className="rounded-sm bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+            <button type="button" onClick={() => void move("achieve")} className="rounded-sm bg-status-done px-3 py-1.5 text-xs font-semibold text-status-chip-foreground">
               {t("goal.achieve")}
             </button>
             {open.status === "active" ? (

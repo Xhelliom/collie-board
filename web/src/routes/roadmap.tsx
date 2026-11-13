@@ -39,7 +39,7 @@ const FOCUS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 const PILL = cn("inline-flex h-8 items-center gap-1.5 rounded-sm border bg-card/70 px-3 text-sm font-medium hover:border-foreground/25", FOCUS);
 const FIELD = cn("w-full rounded-lg border bg-background px-3 py-2 text-sm", FOCUS);
 // Solid segments, one colour per horizon: done, now, ahead.
-const SEG = { done: "bg-status-done", now: "bg-status-working", ahead: "bg-muted-foreground/35" } as const;
+const SEG = { done: "bg-status-done", now: "bg-status-info", ahead: "bg-muted-foreground/35" } as const;
 
 /** The vision's headline: its `# title`, else its first sentence; and what is left of it. Pure. */
 export function visionHeadline(vision: string): { headline: string; rest: string } {
@@ -192,7 +192,7 @@ function Cap({ roadmap, goal, next, done, total, onSave }: {
   const [draft, setDraft] = useState<string | null>(null);
   const { headline, rest } = visionHeadline(roadmap.vision);
   return (
-    <section aria-labelledby="roadmap-cap" className="flex flex-col gap-4 rounded-2xl border border-status-working/40 bg-card/70 p-5">
+    <section aria-labelledby="roadmap-cap" className="flex flex-col gap-4 rounded-2xl border border-status-info/40 bg-card/70 p-5">
       <div className="flex items-center gap-2">
         <h2 id="roadmap-cap" className="text-sm font-semibold text-muted-foreground">{t("roadmap.cap")}</h2>
         {draft === null && (
@@ -308,7 +308,7 @@ function Path({ h, phases, progress, onOpen, onHistory, historyOpen, onExpand, o
     <li key={extra?.key} ref={extra?.ref} data-ahead={extra?.ahead ? "" : undefined} className={cn("flex shrink-0 snap-start flex-col", w)}>
       <span aria-hidden="true" className="relative flex h-5 items-center">
         <span className={cn("h-1 w-full", SEG[seg])} />
-        <span className={cn("absolute left-0 size-3.5 rounded-full border-2 border-background", SEG[seg], seg === "now" && "size-4 ring-2 ring-status-working/40")} />
+        <span className={cn("absolute left-0 size-3.5 rounded-full border-2 border-background", SEG[seg], seg === "now" && "size-4 ring-2 ring-status-info/40")} />
       </span>
       <div className="flex min-w-0 flex-col gap-1 pr-3 pt-2">{body}</div>
     </li>
@@ -374,7 +374,7 @@ function Path({ h, phases, progress, onOpen, onHistory, historyOpen, onExpand, o
             milestone(
               "now",
               <>
-                <span className="text-xs font-medium text-status-working">{t("roadmap.path.now")}</span>
+                <span className="text-xs font-medium text-status-info">{t("roadmap.path.now")}</span>
                 {it ? stepButton(it) : <span className="text-sm text-muted-foreground">{t("roadmap.path.nothingNow")}</span>}
                 {it && big && it.goal && <span className="line-clamp-2 text-sm text-muted-foreground">{it.goal}</span>}
                 {it && <NowBar phases={phasesOf(phases, it.id)} progress={progress} />}
@@ -790,7 +790,7 @@ function Decisions({ repo, items, decisions, onDone }: { repo: string; items: Ro
 
   return (
     <aside aria-label={t("roadmap.journal")} className="flex min-w-0 flex-col gap-4">
-      <section aria-labelledby="dec-open" className={cn(PANEL, "flex flex-col gap-3 border-brand/50")}>
+      <section aria-labelledby="dec-open" className={cn(PANEL, "flex flex-col gap-3 border-status-blocked/50")}>
         <h2 id="dec-open" className="flex items-baseline gap-2 text-lg font-semibold">
           {t("roadmap.dec.open")}
           <span className="text-sm font-normal tabular-nums text-muted-foreground">{open.length}</span>

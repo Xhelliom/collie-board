@@ -23,14 +23,14 @@ const TOOLS = new Map(createTools(boardApi((...a) => fetch(...a), "")).filter((t
 const SAY = { props: { text: { type: "string" } }, required: ["text"] };
 
 // Tones map onto the theme, never a raw colour.
-const TONE: Record<string, { variant: "default" | "outline" | "destructive" | "secondary" | "ghost"; className?: string }> = {
+const TONE: Record<string, { variant: "default" | "success" | "outline" | "destructive" | "secondary" | "ghost"; className?: string }> = {
   primary: { variant: "default" },
   neutral: { variant: "outline" },
   secondary: { variant: "secondary" },
   ghost: { variant: "ghost" },
   danger: { variant: "destructive" },
-  success: { variant: "outline", className: "border-status-done text-status-done" },
-  warning: { variant: "outline", className: "border-status-working text-status-working" },
+  success: { variant: "success" },
+  warning: { variant: "outline", className: "border-status-blocked text-status-blocked" },
 };
 const SIZE: Record<string, "sm" | "default" | "lg"> = { sm: "sm", md: "default", lg: "lg" };
 

@@ -330,7 +330,7 @@ function FileDiffSheet({
                   "whitespace-pre-wrap break-all border-l-2 border-transparent sm:whitespace-pre sm:break-normal",
                   lineClass(line.text),
                   onComment && line.code && "cursor-pointer",
-                  line.code && commented.has(lineKey(line)) && "border-status-working",
+                  line.code && commented.has(lineKey(line)) && "border-status-info",
                   selected.includes(i) && "bg-primary/15",
                 )}
               >
@@ -392,7 +392,7 @@ function FileDiffSheet({
  */
 export function lineClass(line: string): string {
   if (line.startsWith("+++") || line.startsWith("---")) return "text-muted-foreground";
-  if (line.startsWith("@@")) return "text-status-working";
+  if (line.startsWith("@@")) return "text-status-info";
   if (line.startsWith("+")) return "text-status-done";
   if (line.startsWith("-")) return "text-destructive";
   if (line.startsWith("diff ") || line.startsWith("index ")) return "text-muted-foreground";

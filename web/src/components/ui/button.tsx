@@ -13,6 +13,8 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         // The primary action of a panel: the action colour, filled. One per panel.
         brand: "bg-brand text-brand-foreground hover:bg-brand/90",
+        // The gesture that concludes (merge, validate): green, the colour of « done ».
+        success: "bg-status-done text-status-chip-foreground hover:bg-status-done/90",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         // The system's secondary button. `outline` is kept as a name for its callers; it is the same
         // raised surface now — Sémaphore draws no lines.

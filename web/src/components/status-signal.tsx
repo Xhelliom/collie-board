@@ -6,22 +6,25 @@ import { cn } from "@/lib/utils";
 
 // The one state signal of the board (Sémaphore): every agent or card state has its own SHAPE, so it
 // reads without colour, from across the room — like a semaphore's arms.
-//   working  a short bar a light sweeps across         (teal)
-//   blocked  herdr's « needs you »: a beacon that pulses (orange)
+// One colour per meaning, all from different families:
+//   working  a short bar a light sweeps across         (blue)
+//   blocked  herdr's « needs you »: a beacon that pulses (orange, the only orange)
 //   stuck    a slanted stroke                           (red)
-//   done     a dimmed filled square
+//   done     a filled square                            (green)
+//   review   a filled square                            (violet)
 //   idle     a hollow square
 //   unknown  a hollow square, fainter
 // Each carries its name as aria-label; the motion stops under prefers-reduced-motion (index.css).
 
-export type Signal = AgentStatus | "stuck";
+export type Signal = AgentStatus | "stuck" | "review";
 
 /** A card's column as a signal: the same reading the sidebar, the card and the project page share. */
 export function cardSignal(status: string | null | undefined, held?: boolean): Signal {
   if (held) return "stuck";
   if (status === "blocked") return "blocked";
   if (status === "working" || status === "starting") return "working";
-  if (status === "review" || status === "done") return "done";
+  if (status === "review") return "review";
+  if (status === "done") return "done";
   return status === "orphaned" ? "stuck" : "idle";
 }
 

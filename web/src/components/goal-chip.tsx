@@ -17,9 +17,9 @@ export interface OpenGoal {
 export const GOAL_SURFACE: Record<OpenGoalStatus, string> = {
   active: "border-status-done/50 bg-status-done/10",
   paused: "border-status-working/60 bg-status-working/10",
-  claimed: "border-brand/50 bg-brand/10",
+  claimed: "border-status-blocked/50 bg-status-blocked/10",
 };
-const TONE: Record<OpenGoalStatus, string> = { active: "text-status-done", paused: "text-status-working", claimed: "text-brand" };
+const TONE: Record<OpenGoalStatus, string> = { active: "text-status-done", paused: "text-status-idle", claimed: "text-status-blocked" };
 
 /** The objective's first sentence — one line is all a header has room for. Exported for the test. */
 export const firstSentence = (text: string): string => text.trim().split(/(?<=[.!?…])\s+|\n/)[0] ?? "";

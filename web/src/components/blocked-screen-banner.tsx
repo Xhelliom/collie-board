@@ -61,7 +61,7 @@ export function BlockedScreenBanner({
 }) {
   const t = useT();
   return (
-    <div role="region" aria-label={t("pane.blocked.title")} className="shrink-0 border-b border-amber-500/40 bg-amber-500/10 px-3 py-2">
+    <div role="region" aria-label={t("pane.blocked.title")} className="shrink-0 border-b border-status-blocked/40 bg-status-blocked/10 px-3 py-2">
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm font-medium">{t("pane.blocked.title")}</div>
         <Button type="button" variant="ghost" size="sm" onClick={onShowTerminal}>

@@ -62,7 +62,7 @@ export function ValidateSheet({
           <Button variant="outline" disabled={busy} onClick={onClose}>
             {tt("lot.cancel")}
           </Button>
-          <Button variant="brand" className="flex-1" disabled={busy} onClick={() => void go()}>
+          <Button variant="success" className="flex-1" disabled={busy} onClick={() => void go()}>
             {tt("project.validate.confirm")}
           </Button>
         </div>

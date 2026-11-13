@@ -112,7 +112,7 @@ export function ShareSettings({ repo }: { repo: string }) {
               type="button"
               disabled={busy || asking !== null}
               onClick={() => void resend()}
-              className={`shrink-0 rounded-sm border px-3 py-1.5 text-xs ${sync?.rewritten ? "border-amber-500/60 bg-amber-500/10" : ""}`}
+              className={`shrink-0 rounded-sm border px-3 py-1.5 text-xs ${sync?.rewritten ? "border-status-blocked/60 bg-status-blocked/10" : ""}`}
             >
               {t("project.share.resend")}
             </button>
@@ -122,7 +122,7 @@ export function ShareSettings({ repo }: { repo: string }) {
           <p className="text-xs text-muted-foreground">{t("project.share.identity", { identity: info.identity })}</p>
         )}
         {asking && (
-          <div role="alertdialog" aria-label={t("project.share.on")} className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+          <div role="alertdialog" aria-label={t("project.share.on")} className="flex flex-col gap-2 rounded-xl border border-status-blocked/40 bg-status-blocked/10 p-3 text-xs">
             {asking === "on" ? (
               <>
                 <p>{t("project.share.askOn")}</p>

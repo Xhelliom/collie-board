@@ -2122,7 +2122,7 @@ export function IntegrationSection({
 
         <div className="flex flex-col gap-2">
           <Button
-            variant="outline"
+            variant="success"
             className="h-[38px] w-full gap-2 rounded-sm disabled:opacity-45"
             disabled={busy !== null || integrated || state.branchDirty || mergeBlocker !== null}
             onClick={() => void run("merge", t("int.merged", { base: state.base }), filing)}

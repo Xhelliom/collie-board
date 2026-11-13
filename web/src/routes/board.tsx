@@ -77,7 +77,7 @@ import { setStatus } from "@/lib/status";
 
 /** Lane header dot colour — the tone a lane's own cards would use if any of them were "loud". */
 const LANE_TONE: Record<LaneKey, string> = {
-  todo: "bg-brand",
+  todo: "bg-status-blocked",
   doing: "bg-status-working",
   review: "bg-status-done",
   done: "bg-status-idle",
@@ -399,7 +399,7 @@ export function BoardRoute() {
               <button
                 type="button"
                 onClick={() => pickPhase(null)}
-                className="flex min-w-0 shrink items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+                className="flex min-w-0 shrink items-center gap-1 rounded-full border border-status-blocked/35 bg-status-blocked/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-status-blocked"
               >
                 <span className="truncate">{phaseLabel}</span>
                 <X className="size-3 shrink-0" />
@@ -411,7 +411,7 @@ export function BoardRoute() {
               <button
                 type="button"
                 onClick={() => pick(null)}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-status-blocked/35 bg-status-blocked/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-status-blocked"
               >
                 {active}
                 <X className="size-3" />
@@ -423,7 +423,7 @@ export function BoardRoute() {
               <button
                 type="button"
                 onClick={() => setParam("status", null)}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-status-blocked/35 bg-status-blocked/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-status-blocked"
               >
                 {statuses.map((s) => t(`status.${s}` as MessageKey)).join(" · ")}
                 <X className="size-3" />
@@ -433,7 +433,7 @@ export function BoardRoute() {
               <button
                 type="button"
                 onClick={() => pickAuto(false)}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-status-blocked/35 bg-status-blocked/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-status-blocked"
               >
                 {t("board.autoChip")}
                 <X className="size-3" />
@@ -443,7 +443,7 @@ export function BoardRoute() {
               <button
                 type="button"
                 onClick={() => pickSort(null)}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-status-blocked/35 bg-status-blocked/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-status-blocked"
               >
                 {t(sort === "code" ? "filter.code" : "filter.business")}
                 <X className="size-3" />
@@ -453,7 +453,7 @@ export function BoardRoute() {
               <button
                 type="button"
                 onClick={() => pickMine(false)}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-status-blocked/35 bg-status-blocked/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-status-blocked"
               >
                 {t("people.toMe")}
                 <X className="size-3" />
@@ -475,7 +475,7 @@ export function BoardRoute() {
               <button
                 type="button"
                 onClick={() => setSelection(new Set(cards.filter(selectable).map((c) => c.id)))}
-                className="flex shrink-0 items-center gap-1 rounded-sm border border-brand/35 bg-brand/16 px-2.5 py-[5px] text-xs font-semibold text-brand"
+                className="flex shrink-0 items-center gap-1 rounded-sm border border-status-blocked/35 bg-status-blocked/16 px-2.5 py-[5px] text-xs font-semibold text-status-blocked"
               >
                 {t("board.allInPhase")}
               </button>

@@ -52,7 +52,9 @@ export function PanelLink({
   children,
   disabled,
   expanded,
+  success,
 }: {
+  success?: boolean;
   onClick: () => void;
   children: ReactNode;
   disabled?: boolean;
@@ -64,7 +66,7 @@ export function PanelLink({
       onClick={onClick}
       disabled={disabled}
       aria-expanded={expanded}
-      className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "text-[13px]")}
+      className={cn(buttonVariants({ variant: success ? "success" : "secondary", size: "sm" }), "text-[13px]")}
     >
       {children}
     </button>
