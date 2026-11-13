@@ -178,14 +178,15 @@ export function OrchestratorPanel({
   return (
     <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3 max-lg:p-0">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-          {t("orch.title")}
+        <span className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
+          <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", state.running ? "bg-status-done" : "bg-muted-foreground/50")} />
+          <span className="text-sm font-semibold text-foreground">{t("orch.title")}</span>
           <ModelTag model={state.model} effort={state.effort} className="font-mono text-[11px] normal-case tracking-normal" />
           {typeof state.ctxPct === "number" && (
             <span
               role="img"
               aria-label={t("orch.ctxFull", { pct: Math.round(state.ctxPct) })}
-              className="inline-flex items-center gap-1.5 font-mono text-[11px] normal-case tracking-normal"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-[11px] normal-case tracking-normal"
             >
               <span aria-hidden="true" className="h-1 w-12 overflow-hidden rounded-full bg-border">
                 <i className={cn("block h-full", state.ctxPct >= 50 ? "bg-status-working" : "bg-status-done")} style={{ width: `${Math.min(100, state.ctxPct)}%` }} />
@@ -194,7 +195,7 @@ export function OrchestratorPanel({
             </span>
           )}
         </span>
-        <span className="flex items-center gap-3">
+        <span className="flex shrink-0 items-center gap-3">
           {deliverables.length > 0 && (
             <button
               type="button"
@@ -210,9 +211,13 @@ export function OrchestratorPanel({
               {fresh > 0 && <span data-testid="deliverables-new" aria-hidden="true" className="absolute -right-1.5 top-0.5 size-2 rounded-full bg-status-working" />}
             </button>
           )}
-          <Link to={panePath(state.paneId)} className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
-            <Maximize2 className="size-3" />
-            {t("orch.fullscreen")}
+          <Link
+            to={panePath(state.paneId)}
+            aria-label={t("orch.fullscreen")}
+            title={t("orch.fullscreen")}
+            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+          >
+            <Maximize2 className="size-3.5" />
           </Link>
           {asked !== null && (state.memoryUpdatedAt ?? 0) <= asked.base && (
             <span className="text-[11px] text-muted-foreground">{t("orch.waitingNote")}</span>

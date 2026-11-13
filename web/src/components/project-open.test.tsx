@@ -36,7 +36,8 @@ beforeEach(() => setPreference("en"));
 describe("ProjectOpen", () => {
   it("« New terminal » opens a shell in the repo and lands in its pane", async () => {
     const bodies = mount();
-    await userEvent.click(screen.getByRole("button", { name: "New terminal" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "New terminal" }));
     expect(await screen.findByText("pane t9")).toBeInTheDocument();
     expect(bodies).toEqual([{ repoPath: "/r/app", open: "terminal" }]);
   });

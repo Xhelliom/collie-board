@@ -1,15 +1,15 @@
 import { GoalPanel } from "@/components/goal-panel";
 import { GoalLine, type OpenGoal } from "@/components/goal-chip";
-import { useEffect, useMemo, useState } from "react";
-import { useLoaderData, useRevalidator, useRouteLoaderData, useSearchParams } from "react-router";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link, useLoaderData, useRevalidator, useRouteLoaderData, useSearchParams } from "react-router";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 
-import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, ListFilter, MessagesSquare } from "lucide-react";
+import { Check, ListFilter, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { ExitCriteria } from "@/components/exit-criteria";
-import { Fold, useStoredFold, useStoredFolds } from "@/components/fold";
+import { Fold, useStoredFold } from "@/components/fold";
 import { BottomSheet } from "@/components/ui/sheet";
 import { usePanelWidth } from "@/hooks/use-panel-width";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
@@ -17,22 +17,19 @@ import { ProjectOpen } from "@/components/project-open";
 import { MigrateAllHc } from "@/components/migrate-hc-button";
 import { DeliverableLinks, recentDeliverables } from "@/components/card-deliverables";
 import { PhaseTemplate } from "@/components/phase-template";
-import { templateFor, templateName } from "@/lib/templates";
-import { PhaseLots } from "@/components/project-lots";
-import { LotBanner } from "@/components/lot-banner";
+import { LotAction, PhaseLots, lotState } from "@/components/project-lots";
+import { CardRow } from "@/components/project-row";
 import { liveLots } from "@/lib/lot-live";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { RepoFlow } from "@/components/repo-flow";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
-import { Kpi, calm, useCountUp } from "@/components/kpi";
-import { Ring } from "@/components/ring";
-import { StepItem, STEP_TONE } from "@/components/project-step";
-import { boardErrorMessage, CARD_STATUS_LABEL, deletePhase, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
+import { STEP_TONE } from "@/components/project-step";
+import { boardErrorMessage, CARD_STATUS_LABEL, cardPath, deletePhase, loadRepoScope, repoName, reposOf, type CardView } from "@/lib/board";
 import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
 import { getLocale, useT, type MessageKey } from "@/i18n";
-import { ago, rich } from "@/lib/project-facts";
 import { projectOf, proposeMilestoneName, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
 import { lotHold } from "@/lib/lot-hold";
+import { haltSentence } from "@/lib/halt-sentence";
 import { saveLastProject } from "@/lib/quick-access";
 import { setStatus } from "@/lib/status";
 import { PinToggle } from "@/components/pin-button";
@@ -40,11 +37,11 @@ import { PhonePinned } from "@/components/sidebar-quick";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { cn } from "@/lib/utils";
 import { assignedToMe, useIdentities } from "@/lib/identities";
-import { RecetteChip } from "@/routes/recette";
+import { useRecetteTodo } from "@/routes/recette";
 
-// The project view: one repo's board read as a road map. Derived and read-only (lib/project.ts) —
-// phases are containers, steps their sub-tasks, "waiting for you" is what is blocked, in review or
-// orphaned. Polling is the root's, like every board route.
+// The project view: one repo's board read as a road map, in panels — what waits for you, the objective,
+// the phase in progress, the phases, what no phase has taken. A card is ONE line here; its spec, criteria
+// and phase live on its own screen. Derived and read-only (lib/project.ts); polling is the root's.
 
 type Filter = "all" | StepGroup;
 const FILTERS: { id: Filter; label: MessageKey; dot: string }[] = [
@@ -73,28 +70,10 @@ const store = {
   },
 };
 
-function ProgressRing({ done, active, total }: { done: number; active: number; total: number }) {
-  const t = useT();
-  const pct = useCountUp(total ? Math.round((100 * done) / total) : 0);
-  return (
-    <Ring
-      arcs={[
-        { value: done, className: "stroke-status-done drop-shadow-[0_0_6px_var(--status-done)]" },
-        { value: active, className: "stroke-status-working" },
-      ]}
-      total={total}
-      label={t("project.ring.aria", { done, total })}
-    >
-      <span className="text-2xl font-bold leading-none tabular-nums sm:text-4xl">{pct}%</span>
-      <span className="hidden text-xs leading-snug text-muted-foreground sm:block">
-        {t("project.ring.done", { done, total })}
-        <br />
-        {t("project.ring.flight", { active })}
-      </span>
-    </Ring>
-  );
-}
+const PANEL = "flex flex-col gap-3 rounded-2xl border bg-card/70 p-4";
+const LINK = "shrink-0 text-xs font-semibold text-brand";
 
+/** A phase's progress as a thin bar, coloured by what each step is doing. */
 function Bar({ steps, className }: { steps: CardView[]; className?: string }) {
   return (
     <div className={cn("flex gap-[3px]", className)} aria-hidden="true">
@@ -107,14 +86,7 @@ function Bar({ steps, className }: { steps: CardView[]; className?: string }) {
 
 /** An open phase whose every step is done: it only waits for the operator to validate it. */
 const toValidate = (p: ProjectPhase) => Boolean(p.phase && !p.phase.closedAt && p.steps.length > 0 && p.done === p.steps.length);
-
-/** A phase's status at a glance — the dot its heading keeps when folded. */
-function phaseTone(p: ProjectPhase) {
-  if (p.steps.some((s) => s.status === "blocked" || s.status === "orphaned")) return "bg-status-blocked";
-  if (p.steps.some((s) => stepGroup(s) === "flight")) return "bg-status-working";
-  if (p.steps.length > 0 && p.done === p.steps.length) return "bg-status-done";
-  return "bg-muted-foreground/50";
-}
+const unfinished = (p: ProjectPhase) => p.steps.some((s) => s.status !== "done");
 
 export function ProjectRoute() {
   const panel = usePanelWidth();
@@ -123,6 +95,7 @@ export function ProjectRoute() {
   // The herd, for the phone's pinned list (absent when the page is mounted alone, as in tests).
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   const revalidator = useRevalidator();
+  const reload = () => void revalidator.revalidate();
   const [params, setParams] = useSearchParams();
   const repo = params.get("repo") ?? loadRepoScope();
   // What the nav's « Projects » entry reopens.
@@ -146,6 +119,7 @@ export function ProjectRoute() {
   const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
   const running = liveLots(data.lots, byId, data.facts);
+  const recette = useRecetteTodo(repo);
   // Templates and flows are read once per visit (audit perf #7): the next visit, or a change made here, reads them again.
   useEffect(() => forgetProjectSettled, []);
 
@@ -153,12 +127,6 @@ export function ProjectRoute() {
     const m = store.get();
     return FILTERS.some((f) => f.id === m) ? (m as Filter) : "all";
   });
-  // Open by default: only what waits for you (the question asked); the rest is one tap away — decided once, so a poll never
-  // folds a row the operator opened or opens one they closed.
-  const [openIds, setOpenIds] = useState<Set<string>>(
-    () => new Set(v.phases.flatMap((p) => p.steps).filter((s) => stepGroup(s) === "waiting").map((s) => s.id)),
-  );
-  const [flash, setFlash] = useState<string | null>(null);
   // The orchestrator is docked on a wide screen and a sheet on a phone (ADR 0021).
   const [chatOpen, setChatOpen] = useState(false);
   // `chat=1` (an "awaits your decision" tag): open the conversation once, then drop the flag.
@@ -171,6 +139,12 @@ export function ProjectRoute() {
   const [validating, setValidating] = useState<ProjectPhase | null>(null);
   // The "validate the finished steps" sheet: all of them, or one old dictation's (cardIds + its title).
   const [sealing, setSealing] = useState<{ count: number; cardIds?: string[]; name?: string } | null>(null);
+  // What is unfolded: a phase's settings, the phases opened in the list, the roadmap, the validated phases.
+  const [settingsOf, setSettingsOf] = useState<string | null>(null);
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());
+  const [roadmapOpen, setRoadmapOpen] = useState(false);
+  const [closedOpen, setClosedOpen] = useState(false);
+  const [looseLots, setLooseLots] = useState(false);
   // An empty phase (no step, no lot) can go — two taps, in place. The bridge refuses a non-empty one.
   const { pending: deletingArmed, confirm: confirmDelete } = usePendingConfirm();
   const removePhase = async (id: string) => {
@@ -178,23 +152,7 @@ export function ProjectRoute() {
     try {
       await deletePhase(id);
       forgetProjectSettled();
-      void revalidator.revalidate();
-    } catch (e) {
-      setStatus(boardErrorMessage(e), "error", null);
-    }
-  };
-  const toggle = (id: string, on?: boolean) =>
-    setOpenIds((prev) => {
-      const next = new Set(prev);
-      if (on ?? !next.has(id)) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  const move = async (cardId: string, phaseId: string | null) => {
-    try {
-      await patchCard(cardId, { phaseId });
-      setStatus(t("common.saved"), "success");
-      void revalidator.revalidate();
+      reload();
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }
@@ -203,18 +161,8 @@ export function ProjectRoute() {
     setFilter(f);
     store.set(f);
   };
-  const go = (el: HTMLElement | null) => el?.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" });
-  const steps = v.phases.flatMap((p) => p.steps);
-  const counts: Record<Filter, number> = {
-    all: v.total,
-    done: v.done,
-    flight: v.active,
-    waiting: v.waiting,
-    todo: v.todo,
-  };
+  const counts: Record<Filter, number> = { all: v.total, done: v.done, flight: v.active, waiting: v.waiting, todo: v.todo };
   const shownIn = (s: CardView) => filter === "all" || stepGroup(s) === filter;
-  const latest = cards.reduce((m, c) => Math.max(m, c.updatedAt), 0);
-  const named = v.phases.filter((p) => p.phase || p.container).length;
   const activePhases = v.phases.filter((p) => p.phase && p.steps.length > 0);
   // The finished steps no phase has taken — in a dictation's section or loose — which an old project folds
   // into its first milestone. This is what `POST /api/phases/seal` files when it is not given a list.
@@ -223,150 +171,118 @@ export function ProjectRoute() {
   // The seal sheet opens on a name the operator can keep or rewrite — never an empty field to fill.
   const milestoneName = (steps: CardView[]) =>
     proposeMilestoneName(steps.map((s) => s.title)) ?? t("project.seal.misc", { date: new Date().toLocaleDateString(getLocale()) });
-  // The page leads with the phases in progress; what no phase has taken folds below them — unless no phase
-  // exists at all, and then it is the work itself.
+  // With a phase table, what no phase has taken is one line below the phases; without one, it is the work itself.
   const phased = v.phases.some((p) => p.phase);
-  const current = phased ? v.phases.filter((p) => p.phase) : v.phases;
-  const loose = phased ? v.phases.filter((p) => !p.phase) : [];
-  const looseFold = useStoredFold("project-loose");
-  const figuresFold = useStoredFold("project-figures");
+  const loose = phased ? v.phases.find((p) => p.key === "loose") : undefined;
+  const sections = v.phases.filter((p) => p !== loose);
+  // The phase in progress: the one a lot runs in, else the first with work left, else the first to validate.
+  const live = new Set(running.map((l) => l.lot.id));
+  const current =
+    sections.find((p) => p.lots.some((l) => live.has(l.lot.id))) ??
+    sections.find((p) => p.phase && unfinished(p)) ??
+    sections.find(unfinished) ??
+    sections.find(toValidate) ??
+    null;
   const deliverablesFold = useStoredFold("project-deliverables", false);
   const deliverables = useMemo(() => recentDeliverables(cards, data.facts), [cards, data.facts]);
-  const unfold = (p: (s: ProjectPhase) => boolean) => loose.some(p) && looseFold[1](true);
-  // What is finished folds (a done lot, a phase that only waits to be validated); the operator's own choice wins, per device.
-  const folds = useStoredFolds("project-sections");
-  const phaseOpen = (p: ProjectPhase) => folds.isOpen(`phase:${p.key}`, !toValidate(p));
-  const sectionKeys = v.phases.flatMap((p) => [`phase:${p.key}`, ...p.lots.map((l) => `lot:${l.lot.id}`)]);
-  // A link to a step opens what holds it — its phase, its lot, the loose fold — then the step itself.
-  const reveal = (id: string) => {
-    const p = v.phases.find((ph) => ph.steps.some((s) => s.id === id));
-    if (!p) return false;
-    pick("all");
-    unfold((l) => l.key === p.key);
-    folds.set([`phase:${p.key}`, ...p.lots.filter((l) => l.lot.cardIds.includes(id)).map((l) => `lot:${l.lot.id}`)], true);
-    toggle(id, true);
-    requestAnimationFrame(() => go(document.getElementById(`step-${id}`)));
-    setFlash(id);
-    setTimeout(() => setFlash(null), 1600);
-    return true;
-  };
-  // `#step-<id>` in the URL: the same reveal, once, on arrival.
-  useEffect(() => {
-    const m = /^#step-(.+)$/.exec(window.location.hash);
-    if (m) reveal(decodeURIComponent(m[1]!));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- on arrival only
-  }, []);
-  const allOpen = steps.filter(shownIn).every((s) => openIds.has(s.id)) && sectionKeys.every((k) => folds.isOpen(k, true));
-  const unfinished = v.phases.filter((p) => p.steps.length === 0 || p.done < p.steps.length);
 
-  // One section of the road map: its heading, its lots and its steps. `k` numbers the steps across the page.
-  let k = 0;
-  const section = (p: ProjectPhase) => {
+  // ── What waits for you: halted lots in one sentence, cards to read, phases to validate, tests to do.
+  const lots = v.phases.flatMap((p) => p.lots);
+  const halted = lots.filter((pl) => lotState(pl).halted);
+  const haltedIds = new Set(halted.map((pl) => pl.lot.id));
+  const awaiting = v.awaiting.filter((c) => !c.runId || !haltedIds.has(c.runId));
+  const ripe = sections.filter(toValidate);
+  const sentence = (reason: string) => {
+    const s = haltSentence(reason);
+    return "key" in s ? t(s.key) : s.text;
+  };
+
+  // A phase's gestures, on its heading: validate it (or seal a dictation's finished steps), its settings.
+  const actions = (p: ProjectPhase) => (
+    <>
+      {p.phase && p.steps.length > 0 && (
+        <button type="button" onClick={() => setValidating(p)} className={cn(LINK, "inline-flex items-center gap-1", toValidate(p) && "text-status-done")}>
+          {toValidate(p) && <Check aria-hidden="true" className="size-3.5" />}
+          {t("project.validate")}
+        </button>
+      )}
+      {!p.phase && repo && p.steps.some((s) => s.status === "done") && (
+        <button
+          type="button"
+          onClick={() => {
+            const done = p.steps.filter((s) => s.status === "done");
+            setSealing({ count: done.length, cardIds: done.map((s) => s.id), name: p.container?.title ?? milestoneName(done) });
+          }}
+          aria-label={p.container ? undefined : t("project.seal.aria")}
+          className={LINK}
+        >
+          {p.container ? t("project.validate") : t("project.seal")}
+        </button>
+      )}
+      {p.phase && !p.phase.closedAt && (
+        <button type="button" aria-expanded={settingsOf === p.key} onClick={() => setSettingsOf(settingsOf === p.key ? null : p.key)} className={LINK}>
+          {t(settingsOf === p.key ? "project.current.hideSettings" : "project.current.settings")}
+        </button>
+      )}
+    </>
+  );
+  // A phase's body: its settings when unfolded, then its lots and its cards, one line each.
+  const body = (p: ProjectPhase) => {
     const visible = p.steps.filter(shownIn);
-    if (visible.length === 0 && !(filter === "all" && p.phase)) return null;
-    const open = phaseOpen(p);
     return (
-      <li key={p.key} className="contents">
-        <div id={`phase-${p.key}`} className="flex scroll-mt-16 flex-wrap items-center gap-x-3 gap-y-1 pb-1 pt-4">
-          <h2 className="min-w-0 text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => folds.set([`phase:${p.key}`], !open)}
-              className="flex min-w-0 items-center gap-2 text-left uppercase hover:text-foreground"
-            >
-              <ChevronRight className={cn("size-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-90")} />
-              <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", phaseTone(p))} />
-              <span className="min-w-0 truncate">{p.title || t("project.noPhase")}</span>
-            </button>
-          </h2>
-          {!open && (
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {p.done} / {p.steps.length}
-            </span>
-          )}
-          <span className="h-px flex-1 bg-gradient-to-r from-foreground/25 to-transparent" />
-          {p.phase && p.steps.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setValidating(p)}
-              // The work is done (green dot); what is left is the operator's gesture, so the button carries it.
-              className={cn(
-                "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 font-mono text-xs font-medium",
-                toValidate(p) ? "border-status-done/50 bg-status-done/15 text-status-done hover:border-status-done" : "bg-card/70 hover:border-foreground/25",
-              )}
-            >
-              {toValidate(p) && <Check aria-hidden="true" className="size-3.5" />}
-              {t("project.validate")}
-            </button>
-          )}
-          {p.phase && !p.phase.closedAt && p.steps.length === 0 && p.lots.length === 0 && (
-            <button
-              type="button"
-              onClick={() => void removePhase(p.phase!.id)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1 font-mono text-xs font-medium",
-                deletingArmed === p.phase.id ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/70 hover:border-foreground/25",
-              )}
-            >
-              {deletingArmed === p.phase.id ? t("project.deletePhase.confirm") : t("project.deletePhase")}
-            </button>
-          )}
-          {!p.phase && repo && p.steps.some((s) => s.status === "done") && (
-            <button
-              type="button"
-              onClick={() => {
-                const done = p.steps.filter((s) => s.status === "done");
-                setSealing({ count: done.length, cardIds: done.map((s) => s.id), name: p.container?.title ?? milestoneName(done) });
+      <>
+        {settingsOf === p.key && p.phase && !p.phase.closedAt && (
+          <div className="flex flex-col gap-2 rounded-xl border border-dashed p-3">
+            <PhaseTemplate
+              phase={p.phase}
+              data={data.templates}
+              flows={data.flows}
+              onChanged={() => {
+                forgetProjectSettled();
+                reload();
               }}
-              aria-label={p.container ? undefined : t("project.seal.aria")}
-              className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
-            >
-              {p.container ? t("project.validate") : t("project.seal")}
-            </button>
-          )}
-        </div>
-        {!open && <Bar steps={p.steps} className="pb-1" />}
-        {open && p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
-        {open && p.phase && !p.phase.closedAt && (
-          <PhaseTemplate phase={p.phase} data={data.templates} flows={data.flows} onChanged={() => {
-            forgetProjectSettled();
-            void revalidator.revalidate();
-          }} />
-        )}
-        {open && visible.length === 0 && <p className="text-sm text-muted-foreground">{t("project.emptyPhase")}</p>}
-        {open && <PhaseLots
-          lots={p.lots}
-          isOpen={(id, fallback) => folds.isOpen(`lot:${id}`, fallback)}
-          onFold={(id, on) => folds.set([`lot:${id}`], on)}
-          steps={visible}
-          byId={byId}
-          onLaunched={() => void revalidator.revalidate()}
-          renderStep={(s, inLot) => (
-            <StepItem
-              key={s.id}
-              card={s}
-              index={k++}
-              next={s.id === v.next?.id}
-              open={openIds.has(s.id)}
-              flash={flash === s.id}
-              predecessor={s.dependsOn ? byId.get(s.dependsOn) : undefined}
-              facts={data.facts?.[s.id]}
-              template={(() => {
-                const f = data.templates ? templateFor(s, data.phases, data.templates.templates) : null;
-                return f ? { name: templateName(f.template), inherited: f.inherited } : undefined;
-              })()}
-              inLot={inLot}
-              hold={lotHold(s, data.lots, data.facts?.[s.id]?.pr?.state === "open")}
-              onToggle={() => toggle(s.id)}
-              phases={data.phases}
-              onMove={(phaseId) => void move(s.id, phaseId)}
             />
-          )}
-        />}
-      </li>
+            {repo && <RepoFlow repo={repo} flows={data.flows} />}
+            {p.steps.length === 0 && p.lots.length === 0 && (
+              <button
+                type="button"
+                onClick={() => void removePhase(p.phase!.id)}
+                className={cn(
+                  "self-start rounded-full border px-3 py-1 font-mono text-xs font-medium",
+                  deletingArmed === p.phase.id ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/70 hover:border-foreground/25",
+                )}
+              >
+                {deletingArmed === p.phase.id ? t("project.deletePhase.confirm") : t("project.deletePhase")}
+              </button>
+            )}
+          </div>
+        )}
+        {visible.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("project.emptyPhase")}</p>
+        ) : (
+          <PhaseLots
+            lots={p.lots}
+            steps={visible}
+            byId={byId}
+            onLaunched={reload}
+            renderStep={(s) => <CardRow key={s.id} card={s} hold={lotHold(s, data.lots, data.facts?.[s.id]?.pr?.state === "open")} />}
+          />
+        )}
+      </>
     );
   };
+  // What a phase row says is happening: its unfinished lots, else its goal.
+  const happening = (p: ProjectPhase) => {
+    const ls = p.lots.filter((l) => !lotState(l).finished);
+    if (ls.length === 0) return p.goal;
+    return ls
+      .map((l) => {
+        const s = lotState(l);
+        return `${l.lot.name ?? t("run.lot")} ${t(s.planned ? "lot.planned" : s.halted ? "lot.halted" : "lot.running")}`;
+      })
+      .join(", ");
+  };
+  const allOpen = sections.length > 0 && sections.every((p) => opened.has(p.key));
 
   const filterChips = (
     <div role="group" aria-label={t("project.filter.aria")} className="flex min-w-0 flex-wrap gap-1.5">
@@ -404,20 +320,26 @@ export function ProjectRoute() {
       ))}
     </div>
   );
-  const foldAll = (
+  const filterButton = (
     <button
       type="button"
-      onClick={() => {
-        setOpenIds(allOpen ? new Set() : new Set(steps.filter(shownIn).map((s) => s.id)));
-        // Folding all hands the lots and phases back to their default (what is finished folds); opening all opens them.
-        folds.set(sectionKeys, allOpen ? null : true);
-      }}
-      aria-label={allOpen ? t("project.foldAll") : t("project.openAll")}
-      title={allOpen ? t("project.foldAll") : t("project.openAll")}
-      className="shrink-0 rounded-full border bg-card/70 p-2 hover:border-foreground/25"
+      onClick={() => setFiltersOpen(true)}
+      aria-label={t("project.actions.filter")}
+      title={t("project.actions.filter")}
+      className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60"
     >
-      {allOpen ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
+      <ListFilter className="size-4" />
+      {(filter !== "all" || mineOnly) && <span className="absolute right-1 top-1 size-2 rounded-full bg-primary" aria-hidden="true" />}
     </button>
+  );
+  const heading = (title: ReactNode, tail?: ReactNode, sub?: ReactNode) => (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <h2 className="min-w-0 flex-1 text-[15px] font-semibold leading-snug">
+        {title}
+        {sub && <span className="ml-2 text-[13px] font-normal text-muted-foreground">{sub}</span>}
+      </h2>
+      {tail}
+    </div>
   );
 
   return (
@@ -439,239 +361,250 @@ export function ProjectRoute() {
         }
         rightTrail={
           <>
-          {repo && <PinToggle target={{ repoPath: repo }} name={repoName(repo)} className="size-9" />}
-          <button
-            type="button"
-            onClick={() => setChatOpen(true)}
-            aria-label={t("project.chatOpen")}
-            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
-          >
-            <MessagesSquare className="size-4" />
-            {/* Icon-only on a phone: the title beside it is the project picker and needs the room. */}
-            <span className="hidden sm:inline">{t("orch.title")}</span>
-            {data.orchestrator?.running && (
-              <span className="size-2 rounded-full bg-status-done" title={t("project.chatRunning")} aria-hidden="true" />
-            )}
-          </button>
+            {repo && <ProjectOpen repo={repo} actions={<MigrateAllHc repo={repo} />} />}
+            {repo && <PinToggle target={{ repoPath: repo }} name={repoName(repo)} className="size-9" />}
+            <button
+              type="button"
+              onClick={() => setChatOpen(true)}
+              aria-label={t("project.chatOpen")}
+              className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
+            >
+              <MessagesSquare className="size-4" />
+              {/* Icon-only on a phone: the title beside it is the project picker and needs the room. */}
+              <span className="hidden sm:inline">{t("orch.title")}</span>
+              {data.orchestrator?.running && <span className="size-2 rounded-full bg-status-done" title={t("project.chatRunning")} aria-hidden="true" />}
+            </button>
           </>
         }
       />
       <BoardTabs />
       <h1 className="sr-only">{t("project.title")}</h1>
       <div className="flex min-h-0 flex-1">
-      <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-80 text-foreground/[0.06] [background-image:linear-gradient(currentColor_1px,transparent_1px),linear-gradient(90deg,currentColor_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_50%_0%,#000_30%,transparent_75%)]"
-        />
-        <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pb-24 pt-5 lg:px-6 lg:pt-8">
-          {root && <PhonePinned data={root} />}
-          {repo && <ProjectOpen repo={repo} />}
-          {repo && <MigrateAllHc repo={repo} />}
-          {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} noOrchestrator={data.orchestrator?.paneId === null} onGoal={setOpenGoal} />}
-          {v.total === 0 && v.closedCount === 0 ? (
-            <div className="flex flex-col items-center gap-4 px-2 py-16 text-center">
-              <p className="text-sm text-muted-foreground">{t(repo ? "project.emptyRepo" : "project.emptyAll")}</p>
-              <button
-                type="button"
-                onClick={() => setChatOpen(true)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border bg-background px-3 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
-              >
-                <MessagesSquare className="size-4" />
-                {t("project.emptyAction")}
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* The figures lead the page; the rest folds below the phase in progress — each folds, per device. */}
-              <Fold title={t("project.fold.figures")} state={figuresFold}>
-                <header className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {latest > 0 && (
-                        <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-status-done">
-                          <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
-                          {t("project.updated", { ago: ago(latest) })}
-                        </span>
-                      )}
-                      <RecetteChip repo={repo} />
-                    </div>
-                    <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
-                      {/* The figures are the ring's and the filters' on a phone; the sentence keeps only what they do not say. */}
-                      <span className="hidden sm:inline">
-                        {v.total > 0 ? rich(t("project.sum.progress", { count: v.done, done: v.done, total: v.total })) : t("project.sum.none")}
-                        {named > 0 && v.total > 0 && ` ${t("project.sum.phases", { count: named })}`}.{" "}
-                        {v.waiting > 0 ? rich(t("project.sum.waiting", { count: v.waiting })) : t("project.sum.nothing")}
-                        , {t("project.sum.flight", { count: v.active })}.
-                      </span>
-                      {v.next && <> {rich(t("project.sum.next", { title: v.next.title }))}</>}
-                      {v.closedCount > 0 && (
-                        <>
-                          {" "}
-                          {t("project.sum.delivered", { count: v.deliveredSteps })} {t("project.sum.inPhases", { count: v.closedCount })}.
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <ProgressRing done={v.done} active={v.active} total={v.total} />
-                </header>
-
-                <div className="hidden grid-cols-4 gap-2 sm:grid">
-                  <Kpi label={t("project.kpi.done")} value={v.done} note={t("project.kpi.ofSteps", { total: v.total })} tone="bg-status-done" compact />
-                  <Kpi label={t("project.kpi.flight")} value={v.active} note={t("project.kpi.agentOn")} tone="bg-status-working" compact />
-                  <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" compact />
-                  <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" compact />
-                </div>
-              </Fold>
-              {running.map((l) => (
-                <LotBanner key={l.lot.id} live={l} />
-              ))}
-              {v.awaiting.length > 0 && (
-                <section
-                  aria-label={t("project.waiting.aria")}
-                  className="flex flex-col gap-2 rounded-2xl border border-brand/45 bg-card/70 p-4 shadow-[0_10px_40px_-20px] shadow-brand"
-                >
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
-                    {t("project.waiting.head", { count: v.awaiting.length })}
-                  </span>
-                  <ul className="flex flex-col gap-1.5">
-                    {v.awaiting.map((c) => (
-                      <li key={c.id}>
-                        <button
-                          type="button"
-                          onClick={() => reveal(c.id)}
-                          className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 rounded-[10px] border px-3 py-2.5 text-left transition-colors hover:border-brand hover:bg-brand/5"
-                        >
-                          <span className="truncate text-sm font-semibold">{c.title}</span>
-                          <span className="font-mono text-xs text-brand">{t("project.waiting.see")}</span>
-                          <span className="col-span-2 text-[13px] text-muted-foreground">
-                            {CARD_STATUS_LABEL[c.status]}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-
-              {unfinished.length > 0 && (
-              <nav aria-label={t("project.phases.aria")} className="-mx-1 grid auto-cols-[minmax(150px,1fr)] grid-flow-col gap-2 overflow-x-auto px-1 pb-2">
-                {unfinished.map((p) => (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => {
-                      pick("all");
-                      unfold((l) => l.key === p.key);
-                      folds.set([`phase:${p.key}`], true);
-                      requestAnimationFrame(() => go(document.getElementById(`phase-${p.key}`)));
-                    }}
-                    className={cn(
-                      "flex flex-col gap-2 rounded-xl border bg-card/70 p-3 text-left transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25",
-                      p.steps.some((s) => stepGroup(s) === "flight") && "border-status-working/60",
-                    )}
-                  >
-                    <span className="text-[13px] font-semibold leading-tight">{p.title || t("project.noPhase")}</span>
-                    <Bar steps={p.steps} />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {t("project.phases.done", { done: p.done, total: p.steps.length })}
-                    </span>
-                  </button>
-                ))}
-              </nav>
-              )}
-
-              {/* From sm up the filters keep their sticky bar; on a phone they live behind this one button. */}
-              <div className="-mx-4 flex items-start justify-end gap-2 bg-background/85 px-4 sm:sticky sm:top-0 sm:z-10 sm:justify-between sm:py-2.5 sm:backdrop-blur lg:-mx-6 lg:px-6">
-                <div className="hidden min-w-0 sm:block">{filterChips}</div>
-                <div className="hidden sm:block">{foldAll}</div>
+        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+          <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 pb-24 pt-5 lg:px-6 lg:pt-6">
+            {root && <PhonePinned data={root} />}
+            {(halted.length > 0 || awaiting.length > 0 || ripe.length > 0 || recette > 0) && (
+              <section aria-label={t("project.todo.title")} className={cn(PANEL, "border-brand/45 shadow-[0_10px_40px_-20px] shadow-brand")}>
+                {heading(t("project.todo.title"), undefined, halted.length + awaiting.length + ripe.length || undefined)}
+                <ul className="flex flex-col gap-2">
+                  {halted.map((pl) => (
+                    <li key={pl.lot.id} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <p className="min-w-0 flex-1 basis-60 text-sm leading-snug">
+                        <b className="font-semibold">{t("project.todo.halted", { name: pl.lot.name ?? t("lot.fallbackName") })}</b> {sentence(pl.lot.halted!)}
+                      </p>
+                      <LotAction pl={pl} byId={byId} onLaunched={reload} label={t("project.todo.resume")} />
+                    </li>
+                  ))}
+                  {awaiting.map((c) => (
+                    <li key={c.id} className="flex items-center gap-3">
+                      <p className="min-w-0 flex-1 truncate text-sm">
+                        <span className="font-medium">« {c.title} »</span> <span className="text-muted-foreground">{CARD_STATUS_LABEL[c.status]}</span>
+                      </p>
+                      <Link to={cardPath(c.id)} className="shrink-0 rounded-[10px] border bg-background px-3 py-1.5 text-xs font-semibold hover:bg-accent">
+                        {t("project.todo.open")}
+                      </Link>
+                    </li>
+                  ))}
+                  {ripe.map((p) => (
+                    <li key={p.key} className="flex items-center gap-3">
+                      <p className="min-w-0 flex-1 truncate text-sm">
+                        <span className="font-medium">{p.title}</span> <span className="text-muted-foreground">{t("project.phases.toValidate")}</span>
+                      </p>
+                      <button type="button" onClick={() => setValidating(p)} className="shrink-0 rounded-[10px] border bg-background px-3 py-1.5 text-xs font-semibold hover:bg-accent">
+                        {t("project.validate")}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {recette > 0 && (
+                  <Link to={`/board/recette${repo ? `?repo=${encodeURIComponent(repo)}` : ""}`} className="self-start text-[13px] font-semibold text-brand">
+                    {t("project.todo.recette", { count: recette })}
+                  </Link>
+                )}
+              </section>
+            )}
+            {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} noOrchestrator={data.orchestrator?.paneId === null} onGoal={setOpenGoal} />}
+            {v.total === 0 && v.closedCount === 0 ? (
+              <div className="flex flex-col items-center gap-4 px-2 py-16 text-center">
+                <p className="text-sm text-muted-foreground">{t(repo ? "project.emptyRepo" : "project.emptyAll")}</p>
                 <button
                   type="button"
-                  onClick={() => setFiltersOpen(true)}
-                  aria-label={t("project.filter.button")}
-                  title={t("project.filter.button")}
-                  className="relative inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 sm:hidden"
+                  onClick={() => setChatOpen(true)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border bg-background px-3 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
                 >
-                  <ListFilter className="size-4" />
-                  {(filter !== "all" || mineOnly) && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" aria-hidden="true" />}
+                  <MessagesSquare className="size-4" />
+                  {t("project.emptyAction")}
                 </button>
               </div>
+            ) : (
+              <>
+                {current && (
+                  <section id={`phase-${current.key}`} aria-label={current.title || t("project.noPhase")} className={PANEL}>
+                    {heading(current.title || t("project.noPhase"), actions(current), t("project.current.tag"))}
+                    {current.goal && <p className="-mt-1 text-sm text-muted-foreground">{current.goal}</p>}
+                    {body(current)}
+                  </section>
+                )}
 
-              <ol className="flex flex-col gap-2">{current.map(section)}</ol>
-              {v.total === 0 && <p className="px-2 py-6 text-center text-sm text-muted-foreground">{t("project.allValidated")}</p>}
-
-              {/* Below the phase in progress: what no phase has taken, then the settings. */}
-              {loose.some((p) => p.steps.some(shownIn)) && (
-                <Fold title={t("project.fold.loose", { count: loose.reduce((n, p) => n + p.steps.length, 0) })} state={looseFold}>
-                  <ol className="flex flex-col gap-2">{loose.map(section)}</ol>
-                </Fold>
-              )}
-              {/* The way to tidy an old project, on the page itself: the finished steps that sit in no validated phase
-                  (old dictations included) are the reason a figure reads 90 % of nothing in particular. */}
-              {repo && looseDone > 0 && (
-                <section aria-label={t("project.unfiled.aria")} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-dashed p-3.5">
-                  <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t("project.unfiled", { count: looseDone })}</p>
-                  <button
-                    type="button"
-                    onClick={() => setSealing({ count: looseDone, name: milestoneName(unfiled) })}
-                    className="shrink-0 rounded-full border bg-card/70 px-3.5 py-1.5 font-mono text-xs font-medium hover:border-foreground/25"
-                  >
-                    {t("project.sealAll")}
-                  </button>
+                <section aria-label={t("project.phases.title")} className={cn(PANEL, "gap-0 p-0")}>
+                  <div className="p-4 pb-3">
+                    {heading(
+                      t("project.phases.title"),
+                      <span className="flex items-center gap-3">
+                        {sections.length > 1 && (
+                          <button type="button" onClick={() => setOpened(allOpen ? new Set() : new Set(sections.map((p) => p.key)))} className={LINK}>
+                            {t(allOpen ? "project.phases.foldAll" : "project.phases.openAll")}
+                          </button>
+                        )}
+                        {repo && (
+                          <button type="button" aria-expanded={roadmapOpen} onClick={() => setRoadmapOpen((o) => !o)} className={LINK}>
+                            {t("project.phases.roadmap")}
+                          </button>
+                        )}
+                        {filterButton}
+                      </span>,
+                    )}
+                  </div>
+                  {repo && roadmapOpen && (
+                    <div className="border-t px-4 py-3">
+                      <ProjectRoadmap repo={repo} roadmap={data.roadmap} />
+                    </div>
+                  )}
+                  <ol aria-label={t("project.phases.aria")} className="flex flex-col">
+                    {sections.map((p) => {
+                      const open = opened.has(p.key);
+                      const waits = p.steps.filter((s) => stepGroup(s) === "waiting").length;
+                      return (
+                        <li key={p.key} className="border-t">
+                          <button
+                            type="button"
+                            aria-expanded={open}
+                            onClick={() => setOpened((prev) => (prev.has(p.key) ? (prev.delete(p.key), new Set(prev)) : new Set(prev).add(p.key)))}
+                            className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-3 text-left hover:bg-muted/30 sm:grid-cols-[minmax(0,1fr)_12rem_8rem]"
+                          >
+                            <span className="flex min-w-0 flex-col">
+                              <span className="truncate text-sm font-semibold">
+                                {p.title || t("project.noPhase")}
+                                {p === current && <span className="ml-2 text-xs font-normal text-muted-foreground">{t("project.current.tag")}</span>}
+                              </span>
+                              {happening(p) && <span className="truncate text-[13px] text-muted-foreground">{happening(p)}</span>}
+                            </span>
+                            <span
+                              className={cn(
+                                "text-right text-xs sm:order-last",
+                                waits ? "font-semibold text-brand" : toValidate(p) ? "font-semibold text-status-done" : "text-muted-foreground",
+                              )}
+                            >
+                              {waits ? t("project.phases.waits", { count: waits }) : toValidate(p) ? t("project.phases.toValidate") : ""}
+                            </span>
+                            {p.steps.length > 0 ? (
+                              <span className="col-span-2 flex items-center gap-2 font-mono text-xs tabular-nums text-muted-foreground sm:col-span-1">
+                                <Bar steps={p.steps} className="flex-1" />
+                                {t("project.phases.of", { done: p.done, total: p.steps.length })}
+                              </span>
+                            ) : (
+                              <span className="col-span-2 text-xs text-muted-foreground sm:col-span-1">{t("project.phases.noStep")}</span>
+                            )}
+                          </button>
+                          {open && (
+                            <div className="flex flex-col gap-3 px-4 pb-4">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">{actions(p)}</div>
+                              {body(p)}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                    {v.closedCount > 0 && (
+                      <li className="border-t">
+                        <div className="flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-muted-foreground">
+                          <span>
+                            {t("project.phases.closedLine", { count: v.closedCount })}, {t("project.phases.delivered", { count: v.deliveredSteps })}
+                          </span>
+                          <button type="button" aria-expanded={closedOpen} onClick={() => setClosedOpen((o) => !o)} className={LINK}>
+                            {t(closedOpen ? "project.hide" : "project.see")}
+                          </button>
+                        </div>
+                        {closedOpen && (
+                          <div className="px-4 pb-4">
+                            <ClosedPhases closed={v.closed} onReopened={reload} />
+                          </div>
+                        )}
+                      </li>
+                    )}
+                  </ol>
+                  {v.total === 0 && <p className="border-t px-4 py-6 text-center text-sm text-muted-foreground">{t("project.allValidated")}</p>}
+                  {/* The way to tidy an old project: the finished steps that sit in no validated phase (old
+                      dictations included) are the reason a figure reads 90 % of nothing in particular. */}
+                  {repo && looseDone > 0 && (
+                    <div aria-label={t("project.unfiled.aria")} role="group" className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3">
+                      <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">{t("project.unfiled", { count: looseDone })}</p>
+                      <button type="button" onClick={() => setSealing({ count: looseDone, name: milestoneName(unfiled) })} className={LINK}>
+                        {t("project.sealAll")}
+                      </button>
+                    </div>
+                  )}
                 </section>
-              )}
 
-              {!repo && <p className="text-sm text-muted-foreground">{t("project.pickRepo")}</p>}
-              {repo && <RepoFlow repo={repo} flows={data.flows} />}
-              {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
-              {repo && repoName(repo) === "collie-board" && <ExitCriteria />}
-              {deliverables.length > 0 && (
-                <Fold title={t("project.fold.deliverables", { count: deliverables.length })} state={deliverablesFold}>
-                  <DeliverableLinks items={deliverables} />
-                </Fold>
-              )}
-              <ClosedPhases closed={v.closed} onReopened={() => void revalidator.revalidate()} />
-            </>
-          )}
-        </div>
-      </main>
-      <aside aria-label={t("orch.title")} style={{ width: panel.width }} className="relative hidden shrink-0 flex-col border-l lg:flex">
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          onPointerDown={panel.onPointerDown}
-          className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none hover:bg-primary/30 active:bg-primary/40"
-        />
-        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} />
-      </aside>
+                {loose && loose.steps.length + loose.lots.length > 0 && (
+                  <section aria-label={t("project.loose.line", { count: loose.steps.length })} className={cn(PANEL, "py-3")}>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <span className="min-w-0 flex-1 text-sm">{t("project.loose.line", { count: loose.steps.length })}</span>
+                      {loose.lots.length > 0 && (
+                        <button type="button" aria-expanded={looseLots} onClick={() => setLooseLots((o) => !o)} className={LINK}>
+                          {t(looseLots ? "project.hide" : "project.loose.lots")}
+                        </button>
+                      )}
+                      <Link to={`/board?${new URLSearchParams({ ...(repo && { repo }), phase: "none" })}`} className={LINK}>
+                        {t("project.loose.open")}
+                      </Link>
+                    </div>
+                    {looseLots && body(loose)}
+                  </section>
+                )}
+
+                {!repo && <p className="text-sm text-muted-foreground">{t("project.pickRepo")}</p>}
+                {/* No open phase to hold the settings: the repo's default flow stays reachable here. */}
+                {repo && !sections.some((p) => p.phase) && <RepoFlow repo={repo} flows={data.flows} />}
+                {repo && repoName(repo) === "collie-board" && <ExitCriteria />}
+                {deliverables.length > 0 && (
+                  <Fold title={t("project.fold.deliverables", { count: deliverables.length })} state={deliverablesFold}>
+                    <DeliverableLinks items={deliverables} />
+                  </Fold>
+                )}
+              </>
+            )}
+          </div>
+        </main>
+        <aside aria-label={t("orch.title")} style={{ width: panel.width }} className="relative hidden shrink-0 flex-col border-l lg:flex">
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onPointerDown={panel.onPointerDown}
+            className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none hover:bg-primary/30 active:bg-primary/40"
+          />
+          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} />
+        </aside>
       </div>
       {validating && (
         <ValidateSheet
           section={validating}
           targets={v.phases.filter((p) => p.phase && p.key !== validating.key)}
           onClose={() => setValidating(null)}
-          onDone={() => void revalidator.revalidate()}
+          onDone={reload}
         />
       )}
       {sealing && repo && (
-        <SealSheet
-          repo={repo}
-          count={sealing.count}
-          cardIds={sealing.cardIds}
-          initialName={sealing.name}
-          onClose={() => setSealing(null)}
-          onDone={() => void revalidator.revalidate()}
-        />
+        <SealSheet repo={repo} count={sealing.count} cardIds={sealing.cardIds} initialName={sealing.name} onClose={() => setSealing(null)} onDone={reload} />
       )}
-      {/* A definite height, so the thread scrolls INSIDE the sheet and the composer stays pinned: with
-          the height left to the content the sheet was half-empty on a short thread and, on a long one,
-          scrolled as a whole with the composer below the fold. */}
       <BottomSheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title={t("project.filter.aria")}>
         <div className="flex flex-col gap-4 p-4" onClick={(e) => (e.target as HTMLElement).closest("[aria-pressed]") && setFiltersOpen(false)}>
           {filterChips}
-          <div className="flex justify-end">{foldAll}</div>
         </div>
       </BottomSheet>
+      {/* A definite height, so the thread scrolls INSIDE the sheet and the composer stays pinned: with
+          the height left to the content the sheet was half-empty on a short thread and, on a long one,
+          scrolled as a whole with the composer below the fold. */}
       <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[94dvh] max-h-[94dvh]">
         <div className="flex h-full min-h-0 flex-col">
           <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} onLeave={() => setChatOpen(false)} />

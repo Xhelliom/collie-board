@@ -76,28 +76,6 @@ function GoalForm({ initial, onSave, onCancel }: { initial: Goal | null; onSave:
 export const budgetPct = (g: Pick<Goal, "spent" | "budget">) =>
   Math.min(100, Math.round(100 * Math.max(g.spent.lots / g.budget.maxLots, g.spent.quotaPct === null ? 0 : g.spent.quotaPct / g.budget.quotaPct)));
 
-function GoalProgress({ goal }: { goal: Goal }) {
-  const t = useT();
-  const pct = budgetPct(goal);
-  const p = goal.progress;
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs text-muted-foreground">{t("goal.budgetUsed", { pct })}</span>
-      <div role="progressbar" aria-label={t("goal.progress")} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className={`h-full rounded-full ${pct >= 100 ? "bg-destructive" : "bg-primary"}`} style={{ width: `${pct}%` }} />
-      </div>
-      {p && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted-foreground">
-          <span>{t("goal.lotsDone", { n: p.lotsDone })}</span>
-          <span>{t("goal.cardsDone", { n: p.cardsDone })}</span>
-          {p.cardsBlocked > 0 && <span className="text-destructive">{t("goal.cardsBlocked", { n: p.cardsBlocked })}</span>}
-          {p.recettes > 0 && <span>{t("goal.recettes", { n: p.recettes })}</span>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // While the objective is open, lot reports go here instead of the phone; checkpoints too.
 function GoalJournal({ goal }: { goal: Goal }) {
   const t = useT();
@@ -134,6 +112,8 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
   // Which form is open: the objective's, or the next one's.
   const [editing, setEditing] = useState<"open" | "next" | null>(null);
   const [refusal, setRefusal] = useState("");
+  // Which detail is unfolded: the page shows the objective in a few lines, the rest one tap away.
+  const [shown, setShown] = useState<"criteria" | "cards" | "journal" | "next" | null>(null);
   const { pending, confirm } = usePendingConfirm();
 
   useEffect(() => {
@@ -191,18 +171,32 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
     }
   };
   const btn = "rounded-full border px-3 py-1.5 text-xs hover:bg-muted/60";
+  const link = "text-xs font-semibold text-brand";
+  const fold = (k: "criteria" | "cards" | "journal" | "next") => setShown((v) => (v === k ? null : k));
+  const pct = open ? budgetPct(open) : 0;
+  const gauge = (label: string, value: string, fill?: number, tone = "bg-status-done") => (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm tabular-nums">{value}</span>
+      {fill !== undefined && (
+        <span className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+          <i className={cn("block h-full rounded-full", tone)} style={{ width: `${Math.min(100, fill)}%` }} />
+        </span>
+      )}
+    </div>
+  );
 
   return (
-    <section id="goal" aria-label={t("goal.title")} className={cn("flex flex-col gap-2.5 rounded-2xl border p-4 text-sm", openStatus ? GOAL_SURFACE[openStatus] : "bg-card/60")}>
+    <section id="goal" aria-label={t("goal.title")} className={cn("flex flex-col gap-3 rounded-2xl border p-4 text-sm", openStatus ? GOAL_SURFACE[openStatus] : "bg-card/70")}>
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <Target className="size-3.5" />
+        <h2 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold">
+          <Target className="size-4 text-muted-foreground" />
           {t("goal.title")}
-          {open && <span className="rounded-full border px-2 py-0.5 normal-case tracking-normal">{t(`goal.status.${open.status}`)}</span>}
-          {open?.origin === "agent" && <span className="font-normal normal-case tracking-normal">{t("goal.byAgent")}</span>}
-        </span>
+          {open && <span className="rounded-full border px-2 py-0.5 text-xs font-medium">{t(`goal.status.${open.status}`)}</span>}
+          {open?.origin === "agent" && <span className="text-xs font-normal text-muted-foreground">{t("goal.byAgent")}</span>}
+        </h2>
         {open && !editing && (
-          <button type="button" onClick={() => setEditing("open")} className={btn}>
+          <button type="button" onClick={() => setEditing("open")} className={link}>
             {t("goal.edit")}
           </button>
         )}
@@ -218,12 +212,49 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
         </>
       ) : (
         <>
-          <p className="text-[15px] font-medium">{open.text}</p>
+          <p className="text-[15px] font-medium leading-snug">{open.text}</p>
           {open.status === "active" && !noOrchestrator && <p className="text-xs font-medium text-status-done">{t("goal.runningHint")}</p>}
           {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-status-blocked/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
-          <div>
-            <span className="text-xs text-muted-foreground">{t("goal.criteriaTitle")}</span>
-            <ul className="mt-1 list-disc pl-5">
+          <div role="group" aria-label={t("goal.progress")} className="grid grid-cols-3 gap-3">
+            {gauge(t("goal.gauge.lots"), t("goal.gauge.lotsOf", { spent: open.spent.lots, max: open.budget.maxLots }), (100 * open.spent.lots) / open.budget.maxLots)}
+            <div role="progressbar" aria-label={t("goal.gauge.budget")} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+              {gauge(t("goal.gauge.budget"), t("goal.gauge.budgetUsed", { pct }), pct, pct >= 100 ? "bg-destructive" : "bg-muted-foreground")}
+            </div>
+            {gauge(
+              t("goal.gauge.quota"),
+              open.spent.quotaPct === null ? `${open.budget.quotaPct} %` : t("goal.gauge.quotaOf", { spent: open.spent.quotaPct, max: open.budget.quotaPct }),
+            )}
+          </div>
+          {(open.progress || open.budget.deadline !== null) && (
+            <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted-foreground">
+              {open.progress && (
+                <>
+                  <span>{t("goal.lotsDone", { n: open.progress.lotsDone })}</span>
+                  <span>{t("goal.cardsDone", { n: open.progress.cardsDone })}</span>
+                  {open.progress.cardsBlocked > 0 && <span className="text-destructive">{t("goal.cardsBlocked", { n: open.progress.cardsBlocked })}</span>}
+                  {open.progress.recettes > 0 && <span>{t("goal.recettes", { n: open.progress.recettes })}</span>}
+                </>
+              )}
+              {open.budget.deadline !== null && <span>{t("goal.until", { date: new Date(open.budget.deadline).toLocaleDateString() })}</span>}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <button type="button" aria-expanded={shown === "criteria"} onClick={() => fold("criteria")} className={link}>
+              {t("goal.link.criteria", { count: open.criteria.length })}
+            </button>
+            {open.spent.cardIds.length > 0 && (
+              <button type="button" aria-expanded={shown === "cards"} onClick={() => fold("cards")} className={link}>
+                {t("goal.link.cards", { count: open.spent.cardIds.length })}
+              </button>
+            )}
+            {open.journal && (
+              <button type="button" aria-expanded={shown === "journal"} onClick={() => fold("journal")} className={link}>
+                {t("goal.link.journal")}
+              </button>
+            )}
+          </div>
+          {(shown === "criteria" || open.status === "claimed") && (
+            <ul className="list-disc pl-5">
               {open.criteria.map((c, i) => (
                 <li key={i}>
                   {c}
@@ -235,32 +266,19 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
                 </li>
               ))}
             </ul>
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs tabular-nums text-muted-foreground">
-            <span>{t("goal.lots", { spent: open.spent.lots, max: open.budget.maxLots })}</span>
-            <span>
-              {open.spent.quotaPct === null
-                ? t("goal.quotaUnknown", { max: open.budget.quotaPct })
-                : t("goal.quota", { spent: open.spent.quotaPct, max: open.budget.quotaPct })}
-            </span>
-            {open.budget.deadline !== null && <span>{t("goal.until", { date: new Date(open.budget.deadline).toLocaleDateString() })}</span>}
-          </div>
-          <GoalProgress goal={open} />
-          {open.spent.cardIds.length > 0 && (
-            <div>
-              <span className="text-xs text-muted-foreground">{t("goal.cards")}</span>
-              <ul className="mt-1 flex flex-wrap gap-1.5">
-                {open.spent.cardIds.map((id) => (
-                  <li key={id}>
-                    <Link to={cardPath(id)} className="inline-block max-w-[28ch] truncate rounded-full border px-2 py-0.5 text-xs hover:bg-muted/60">
-                      {titleOf(id) ?? id.slice(0, 8)}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
           )}
-          <GoalJournal goal={open} />
+          {shown === "cards" && (
+            <ul className="flex flex-wrap gap-1.5">
+              {open.spent.cardIds.map((id) => (
+                <li key={id}>
+                  <Link to={cardPath(id)} className="inline-block max-w-[28ch] truncate rounded-full border px-2 py-0.5 text-xs hover:bg-muted/60">
+                    {titleOf(id) ?? id.slice(0, 8)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {shown === "journal" && <GoalJournal goal={open} />}
           {open.status === "claimed" && (
             <>
               <p className="rounded-lg border border-brand/45 p-2 text-xs">{t("goal.claimedHint")}</p>
@@ -288,13 +306,13 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
                 {t("goal.resume")}
               </button>
             )}
-            <button type="button" onClick={() => void move("abandon")} className={btn}>
+            <button type="button" onClick={() => void move("abandon")} className={cn(btn, "text-destructive")}>
               {pending === open.id ? t("goal.abandonConfirm") : t("goal.abandon")}
             </button>
           </div>
         </>
       )}
-      {/* The next objective: prepared while one is open, started when the operator validates it. */}
+      {/* The next objective, in one line: prepared while one is open, started when the operator validates it. */}
       {editing === "next" ? (
         <div className="flex flex-col gap-2 border-t pt-2.5">
           <span className="text-xs font-semibold text-muted-foreground">{t("goal.next")}</span>
@@ -302,37 +320,46 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
         </div>
       ) : queued ? (
         <div className="flex flex-col gap-1.5 border-t pt-2.5">
-          <span className="text-xs font-semibold text-muted-foreground">
-            {t("goal.next")}
-            {queued.origin === "agent" && <span className="font-normal"> · {t("goal.byAgent")}</span>}
-          </span>
-          <p className="font-medium">{queued.text}</p>
-          <ul className="list-disc pl-5 text-xs text-muted-foreground">
-            {queued.criteria.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-          </ul>
-          <p className="text-xs text-muted-foreground">{t(open ? "goal.nextHint" : "goal.nextOrphan")}</p>
-          {!editing && (
-            <div className="flex flex-wrap gap-2">
-              {!open && (
-                <button type="button" onClick={() => void move("activate")} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+          <div className="flex min-w-0 items-center gap-2 text-[13px]">
+            <span className="shrink-0 text-muted-foreground">{t("goal.then")}</span>
+            <span className="min-w-0 flex-1 truncate font-medium" title={queued.text}>
+              {queued.text}
+            </span>
+            {queued.origin === "agent" && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">{t("goal.byAgent")}</span>}
+            {!editing && (
+              <span className="flex shrink-0 gap-3">
+                <button type="button" aria-expanded={shown === "next"} onClick={() => fold("next")} className={link}>
+                  {t(shown === "next" ? "goal.hide" : "goal.see")}
+                </button>
+                <button type="button" onClick={() => setEditing("next")} className={link}>
+                  {t("goal.edit")}
+                </button>
+                <button type="button" onClick={() => void drop()} className={cn(link, "text-destructive")}>
+                  {pending === `next:${queued.id}` ? t("goal.deleteConfirm") : t("goal.delete")}
+                </button>
+              </span>
+            )}
+          </div>
+          {(shown === "next" || !open) && (
+            <>
+              <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                {queued.criteria.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">{t(open ? "goal.nextHint" : "goal.nextOrphan")}</p>
+              {!open && !editing && (
+                <button type="button" onClick={() => void move("activate")} className="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
                   {t("goal.activate")}
                 </button>
               )}
-              <button type="button" onClick={() => setEditing("next")} className={btn}>
-                {t("goal.edit")}
-              </button>
-              <button type="button" onClick={() => void drop()} className={btn}>
-                {pending === `next:${queued.id}` ? t("goal.deleteConfirm") : t("goal.delete")}
-              </button>
-            </div>
+            </>
           )}
         </div>
       ) : (
         open &&
         !editing && (
-          <button type="button" onClick={() => setEditing("next")} className={`${btn} self-start`}>
+          <button type="button" onClick={() => setEditing("next")} className={`${link} self-start`}>
             {t("goal.prepareNext")}
           </button>
         )

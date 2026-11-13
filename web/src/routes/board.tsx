@@ -249,6 +249,8 @@ export function BoardRoute() {
   // self-hiding rule, so the chip never opens onto an empty sheet.
   const progress = phaseProgress(data.cards, data.phases, data.counts?.doneByPhase);
   const phasesOn = activeRepo ? data.phases.filter((p) => p.repoPath === activeRepo) : [];
+  // `?phase=none` (the project page's « outside a phase » line) names no row: it reads « No phase ».
+  const phaseLabel = activePhase === "none" ? t("project.noPhase") : (phasesOn.find((p) => p.id === activePhase)?.name ?? activePhase ?? "");
   const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly || hasShared || mineOnly || hasBusiness || sort !== null || phasesOn.length > 0;
 
   // One tile per card, in its status column, on every screen (ADR 0022). A container — the card a
@@ -399,7 +401,7 @@ export function BoardRoute() {
                 onClick={() => pickPhase(null)}
                 className="flex min-w-0 shrink items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
               >
-                <span className="truncate">{phasesOn.find((p) => p.id === activePhase)?.name ?? activePhase}</span>
+                <span className="truncate">{phaseLabel}</span>
                 <X className="size-3 shrink-0" />
               </button>
             )}
@@ -528,7 +530,7 @@ export function BoardRoute() {
                       repo: activeRepo ? t("board.emptyRepo", { repo: repoName(activeRepo) }) : "",
                       tag: active ? t("board.emptyTag", { tag: active }) : "",
                       phase: activePhase
-                        ? t("board.emptyPhase", { phase: phasesOn.find((p) => p.id === activePhase)?.name ?? activePhase })
+                        ? t("board.emptyPhase", { phase: phaseLabel })
                         : "",
                     })}
                   </NonNominalPanel>
@@ -799,7 +801,7 @@ export function BoardRoute() {
           cards={chosen}
           repoPath={activeRepo}
           phases={phasesOn}
-          phaseId={activePhase}
+          phaseId={activePhase === "none" ? null : activePhase}
           onConfirm={startRun}
         />
       )}

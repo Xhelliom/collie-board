@@ -510,8 +510,8 @@ function Step({
 }
 
 /** The project page's shortcut: « N to test », absent at zero. Read once per repo, not polled. */
-export function RecetteChip({ repo }: { repo: string | null }) {
-  const t = useT();
+/** How many tests wait in the repo's recette — read once per repo, 0 on an older bridge. */
+export function useRecetteTodo(repo: string | null): number {
   const [n, setN] = useState(0);
   useEffect(() => {
     const ctl = new AbortController();
@@ -521,6 +521,12 @@ export function RecetteChip({ repo }: { repo: string | null }) {
     );
     return () => ctl.abort();
   }, [repo]);
+  return n;
+}
+
+export function RecetteChip({ repo }: { repo: string | null }) {
+  const t = useT();
+  const n = useRecetteTodo(repo);
   if (n === 0) return null;
   return (
     <Link

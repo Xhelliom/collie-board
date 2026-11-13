@@ -477,7 +477,8 @@ export function matchesFilters(
   filters: { tag: string | null; autoOnly: boolean; phase?: string | null; statuses?: string[] | null },
 ): boolean {
   if (filters.tag && card.tag !== filters.tag) return false;
-  if (filters.phase && card.phaseId !== filters.phase) return false;
+  // `none`: the cards no phase has taken — the project page's « outside a phase » line.
+  if (filters.phase && card.phaseId !== (filters.phase === "none" ? null : filters.phase)) return false;
   if (filters.statuses && !filters.statuses.includes(card.status)) return false;
   // Any origin, not just the copilot's: the strip asks "what appeared without me?", and a filter
   // that answered it for one of the two writers would be a gauge that is quietly wrong.

@@ -7,7 +7,7 @@ import { PhaseLots } from "./project-lots";
 const cards = ["a", "b"].map((id) => ({ id, title: `step ${id}`, status: "ready", repoPath: "/r" }) as CardView);
 const lot = (over: Partial<Lot> = {}): Lot => ({ id: "l1", repoPath: "/r", phaseId: null, name: "L", position: 0, launchedAt: null, cardIds: ["a", "b"], maxParallel: 2, ...over });
 const show = (l: Lot) =>
-  render(<PhaseLots lots={[{ lot: l, cards, done: 0 }]} steps={cards} byId={new Map(cards.map((c) => [c.id, c]))} onLaunched={() => {}} renderStep={(s) => <li key={s.id}>{s.title}</li>} isOpen={(_, f) => f} onFold={() => {}} />);
+  render(<PhaseLots lots={[{ lot: l, cards, done: 0 }]} steps={cards} byId={new Map(cards.map((c) => [c.id, c]))} onLaunched={() => {}} renderStep={(s) => <li key={s.id}>{s.title}</li>} />);
 
 it("warns on a lot whose cards cite the same file, and proposes a chain or one at a time", () => {
   show(lot({ overlaps: [{ cardIds: ["a", "b"], files: ["bridge/lot.ts"] }] }));
