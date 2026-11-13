@@ -17,3 +17,5 @@
 {"v":1,"hlc":"1794591763223.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794591763223.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794591762759}}
 {"v":1,"hlc":"1794591763223.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":7677},"ts":1794591762994}}
+{"v":1,"hlc":"1794592506534.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"45524c1b-6d0f-4226-8414-e61b9f0013b5","name":"roadmap-bureau.jpg","size":69946,"by":"agent","pane":"t5v"},"ts":1794592501982}}
+{"v":1,"hlc":"1794592506534.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"45524c1b-6d0f-4226-8414-e61b9f0013b5","name":"roadmap-plein-ecran.jpg","size":12481,"by":"agent","pane":"t5v"},"ts":1794592501993}}
