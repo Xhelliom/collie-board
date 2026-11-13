@@ -29,6 +29,7 @@ import {
   wouldCycle,
 } from "./cards.ts";
 import { cardsSummary } from "./cards-summary.ts";
+import { createWarnings, unknownCardFields } from "./card-fields.ts";
 import { hcSocketPath, type Config } from "./config.ts";
 import { Hc } from "./mux/hc.ts";
 import { CompositeMux } from "./mux/composite.ts";
@@ -230,6 +231,10 @@ export function parseCardBody(
 ): { ok: true; value: CardPatch & { title?: string; category?: DeclarableCategory } } | { ok: false; error: string } {
   if (typeof v !== "object" || v === null) return { ok: false, error: "bad body" };
   const o = v as Record<string, unknown>;
+  // A key this parser does not read is refused, never dropped: dropped, a brief sent as
+  // `description` became a card with no spec and a 200 (card-fields.ts).
+  const unknown = unknownCardFields(o);
+  if (unknown) return { ok: false, error: unknown };
   const out: CardPatch & { title?: string; category?: DeclarableCategory } = {};
 
   if ("title" in o) {
@@ -1109,7 +1114,10 @@ async function route(
         // reading this trail wants attributed to something other than "the phone".
         detail: { cardId: card.id, title: card.title, ...(pane ? { pane } : {}) },
       });
-      return json({ ok: true, card: view(card.id) });
+      // Non-blocking: a card with no brief is legal (a container, a reminder), but an agent started
+      // on it gets only its title — said to the caller, who may have meant to send one.
+      const warnings = createWarnings(card);
+      return json({ ok: true, card: view(card.id), ...(warnings.length ? { warnings } : {}) });
     }
     return text("method not allowed", 405);
   }
