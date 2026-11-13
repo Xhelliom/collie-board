@@ -13,3 +13,5 @@
 {"v":1,"hlc":"1794593034915.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794593034915.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794593024138}}
 {"v":1,"hlc":"1794593034915.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":5350},"ts":1794593024668}}
+{"v":1,"hlc":"1794593751014.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"d8ba2d36-e12b-47ef-983b-98b5368b78ff","name":"recette-chronologie-telephone.jpg","size":45175,"by":"agent","pane":"t5x"},"ts":1794593750058}}
+{"v":1,"hlc":"1794593751015.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"d8ba2d36-e12b-47ef-983b-98b5368b78ff","name":"recette-session-telephone.jpg","size":33712,"by":"agent","pane":"t5x"},"ts":1794593750073}}
