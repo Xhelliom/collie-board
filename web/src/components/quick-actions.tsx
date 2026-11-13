@@ -41,7 +41,7 @@ function Group({
   const t = useT();
   return (
     <div>
-      <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">{title}</p>
+      <p className="mb-1.5 text-xs text-muted-foreground">{title}</p>
       <div className={`grid gap-2 ${cols}`}>
         {items.map(([text, label]) => (
           <Button
@@ -88,7 +88,7 @@ export function QuickActionsContent({
           runHandoff) — one implementation, two entry points. */}
       {onHandoff && (
         <div>
-          <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">{t("pane.quick.session")}</p>
+          <p className="mb-1.5 text-xs text-muted-foreground">{t("pane.quick.session")}</p>
           <Button
             type="button"
             variant="outline"

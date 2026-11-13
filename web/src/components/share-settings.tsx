@@ -70,7 +70,7 @@ export function ShareSettings({ repo }: { repo: string }) {
           : t("project.share.upToDate");
 
   return (
-    <section aria-label={t("project.share.fold")} className="rounded-2xl border bg-card/40 p-3.5 text-sm">
+    <section aria-label={t("project.share.fold")} className="rounded-sm bg-card p-3.5 text-sm">
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">
           <span className={info.remotes.length === 0 ? "opacity-50" : undefined}>{t("project.share.on")}</span>
@@ -112,7 +112,7 @@ export function ShareSettings({ repo }: { repo: string }) {
               type="button"
               disabled={busy || asking !== null}
               onClick={() => void resend()}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${sync?.rewritten ? "border-amber-500/60 bg-amber-500/10" : ""}`}
+              className={`shrink-0 rounded-sm border px-3 py-1.5 text-xs ${sync?.rewritten ? "border-amber-500/60 bg-amber-500/10" : ""}`}
             >
               {t("project.share.resend")}
             </button>
@@ -136,10 +136,10 @@ export function ShareSettings({ repo }: { repo: string }) {
               </>
             )}
             <div className="flex justify-end gap-2">
-              <button type="button" disabled={busy} onClick={() => setAsking(null)} className="rounded-full border px-3 py-1.5">
+              <button type="button" disabled={busy} onClick={() => setAsking(null)} className="rounded-sm border px-3 py-1.5">
                 {t("project.share.cancel")}
               </button>
-              <button type="button" disabled={busy} onClick={() => void apply()} className="rounded-full bg-primary px-3 py-1.5 text-primary-foreground">
+              <button type="button" disabled={busy} onClick={() => void apply()} className="rounded-sm bg-primary px-3 py-1.5 text-primary-foreground">
                 {t("project.share.confirm")}
               </button>
             </div>

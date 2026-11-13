@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { StatusSignal } from "@/components/status-signal";
 import { ChevronDown } from "lucide-react";
 
 import { useFold } from "@/components/fold";
@@ -182,7 +183,7 @@ export function ClosedPhases({ closed, onReopened }: { closed: ProjectPhase[]; o
 
   return (
     <section aria-label={tt("project.closed.title")} className="flex flex-col gap-2 pt-4">
-      <h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+      <h2 className="text-sm font-semibold text-muted-foreground">
         {tt("project.closed.title")} · {closed.length}
       </h2>
       <ul className="flex flex-col gap-2">
@@ -190,14 +191,14 @@ export function ClosedPhases({ closed, onReopened }: { closed: ProjectPhase[]; o
           const isOpen = open === p.key;
           const date = new Date(p.phase!.closedAt!).toLocaleDateString(getLocale());
           return (
-            <li key={p.key} className="rounded-xl border bg-card/40">
+            <li key={p.key} className="rounded-sm bg-card">
               <button
                 type="button"
                 onClick={() => setOpen(isOpen ? null : p.key)}
                 aria-expanded={isOpen}
                 className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
               >
-                <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-status-done" />
+                <StatusSignal status="done" decorative />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold">{p.title}</span>
                   <span className="block text-xs text-muted-foreground">{tt("project.closed.row", { count: p.steps.length, date })}</span>

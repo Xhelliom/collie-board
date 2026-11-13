@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 export function HeldChip({ className }: { className?: string }) {
   const t = useT();
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full bg-status-blocked/15 px-2 py-0.5 text-xs font-semibold text-status-blocked", className)}>
+    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-sm bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive", className)}>
       <Hand className="size-3.5" aria-hidden="true" />
       {t("held.chip")}
     </span>

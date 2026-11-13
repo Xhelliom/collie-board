@@ -143,7 +143,7 @@ function LeadPaneAnchor({ paneId, pair }: { paneId: string; pair?: string }) {
   return (
     <>
       {" · "}
-      <Link to={panePath(pairPaneId(paneId, pair, root?.peers ?? []))} className="text-primary underline underline-offset-2">
+      <Link to={panePath(pairPaneId(paneId, pair, root?.peers ?? []))} className="underline underline-offset-4 decoration-muted-foreground hover:decoration-foreground">
         {t("journal.leadPane")}
       </Link>
     </>
@@ -237,7 +237,7 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
 function Previous({ label, text }: { label: string; text: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       <CollapsibleText lines={4} className="rounded-md bg-muted/50 px-2 py-1.5 text-xs">
         <p className="whitespace-pre-wrap break-words">{text}</p>
       </CollapsibleText>

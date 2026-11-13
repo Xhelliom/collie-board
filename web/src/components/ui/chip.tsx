@@ -48,7 +48,7 @@ export function Chip({ label, active, ring, alert, onClick, onLongPress, onTapAc
       className={cn(
         // select-none + -webkit-touch-callout:none stop iOS Safari's selection loupe / touch callout,
         // whose native long-press gesture otherwise fires pointercancel and kills the hold timer.
-        "relative shrink-0 select-none [-webkit-touch-callout:none] whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors active:scale-95",
+        "relative shrink-0 select-none [-webkit-touch-callout:none] whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-colors active:scale-95",
         active
           ? "bg-primary text-primary-foreground"
           : "bg-muted text-muted-foreground hover:bg-muted/70",

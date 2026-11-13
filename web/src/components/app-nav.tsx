@@ -133,7 +133,7 @@ function Sidebar({ data }: { data: HomeData }) {
               onClick={() => navigate(item.path(data.session))}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2.5 text-sm transition-colors",
+                "flex items-center gap-2.5 rounded-sm px-2.5 py-2.5 text-sm transition-colors",
                 isActive
                   ? "bg-brand/16 font-semibold text-brand"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -158,7 +158,7 @@ function Sidebar({ data }: { data: HomeData }) {
           onClick={() => navigate(SETTINGS_ITEM.path(data.session))}
           aria-current={active === "settings" ? "page" : undefined}
           className={cn(
-            "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2.5 text-sm transition-colors",
+            "flex items-center gap-2.5 rounded-sm px-2.5 py-2.5 text-sm transition-colors",
             active === "settings"
               ? "bg-brand/16 font-semibold text-brand"
               : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -220,7 +220,7 @@ function MobileTabBar({ data }: { data: HomeData }) {
                 />
               )}
               {item.key === "herd" && blocked > 0 && (
-                <span className="absolute -top-2 left-1/2 ml-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-blocked px-1 text-[10px] font-bold text-white">
+                <span className="absolute -top-2 left-1/2 ml-2 flex h-4 min-w-4 items-center justify-center rounded-sm bg-status-blocked px-1 text-[10px] font-bold text-white">
                   {blocked}
                 </span>
               )}

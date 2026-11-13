@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useThemeMode } from "@/hooks/use-theme-mode";
 import type { ThemeMode } from "@/lib/theme";
+import { loadUiStyle, saveUiStyle, type UiStyle } from "@/lib/ui-style";
+import { useState } from "react";
 
 const OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: MessageKey; icon: typeof Sun }> = [
   { mode: "light", label: "settings.theme.light", icon: Sun },
@@ -15,6 +17,7 @@ const OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: MessageKey; icon: typeof 
 export function ThemeControl() {
   const t = useT();
   const { mode, setMode } = useThemeMode();
+  const [style, setStyle] = useState<UiStyle>(loadUiStyle);
 
   return (
     <Card className="gap-0 py-0">
@@ -32,13 +35,29 @@ export function ThemeControl() {
         {OPTIONS.map(({ mode: m, label, icon: Icon }) => (
           <Button
             key={m}
-            variant={mode === m ? "secondary" : "outline"}
+            variant={mode === m ? "default" : "secondary"}
             size="sm"
             aria-pressed={mode === m}
             onClick={() => setMode(m)}
           >
             <Icon className="size-4" />
             {t(label)}
+          </Button>
+        ))}
+      </div>
+
+      {/* The look itself: Sémaphore, or the classic palette it replaced (index.css). */}
+      <div role="group" aria-label={t("settings.style.label")} className="flex flex-wrap items-center gap-2 border-t border-border/60 p-3">
+        <span className="text-sm text-muted-foreground">{t("settings.style.label")}</span>
+        {(["semaphore", "classic"] as const).map((s) => (
+          <Button
+            key={s}
+            variant={style === s ? "default" : "secondary"}
+            size="sm"
+            aria-pressed={style === s}
+            onClick={() => (saveUiStyle(s), setStyle(s))}
+          >
+            {t(`settings.style.${s}`)}
           </Button>
         ))}
       </div>

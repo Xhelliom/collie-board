@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 
+import { buttonVariants } from "@/components/ui/button";
 import { ChevronRight } from "lucide-react";
 
 import { useT } from "@/i18n";
@@ -36,7 +37,7 @@ export function FoldToggle({
       type="button"
       aria-expanded={open}
       onClick={onClick}
-      className="flex min-h-11 items-center self-start px-2 text-sm text-primary underline-offset-2 hover:underline"
+      className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "self-start")}
     >
       {open ? lessLabel : label}
     </button>
@@ -74,7 +75,7 @@ export function Fold({ title, state: [open, set], children }: { title: string; s
         type="button"
         aria-expanded={open}
         onClick={() => set(!open)}
-        className="flex min-h-11 items-center gap-2 text-left text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground hover:text-foreground"
+        className="flex min-h-11 items-center gap-2 text-left text-sm font-semibold text-muted-foreground hover:text-foreground"
       >
         <ChevronRight className={cn("size-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-90")} />
         <span className="min-w-0 truncate">{title}</span>

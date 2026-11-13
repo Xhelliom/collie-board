@@ -1,4 +1,5 @@
 import { GoalPanel } from "@/components/goal-panel";
+import { StatusSignal } from "@/components/status-signal";
 import { GoalLine, type OpenGoal } from "@/components/goal-chip";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useRevalidator, useSearchParams } from "react-router";
@@ -9,7 +10,7 @@ import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { ExitCriteria } from "@/components/exit-criteria";
 import { BottomSheet } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { usePanelWidth } from "@/hooks/use-panel-width";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { ProjectOpen } from "@/components/project-open";
@@ -71,13 +72,13 @@ const store = {
   },
 };
 
-const PANEL = "flex flex-col gap-3 rounded-2xl border bg-card/70 p-4";
-const LINK = "shrink-0 text-xs font-semibold text-brand";
+const PANEL = "flex flex-col gap-3 rounded-sm bg-card p-4";
+const LINK = cn(buttonVariants({ variant: "secondary", size: "sm" }), "shrink-0 text-xs");
 /** A line's own button: 44 px on a phone. */
-const ACT = "h-11 shrink-0 rounded-[10px] px-3 text-sm font-semibold sm:h-8";
+const ACT = "h-11 shrink-0 rounded-sm px-3 text-sm font-semibold sm:h-8";
 const LINE = "flex flex-wrap items-center gap-x-3 gap-y-2";
 const TEXT = "min-w-0 flex-1 basis-60 text-sm leading-snug";
-const TAG = "rounded-full px-2 py-0.5 text-xs font-semibold";
+const TAG = "rounded-sm px-2 py-0.5 text-xs font-semibold";
 
 /** An open phase whose every step is done: it only waits for the operator to validate it. */
 const toValidate = (p: ProjectPhase) => Boolean(p.phase && !p.phase.closedAt && p.steps.length > 0 && p.done === p.steps.length);
@@ -354,7 +355,7 @@ export function ProjectRoute() {
             aria-pressed={mineOnly === mine}
             onClick={() => pickMine(mine)}
             className={cn(
-              "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 text-xs font-medium transition-colors",
+              "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-sm border bg-card/70 px-3 py-1.5 text-xs font-medium transition-colors",
               mineOnly === mine ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
               mine && "mr-1.5",
             )}
@@ -369,7 +370,7 @@ export function ProjectRoute() {
           aria-pressed={filter === f.id}
           onClick={() => pick(f.id)}
           className={cn(
-            "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 text-xs font-medium transition-colors",
+            "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-sm border bg-card/70 px-3 py-1.5 text-xs font-medium transition-colors",
             filter === f.id ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
           )}
         >
@@ -399,7 +400,7 @@ export function ProjectRoute() {
     );
   const askSplit = (name: string) =>
     repo && (
-      <Link to={orchestratorPath(repo, t("project.next.askDraft", { name }))} className={cn(ACT, "inline-flex items-center rounded-[10px] border bg-background shadow-xs hover:bg-accent")}>
+      <Link to={orchestratorPath(repo, t("project.next.askDraft", { name }))} className={cn(ACT, "inline-flex items-center rounded-sm border bg-background shadow-xs hover:bg-accent")}>
         {t("project.next.ask")}
       </Link>
     );
@@ -424,7 +425,7 @@ export function ProjectRoute() {
         <span className="flex items-center gap-2">
           <Link
             to={`/board?${new URLSearchParams({ ...(repo && { repo }), phase: "none" })}`}
-            className={cn(ACT, "inline-flex items-center rounded-[10px] border bg-background shadow-xs hover:bg-accent")}
+            className={cn(ACT, "inline-flex items-center rounded-sm border bg-background shadow-xs hover:bg-accent")}
           >
             {t("project.tidy.sort")}
           </Link>
@@ -464,7 +465,7 @@ export function ProjectRoute() {
   const doneLine = (
     <>
       {t("project.doneLine", { phases: t("project.phases.closedLine", { count: v.closedCount }), steps: t("project.phases.delivered", { count: v.deliveredSteps }) })}{" "}
-      <button type="button" aria-expanded={closedOpen} onClick={() => setClosedOpen((o) => !o)} className="font-semibold text-brand max-sm:min-h-11">
+      <button type="button" aria-expanded={closedOpen} onClick={() => setClosedOpen((o) => !o)} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "ml-1 align-baseline")}>
         {t("project.history")}
       </button>
     </>
@@ -495,11 +496,11 @@ export function ProjectRoute() {
               type="button"
               onClick={() => setChatOpen(true)}
               aria-label={t("project.chatOpen")}
-              className="inline-flex h-11 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent sm:h-9 lg:hidden"
+              className="inline-flex h-11 items-center gap-1.5 rounded-sm border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent sm:h-9 lg:hidden"
             >
               <MessagesSquare className="size-4 max-sm:hidden" />
               {t("orch.title")}
-              {data.orchestrator?.running && <span className="size-2 rounded-full bg-status-done" title={t("project.chatRunning")} aria-hidden="true" />}
+              {data.orchestrator?.running && <StatusSignal status="working" label={t("project.chatRunning")} />}
             </button>
             {repo && (
               <ProjectOpen
@@ -541,7 +542,7 @@ export function ProjectRoute() {
 
             {/* 1. What waits for you — each thing with its own button; nothing: one line, not a panel. */}
             {waits > 0 || recette > 0 ? (
-              <section aria-label={t("project.todo.title")} className={cn(PANEL, "border-brand/45 shadow-[0_10px_40px_-20px] shadow-brand")}>
+              <section aria-label={t("project.todo.title")} className={cn(PANEL, "bg-brand/10")}>
                 {heading(t("project.todo.title"), undefined, waits || undefined)}
                 {waits > 0 && (
                   <ul className="flex flex-col gap-2.5">
@@ -568,7 +569,7 @@ export function ProjectRoute() {
                         <p className={TEXT}>
                           <span className="font-medium">« {c.title} »</span> <span className="text-muted-foreground">{CARD_STATUS_LABEL[c.status]}</span>
                         </p>
-                        <Link to={cardPath(c.id)} className={cn(ACT, "inline-flex items-center rounded-[10px] border bg-background hover:bg-accent")}>
+                        <Link to={cardPath(c.id)} className={cn(ACT, "inline-flex items-center rounded-sm border bg-background hover:bg-accent")}>
                           {t("project.todo.open")}
                         </Link>
                       </li>
@@ -586,7 +587,7 @@ export function ProjectRoute() {
                   </ul>
                 )}
                 {recette > 0 && (
-                  <Link to={`/board/recette${q}`} className="flex min-h-11 items-center self-start text-[13px] font-semibold text-brand sm:min-h-0">
+                  <Link to={`/board/recette${q}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "self-start text-[13px]")}>
                     {t("project.todo.recette", { count: recette })}
                   </Link>
                 )}
@@ -601,7 +602,7 @@ export function ProjectRoute() {
                 <button
                   type="button"
                   onClick={() => setChatOpen(true)}
-                  className="inline-flex h-11 items-center gap-1.5 rounded-[10px] border bg-background px-3 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
                 >
                   <MessagesSquare className="size-4" />
                   {t("project.emptyAction")}
@@ -701,7 +702,7 @@ export function ProjectRoute() {
                       {following.map((p) => {
                         const open = opened.has(p.key);
                         return (
-                          <li key={p.key} aria-label={p.title || t("project.noPhase")} className="flex flex-col gap-3 rounded-xl border bg-card/40 px-3 py-2">
+                          <li key={p.key} aria-label={p.title || t("project.noPhase")} className="flex flex-col gap-3 rounded-sm bg-card px-3 py-2">
                             <div className={LINE}>
                               {nextTag(p)}
                               <span className={TEXT}>

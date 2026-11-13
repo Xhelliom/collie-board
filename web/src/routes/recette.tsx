@@ -107,7 +107,7 @@ export function RecetteRoute() {
               <p className="text-sm text-muted-foreground">{t("recette.summary", { count: flat.length, steps: flat.reduce((n, e) => n + e.steps.length, 0) })}</p>
             </div>
             {toCheck.some((e) => e.steps.some((s) => !s.verdict)) && (
-              <Button variant="brand" className="rounded-[10px]" onClick={() => setParam("session", "all")}>
+              <Button variant="brand" className="rounded-sm" onClick={() => setParam("session", "all")}>
                 <ListChecks aria-hidden />
                 {t("recette.oneByOne")}
               </Button>
@@ -250,7 +250,7 @@ function Help() {
       </summary>
       <ul className="flex flex-col gap-1.5 px-3 pb-3 pt-1 text-muted-foreground">
         <li className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-status-done" />{t("recette.help.ok")}</li>
-        <li className="flex gap-2"><X className="mt-0.5 size-4 shrink-0 text-status-blocked" />{t("recette.help.ko")}</li>
+        <li className="flex gap-2"><X className="mt-0.5 size-4 shrink-0 text-destructive" />{t("recette.help.ko")}</li>
         <li className="flex gap-2"><SkipForward className="mt-0.5 size-4 shrink-0" />{t("recette.help.skip")}</li>
         <li className="flex gap-2"><Sparkles className="mt-0.5 size-4 shrink-0" />{t("recette.help.prepare")}</li>
         <li className="flex gap-2"><ListChecks className="mt-0.5 size-4 shrink-0" />{t("recette.help.session")}</li>
@@ -269,7 +269,7 @@ function StatePills({ entries }: { entries: readonly RecetteEntry[] }) {
       {(["todo", "ko", "ok"] as const).map(
         (k) =>
           c[k] > 0 && (
-            <span key={k} className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[11px] font-semibold tabular-nums", STATE_TEXT[k])}>
+            <span key={k} className={cn("inline-flex items-center gap-1 rounded-sm border px-1.5 py-px text-[11px] font-semibold tabular-nums", STATE_TEXT[k])}>
               <span className={cn("size-1.5 rounded-full", STATE_TONE[k])} />
               {c[k]} {t(`recette.state.${k}`)}
             </span>
@@ -279,7 +279,7 @@ function StatePills({ entries }: { entries: readonly RecetteEntry[] }) {
   );
 }
 
-const STATE_TEXT = { todo: "text-brand", ok: "text-status-done", ko: "text-status-blocked" } as const;
+const STATE_TEXT = { todo: "text-brand", ok: "text-status-done", ko: "text-destructive" } as const;
 
 /** The header figure: one bar, three tones — read at a glance, not a sentence. */
 function Counter({ counts }: { counts: { todo: number; ok: number; ko: number } }) {
@@ -325,7 +325,7 @@ export function RecetteChip({ repo }: { repo: string | null }) {
   return (
     <Link
       to={`/board/recette${repo ? `?repo=${encodeURIComponent(repo)}` : ""}`}
-      className="inline-flex items-center gap-1.5 rounded-full border border-brand/35 bg-brand/16 px-2.5 py-[3px] text-xs font-semibold text-brand"
+      className="inline-flex items-center gap-1.5 rounded-sm border border-brand/35 bg-brand/16 px-2.5 py-[3px] text-xs font-semibold text-brand"
     >
       <CircleDashed className="size-3" />
       {t("recette.chip", { count: n })}

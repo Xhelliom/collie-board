@@ -282,7 +282,7 @@ describe("verdictChip", () => {
   it("paints the three verdicts the prompt asks for, case and spacing aside", () => {
     expect(verdictChip("complete")).toContain("status-done");
     expect(verdictChip(" Partial ")).toContain("status-working");
-    expect(verdictChip("DRIFT")).toContain("status-blocked");
+    expect(verdictChip("DRIFT")).toContain("destructive");
   });
 
   it("falls back to the neutral pill rather than guessing on a substring", () => {

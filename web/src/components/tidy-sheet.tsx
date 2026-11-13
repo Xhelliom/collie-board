@@ -121,7 +121,7 @@ export function TidySheet({ open, onClose }: { open: boolean; onClose: () => voi
           if (rows.length === 0) return null;
           return (
             <section key={reason} className="flex flex-col gap-1.5">
-              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+              <h3 className="text-xs font-bold text-muted-foreground">
                 {t(`tidy.reason.${reason}`)} <span className="opacity-70">({rows.length})</span>
               </h3>
               {rows.map((c) => (

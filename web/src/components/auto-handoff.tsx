@@ -117,7 +117,7 @@ export function AutoHandoffChoice({ card, onChanged, bare = false }: { card: Car
           <Button
             key={label}
             size="sm"
-            variant={card.autoHandoff === value ? "secondary" : "outline"}
+            variant={card.autoHandoff === value ? "default" : "secondary"}
             aria-pressed={card.autoHandoff === value}
             disabled={busy}
             onClick={() => void choose(value)}

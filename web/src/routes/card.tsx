@@ -1,4 +1,5 @@
 import { t, useT } from "@/i18n";
+import { StatusSignal, cardSignal } from "@/components/status-signal";
 import { useBack } from "@/hooks/use-back";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
@@ -42,7 +43,7 @@ import { PinToggle } from "@/components/pin-button";
 import { AutoHandoffChoice } from "@/components/auto-handoff";
 import { MigrateHcButton } from "@/components/migrate-hc-button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BottomSheet } from "@/components/ui/sheet";
 import { CollapsibleText } from "@/components/collapsible-text";
@@ -635,7 +636,7 @@ export function CardRoute() {
       <div className="flex flex-col gap-1">
         {r.todos.map((todo, i) =>
           todo.card ? (
-            <div key={todo.card.id} className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2">
+            <div key={todo.card.id} className="flex flex-col gap-2 rounded-sm bg-card px-3 py-2">
               <button
                 type="button"
                 onClick={() => navigate(cardPath(todo.card!.id))}
@@ -726,7 +727,7 @@ export function CardRoute() {
     </div>
   );
 
-  const VERDICT_TONE = { met: "text-status-done", partial: "text-status-working", not: "text-status-blocked" } as const;
+  const VERDICT_TONE = { met: "text-status-done", partial: "text-status-working", not: "text-destructive" } as const;
   const askedPanel = (
     <Panel
       title={t("fiche.asked")}
@@ -839,7 +840,7 @@ export function CardRoute() {
               linkTo(
                 detail.predecessor,
                 dependencyMet(detail.predecessor) ? <Check className="size-3.5 shrink-0" /> : <CornerDownRight className="size-3.5 shrink-0" />,
-                dependencyMet(detail.predecessor) ? "text-status-done" : "text-status-blocked",
+                dependencyMet(detail.predecessor) ? "text-status-done" : "text-destructive",
               )
             ) : (
               <span className="text-muted-foreground">{t("fiche.link.none")}</span>
@@ -894,7 +895,7 @@ export function CardRoute() {
       {detail.lot && state === "todo" && (
         <p className="text-xs text-muted-foreground">
           {t("fiche.lotNote")}{" "}
-          <button type="button" onClick={() => navigate(projectPath(card.repoPath))} className="font-medium text-brand">
+          <button type="button" onClick={() => navigate(projectPath(card.repoPath))} className="font-medium underline underline-offset-4 decoration-muted-foreground hover:decoration-foreground">
             {t("lot.open")}
           </button>
         </p>
@@ -1042,7 +1043,7 @@ export function CardRoute() {
           {t("lot.open")}
         </Button>
         {hold.prUrl && (
-          <a href={hold.prUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full border bg-background px-3 text-sm font-medium">
+          <a href={hold.prUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-sm border bg-background px-3 text-sm font-medium">
             <GitPullRequest className="size-4" />
             {t("lot.pr")}
           </a>
@@ -1064,7 +1065,7 @@ export function CardRoute() {
       href={card.prUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-[10px] border bg-background text-sm font-medium shadow-xs hover:bg-accent"
+      className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-sm border bg-background text-sm font-medium shadow-xs hover:bg-accent"
     >
       <GitPullRequest className="size-4" />
       {prLabel(card.prUrl)}
@@ -1095,7 +1096,7 @@ export function CardRoute() {
       {latestReview && reviewBlock(latestReview)}
       {olderReviews.length > 0 && (
         <details className="flex flex-col gap-2">
-          <summary className="cursor-pointer text-[13px] font-medium text-brand">{t("fiche.reviews.previous", { count: olderReviews.length })}</summary>
+          <summary className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "w-fit cursor-pointer list-none text-[13px]")}>{t("fiche.reviews.previous", { count: olderReviews.length })}</summary>
           <div className="mt-2 flex flex-col gap-2">{olderReviews.map((r) => reviewBlock(r))}</div>
         </details>
       )}
@@ -1146,7 +1147,7 @@ export function CardRoute() {
         </div>
       )}
       <details>
-        <summary className="cursor-pointer text-[13px] font-medium text-brand">{t("fiche.bilan.reports")}</summary>
+        <summary className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "w-fit cursor-pointer list-none text-[13px]")}>{t("fiche.bilan.reports")}</summary>
         <div className="mt-3 flex flex-col gap-3">
           {report && <CardReportSection report={report} />}
           {[...detail.reviews].reverse().map((r) => reviewBlock(r, false))}
@@ -1318,13 +1319,13 @@ export function CardRoute() {
           <h1 className="max-w-[46ch] text-[26px] font-semibold leading-[1.15] tracking-[-0.02em]">{card.title}</h1>
           {/* Where it stands, in words: its column, the lot's step, who filed it and for whom, its tags. */}
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-muted-foreground">
-            {hold && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{hold.label}</span>}
+            {hold && <span className="rounded-sm bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{hold.label}</span>}
             {hold?.step ? (
-              <span className="rounded-full bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">{t(`lot.step.${hold.step}`)}</span>
+              <span className="rounded-sm bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">{t(`lot.step.${hold.step}`)}</span>
             ) : (
               <CardStatusChip status={card.status} className="normal-case tracking-normal">{CARD_STATUS_LABEL[card.status]}</CardStatusChip>
             )}
-            {!said.agent && <span className={said.tone === "bad" ? "text-status-blocked" : said.tone === "good" ? "text-status-done" : undefined}>{said.text}</span>}
+            {!said.agent && <span className={said.tone === "bad" ? "text-destructive" : said.tone === "good" ? "text-status-done" : undefined}>{said.text}</span>}
             {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
             {detail.awaiting && card.repoPath && <AwaitingTag awaiting={detail.awaiting} repo={card.repoPath} />}
             {phaseName && <span>{phaseName}</span>}
@@ -1410,7 +1411,7 @@ export function CopyPromptButton({ cardId }: { cardId: string }) {
       onClick={() => void copy(prompt)}
       aria-label={t("card.copyPrompt", { prompt })}
       title={canCopy ? prompt : copyUnavailableTitle()}
-      className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:pointer-events-none disabled:opacity-50"
+      className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:pointer-events-none disabled:opacity-50"
     >
       {copied ? <Check className="size-3 text-status-done" /> : <Copy className="size-3" />}
       {copied ? t("card.copied") : t("card.prompt")}
@@ -1851,7 +1852,7 @@ export function IntegrationSection({
       href={past.pr.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-[10px] border bg-background text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+      className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-sm border bg-background text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
     >
       <GitPullRequest className="size-4" />
       {prLabel(past.pr.url)}
@@ -1862,8 +1863,8 @@ export function IntegrationSection({
   // agent. A card that still HAS an agent gets the conflict handed to it instead (resolve, below).
   const reopen =
     pr?.conflicting && !card.session?.paneId ? (
-      <div className="flex flex-col gap-2.5 rounded-lg border border-dashed border-status-blocked/45 bg-status-blocked/10 px-3 py-3">
-        <p className="text-[13px] font-semibold text-status-blocked">
+      <div className="flex flex-col gap-2.5 rounded-lg border border-dashed border-destructive/45 bg-destructive/10 px-3 py-3">
+        <p className="text-[13px] font-semibold text-destructive">
           {t("int.noLongerMerges", { label: prLabel(pr.url, "").trim() })}
         </p>
         <p className="text-xs text-muted-foreground">
@@ -1871,7 +1872,7 @@ export function IntegrationSection({
         </p>
         <Button
           variant="outline"
-          className="h-[38px] w-full gap-2 rounded-[10px] bg-background"
+          className="h-[38px] w-full gap-2 rounded-sm bg-background"
           disabled={busy !== null}
           onClick={() => void run("reopen", t("int.lbl.reopened"))}
         >
@@ -2125,7 +2126,7 @@ export function IntegrationSection({
         <div className="flex flex-col gap-2">
           <Button
             variant="outline"
-            className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
+            className="h-[38px] w-full gap-2 rounded-sm disabled:opacity-45"
             disabled={busy !== null || integrated || state.branchDirty || mergeBlocker !== null}
             onClick={() => void run("merge", t("int.merged", { base: state.base }), filing)}
           >
@@ -2141,7 +2142,7 @@ export function IntegrationSection({
           {past.pr?.url && !integrated && !state.pushed && (
             <Button
               variant="outline"
-              className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
+              className="h-[38px] w-full gap-2 rounded-sm disabled:opacity-45"
               disabled={busy !== null || state.branchDirty}
               onClick={() => void run("pr", t("int.prUpdated"), filing)}
             >
@@ -2152,7 +2153,7 @@ export function IntegrationSection({
           {prLink ?? (
             <Button
               variant="outline"
-              className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
+              className="h-[38px] w-full gap-2 rounded-sm disabled:opacity-45"
               disabled={busy !== null || integrated || state.branchDirty}
               onClick={() => void run("pr", t("int.prOpened"), filing)}
             >
@@ -2271,7 +2272,7 @@ export function IntegrationSection({
               )}
               <Button
                 variant="outline"
-                className="h-[38px] w-full gap-2 rounded-[10px] border-destructive/40 text-destructive"
+                className="h-[38px] w-full gap-2 rounded-sm border-destructive/40 text-destructive"
                 disabled={busy !== null || card.wrapupPending}
                 onClick={() => {
                   if (!confirm("cleanup")) return;
@@ -2292,7 +2293,7 @@ export function IntegrationSection({
               className={
                 safeToDelete
                   ? "h-9 w-fit gap-2 text-destructive"
-                  : "h-[38px] w-full gap-2 rounded-[10px] border-destructive/40 text-destructive"
+                  : "h-[38px] w-full gap-2 rounded-sm border-destructive/40 text-destructive"
               }
               disabled={busy !== null}
               onClick={() => {
@@ -2697,7 +2698,7 @@ function ContainerSidebar({
         <div className="mt-3.5 flex flex-col gap-1.5">
           {PROGRESS_STATUSES.filter((s) => counts.has(s)).map((s) => (
             <div key={s} className="flex items-center gap-2 text-xs">
-              <span className={cn("size-2 shrink-0 rounded-full", CARD_DOT[s])} />
+              <StatusSignal status={cardSignal(s)} decorative />
               <span className="flex-1 text-foreground">{CARD_STATUS_LABEL[s]}</span>
               <span className="font-semibold tabular-nums text-muted-foreground">{counts.get(s)}</span>
             </div>
@@ -2707,7 +2708,7 @@ function ContainerSidebar({
 
       {blockedChildren.map((child) => (
         <div key={child.id} className="rounded-2xl border border-status-blocked/45 bg-status-blocked/8 p-4">
-          <span className="inline-flex items-center rounded-full bg-status-blocked px-2.5 py-[3px] text-xs font-semibold text-status-chip-foreground">
+          <span className="inline-flex items-center rounded-sm bg-status-blocked px-2.5 py-[3px] text-xs font-semibold text-status-chip-foreground">
             {CARD_STATUS_LABEL.blocked}
           </span>
           <button
@@ -2838,10 +2839,7 @@ function SubtaskList({
               )}
             >
               <GripVertical className="hidden size-[14px] shrink-0 cursor-grab text-muted-foreground/55 lg:block" />
-              <span
-                aria-hidden
-                className={cn("mt-[7px] size-2 shrink-0 rounded-full lg:mt-0", CARD_DOT[child.status])}
-              />
+              <StatusSignal status={cardSignal(child.status)} className="mt-[3px] lg:mt-0" decorative />
               {/* Desktop's own fixed status column — every row says its status here, not just a loud
                   one (mobile keeps the loud-only chip further down, since it has no spare column). */}
               <span
@@ -2875,7 +2873,7 @@ function SubtaskList({
                 {loud && (
                   <span
                     className={cn(
-                      "mt-1 inline-block shrink-0 rounded-full px-2 py-[3px] text-xs font-semibold text-status-chip-foreground lg:mt-0 lg:hidden",
+                      "mt-1 inline-block shrink-0 rounded-sm px-2 py-[3px] text-xs font-semibold text-status-chip-foreground lg:mt-0 lg:hidden",
                       CARD_DOT[child.status],
                     )}
                   >
@@ -2886,7 +2884,7 @@ function SubtaskList({
                   <div
                     className={cn(
                       "mt-1 flex min-w-0 shrink-0 items-center gap-1 text-[11px] lg:mt-0 lg:max-w-[200px]",
-                      dep.met ? "text-status-done" : "text-status-blocked",
+                      dep.met ? "text-status-done" : "text-destructive",
                     )}
                   >
                     <Lock className="size-[11px] shrink-0" />
@@ -2937,7 +2935,7 @@ function SubtaskList({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={t("card.sub.titlePh")}
-                className="h-10 min-w-0 flex-1 rounded-[10px] border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="h-10 min-w-0 flex-1 rounded-sm border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               />
               <Button type="submit" size="sm" className="h-10" disabled={!title.trim()}>
                 {t("card.sub.add")}
@@ -2960,7 +2958,7 @@ function SubtaskList({
               <button
                 type="button"
                 onClick={() => setAdding(true)}
-                className="flex min-h-10 items-center gap-1.5 rounded-[10px] bg-brand/16 px-3.5 text-sm font-semibold text-brand"
+                className="flex min-h-10 items-center gap-1.5 rounded-sm bg-brand/16 px-3.5 text-sm font-semibold text-brand"
               >
                 <Plus className="size-4" />
                 {t("card.sub.new")}

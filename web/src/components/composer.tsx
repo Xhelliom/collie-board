@@ -844,7 +844,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               {confirmingSend ? (
                 <Button
                   variant="destructive"
-                  className="h-11 shrink-0 rounded-full px-4 text-sm font-semibold"
+                  className="h-11 shrink-0 rounded-sm px-4 text-sm font-semibold"
                   onClick={onSendClick}
                   disabled={locked || !input.trim() || sending}
                   aria-label={tr("pane.send.really")}

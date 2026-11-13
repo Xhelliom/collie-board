@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { buttonVariants } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
 
 import { CardStatusChip } from "@/components/card-status-chip";
@@ -25,7 +26,7 @@ export const STEP_TONE: Partial<Record<CardView["status"], string>> = {
   starting: "bg-status-working",
   review: "bg-brand",
   blocked: "bg-status-blocked",
-  orphaned: "bg-status-blocked",
+  orphaned: "bg-destructive",
 };
 
 /** What the operator is being asked, for a step that waits on them. */
@@ -37,7 +38,7 @@ const ASK: Partial<Record<CardView["status"], MessageKey>> = {
 
 const CHIP_TONE: Record<Tone, string> = {
   good: "bg-status-done/15 text-status-done",
-  bad: "bg-status-blocked/15 text-status-blocked",
+  bad: "bg-destructive/15 text-destructive",
   warn: "bg-status-working/15 text-status-working",
   plain: "bg-muted text-muted-foreground",
 };
@@ -53,7 +54,7 @@ export const WHO = {
 function Who({ label, tone, children }: { label: string; tone: string; children: React.ReactNode }) {
   return (
     <li className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2.5 text-sm">
-      <span className={cn("rounded-[5px] px-1 py-1 text-center text-xs font-semibold uppercase leading-none tracking-widest", tone)}>
+      <span className={cn("rounded-sm px-1 py-1 text-center text-xs font-semibold leading-nonest", tone)}>
         {label}
       </span>
       <CollapsibleText lines={3} className="text-muted-foreground">{children}</CollapsibleText>
@@ -108,7 +109,7 @@ export function StepItem({
       data-group={group}
       style={{ animationDelay: `${Math.min(index, 20) * 35}ms` }}
       className={cn(
-        "scroll-mt-20 rounded-xl border bg-card/70 transition-[border-color,box-shadow] duration-300 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both",
+        "scroll-mt-20 rounded-sm bg-card transition-[border-color,box-shadow] duration-300 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both",
         group === "flight" && "border-status-working/45",
         group === "waiting" && "border-brand/45",
         next && "border-brand/60",
@@ -138,27 +139,27 @@ export function StepItem({
           <span className="flex flex-wrap items-center gap-1.5">
           {card.held && <HeldChip />}
           {facts?.awaiting && card.repoPath && <AwaitingTag awaiting={facts.awaiting} repo={card.repoPath} nested />}
-          {next && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{t("step.next")}</span>}
+          {next && <span className="rounded-sm bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{t("step.next")}</span>}
           {template && <TemplateChip name={template.name} inherited={template.inherited} className="text-xs py-0.5" />}
           {hold ? (
-            <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{hold.label}</span>
+            <span className="rounded-sm bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{hold.label}</span>
           ) : (
-            card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{t("step.inRun")}</span>
+            card.runId && !inLot && <span className="rounded-sm bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{t("step.inRun")}</span>
           )}
           {/* Where it runs when not here (ADR 0046 §4): said whether or not it is running. */}
           {card.environment && (
-            <span title={card.environment.name} className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+            <span title={card.environment.name} className="rounded-sm bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
               {t("cardEnv.on", { peer: card.environment.peer })}
             </span>
           )}
           {hold?.step ? (
-            <span className="rounded-full bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">{t(`lot.step.${hold.step}`)}</span>
+            <span className="rounded-sm bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">{t(`lot.step.${hold.step}`)}</span>
           ) : (
             <CardStatusChip status={card.status} />
           )}
           <MilestoneDots events={facts?.milestoneEvents} />
           {chips.map((c) => (
-            <span key={c.label} className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", CHIP_TONE[c.tone])}>
+            <span key={c.label} className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", CHIP_TONE[c.tone])}>
               {c.label}
             </span>
           ))}
@@ -231,7 +232,7 @@ export function StepItem({
               )}
               {hold?.prUrl && (
                 <Who label={t("step.who.pr")} tone={WHO.script}>
-                  <a href={hold.prUrl} target="_blank" rel="noreferrer" className="text-brand underline-offset-2 hover:underline">
+                  <a href={hold.prUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4 decoration-muted-foreground hover:decoration-foreground">
                     {t("lot.pr")} — {hold.prUrl.replace(/^https?:\/\/github\.com\//, "")}
                   </a>
                 </Who>
@@ -239,7 +240,7 @@ export function StepItem({
               {facts?.pr && !hold?.prUrl && (
                 <Who label={t("step.who.pr")} tone={WHO.script}>
                   {facts.pr.url ? (
-                    <a href={facts.pr.url} target="_blank" rel="noreferrer" className="text-brand underline-offset-2 hover:underline">
+                    <a href={facts.pr.url} target="_blank" rel="noreferrer" className="underline underline-offset-4 decoration-muted-foreground hover:decoration-foreground">
                       {facts.pr.url.replace(/^https?:\/\/github\.com\//, "")}
                     </a>
                   ) : (
@@ -283,7 +284,7 @@ export function StepItem({
                 </select>
               </label>
             )}
-            <Link to={cardPath(card.id)} className="self-start text-xs font-semibold text-brand">
+            <Link to={cardPath(card.id)} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "self-start text-xs")}>
               {t("step.open")}
             </Link>
           </div>

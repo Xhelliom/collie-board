@@ -7,7 +7,7 @@ import { doneThisWeek } from "@/lib/tile-state";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { CardTile } from "@/components/card-tile";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
@@ -85,7 +85,7 @@ const LANE_TONE: Record<LaneKey, string> = {
 
 /** « Sélectionner », « Filtrer »: present, but quiet beside the one primary action, « Nouvelle carte ». */
 const QUIET_ACTION =
-  "flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
+  "flex h-9 shrink-0 items-center gap-1.5 rounded-sm px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
 
 export function BoardRoute() {
   const t = useT();
@@ -475,7 +475,7 @@ export function BoardRoute() {
               <button
                 type="button"
                 onClick={() => setSelection(new Set(cards.filter(selectable).map((c) => c.id)))}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 px-2.5 py-[5px] text-xs font-semibold text-brand"
+                className="flex shrink-0 items-center gap-1 rounded-sm border border-brand/35 bg-brand/16 px-2.5 py-[5px] text-xs font-semibold text-brand"
               >
                 {t("board.allInPhase")}
               </button>
@@ -497,7 +497,7 @@ export function BoardRoute() {
           <>
             <Button
               variant="brand"
-              className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold sm:px-3.5"
+              className="h-9 gap-1.5 rounded-sm px-3 text-sm font-semibold sm:px-3.5"
               onClick={() => setNewOpen(true)}
             >
               <Plus className="size-4" />
@@ -601,7 +601,7 @@ export function BoardRoute() {
                       <button
                         type="button"
                         onClick={() => setParam("done", doneAll ? null : "all")}
-                        className="ml-auto text-sm text-brand hover:underline"
+                        className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "ml-auto")}
                       >
                         {doneAll ? t("board.thisWeek") : t("board.history")}
                       </button>

@@ -27,6 +27,20 @@ export const common = defineMessages({
   // A card's column. Lane names below must repeat a column's name only on the lane's FIRST column
   // (lib/board.test.ts), so "Actives" is not "En cours".
   "status.blocked": { en: "Needs you", fr: "À toi" },
+  // The state signal's spoken name (status-signal.tsx): the shape says it, this says it to a reader.
+  "signal.working": { en: "Working", fr: "Travaille" },
+  "signal.blocked": { en: "Waiting for you", fr: "T'attend" },
+  "signal.stuck": { en: "Stuck", fr: "Bloqué" },
+  "signal.done": { en: "Done", fr: "Fini" },
+  "signal.idle": { en: "Idle", fr: "Au repos" },
+  "signal.unknown": { en: "Unknown", fr: "Inconnu" },
+  // Actor tokens (actor-token.tsx): the letter on the square, then who it stands for.
+  "actor.letter.agent": { en: "A", fr: "A" },
+  "actor.letter.lead": { en: "L", fr: "L" },
+  "actor.letter.copilot": { en: "C", fr: "C" },
+  "actor.letter.orchestrator": { en: "O", fr: "O" },
+  "actor.letter.board": { en: "B", fr: "B" },
+  "actor.letter.you": { en: "Y", fr: "T" },
   "status.review": { en: "To review", fr: "À relire" },
   "status.working": { en: "In progress", fr: "En cours" },
   "status.starting": { en: "Starting", fr: "Démarrage" },

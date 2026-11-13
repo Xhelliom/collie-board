@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
  *  (a board card, Herd's loud card, a session in the card page's timeline) picks the same colour at
  *  the same percentage instead of re-deriving it. */
 export function ctxTone(pct: number): string {
-  return pct >= 85 ? "bg-status-blocked" : pct >= 70 ? "bg-status-working" : "bg-status-done";
+  return pct >= 85 ? "bg-destructive" : pct >= 70 ? "bg-status-working" : "bg-status-done";
 }
 
 /**

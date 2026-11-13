@@ -51,7 +51,7 @@ export function RepoOffer({ repo }: { repo: string }) {
     }
   }
 
-  if (!view) return error ? <p className="text-sm text-status-blocked">{error}</p> : null;
+  if (!view) return error ? <p className="text-sm text-destructive">{error}</p> : null;
   return (
     <Card className="gap-3 p-4" role="region" aria-label={t("repoOffer.title")}>
       <label className="flex items-center justify-between gap-3">
@@ -66,7 +66,7 @@ export function RepoOffer({ repo }: { repo: string }) {
           onCheckedChange={(on) => void run(() => (on ? addEnvironment(name, repo, agent) : removeEnvironment(env!.name)))}
         />
       </label>
-      {error && <p className="text-sm text-status-blocked">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <label className="flex flex-col gap-1 text-sm">
         {t("peers.env.agent")}
         <select

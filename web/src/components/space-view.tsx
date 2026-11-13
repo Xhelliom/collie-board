@@ -36,7 +36,7 @@ export function SpaceView({ workspace, tabs, agents, shellPanes, selectedTab, on
       {groups.map((g) => (
         <section key={g.tabId} className="flex flex-col gap-2">
           {selectedTab === null && (
-            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="px-1 text-xs font-semibold text-muted-foreground">
               {g.label}
             </h2>
           )}

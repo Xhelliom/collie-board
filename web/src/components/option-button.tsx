@@ -82,14 +82,14 @@ export function PromptPanel({ ariaLabel, children }: { ariaLabel: string; childr
 // separating the block from the raw mirror above it. Shared by both group headers below.
 const accentTick = <span aria-hidden className="h-3 w-0.5 shrink-0 rounded-full bg-primary/60" />;
 
-/** The compact caption above an option group — a short uppercase label, for the single-question
+/** The compact caption above an option group — a short label, for the single-question
  *  dialogs whose actual question stays visible in the raw scrollback just above. Non-semantic (the
  *  group is already aria-labelled by its question). */
 export function OptionGroupCaption({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-1.5 pl-0.5">
       {accentTick}
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-medium text-muted-foreground">
         {children}
       </span>
     </div>

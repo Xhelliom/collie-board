@@ -110,7 +110,7 @@ export function CardDiff({
               <>
                 {", "}
                 <span className="text-status-done">+{stat.added}</span>{" "}
-                <span className="text-status-blocked">−{stat.removed}</span>
+                <span className="text-destructive">−{stat.removed}</span>
               </>
             )}
           </>
@@ -122,7 +122,7 @@ export function CardDiff({
         </button>
       }
     >
-      {error && !stat && <p className="text-xs text-status-blocked">{t("diff.error", { error })}</p>}
+      {error && !stat && <p className="text-xs text-destructive">{t("diff.error", { error })}</p>}
 
       {stat && stat.files.length === 0 ? (
         // No way out offered here on purpose: the base is the bridge's one answer (`baseOf`), and a
@@ -135,16 +135,16 @@ export function CardDiff({
               key={f.path}
               type="button"
               onClick={() => setOpen(f)}
-              className="flex items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40 active:scale-[0.99]"
+              className="flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40 active:scale-[0.99]"
             >
               <FileDiff className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{f.path}</span>
               {f.kind === "untracked" ? (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                   {t("diff.new")}
                 </span>
               ) : f.kind === "binary" ? (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                   {t("diff.bin")}
                 </span>
               ) : (
@@ -158,7 +158,7 @@ export function CardDiff({
       )}
 
       {comments.length > 0 && (
-        <div className="flex flex-col gap-1.5 rounded-[10px] border border-border bg-card p-2.5">
+        <div className="flex flex-col gap-1.5 rounded-sm border border-border bg-card p-2.5">
           <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <MessageSquare className="size-3.5" />
             {t("diff.comment.batch", { count: comments.length })}
@@ -211,7 +211,7 @@ function StatBar({ added, removed, max }: { added: number; removed: number; max:
     <span className="shrink-0 font-mono text-xs tabular-nums">
       <span className="text-muted-foreground">{added + removed}</span>{" "}
       <span className="text-status-done">{"+".repeat(Math.min(plus, width))}</span>
-      <span className="text-status-blocked">{"−".repeat(Math.min(minus, width))}</span>
+      <span className="text-destructive">{"−".repeat(Math.min(minus, width))}</span>
     </span>
   );
 }
@@ -293,7 +293,7 @@ function FileDiffSheet({
         <button
           type="button"
           onClick={() => setOverride({ path: file.path, prose: !prose })}
-          className="mb-2 flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground"
+          className="mb-2 flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1 text-xs text-muted-foreground"
         >
           {prose ? <FileDiff className="size-3.5" /> : <BookOpen className="size-3.5" />}
           {prose ? t("diff.showDiff") : t("diff.readDoc")}
@@ -396,7 +396,7 @@ export function lineClass(line: string): string {
   if (line.startsWith("+++") || line.startsWith("---")) return "text-muted-foreground";
   if (line.startsWith("@@")) return "text-status-working";
   if (line.startsWith("+")) return "text-status-done";
-  if (line.startsWith("-")) return "text-status-blocked";
+  if (line.startsWith("-")) return "text-destructive";
   if (line.startsWith("diff ") || line.startsWith("index ")) return "text-muted-foreground";
   return "";
 }

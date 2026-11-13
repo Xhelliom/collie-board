@@ -41,7 +41,7 @@ export function RollbackControl() {
         {state === "busy" ? <Loader2 className="size-4 animate-spin" /> : <Undo2 className="size-4" />}
         {pending === "rollback" ? t("settings.updates.rollbackConfirm") : t("settings.updates.rollback", { version: previous })}
       </Button>
-      {state === "failed" && <span className="text-xs text-status-blocked">{t("settings.updates.rollbackFailed")}</span>}
+      {state === "failed" && <span className="text-xs text-destructive">{t("settings.updates.rollbackFailed")}</span>}
     </>
   );
 }

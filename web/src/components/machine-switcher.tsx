@@ -77,7 +77,7 @@ function MachineList({ view }: { view: PeersView }) {
 
   return (
     <ul className="flex flex-col gap-1 py-2">
-      <li className="flex items-center gap-3 rounded-[10px] bg-brand/16 px-3 py-3">
+      <li className="flex items-center gap-3 rounded-sm bg-brand/16 px-3 py-3">
         <Dot state="up" />
         <span className="min-w-0 flex-1 truncate font-semibold text-brand">{view.name}</span>
         <span className="text-xs text-muted-foreground">{t("machines.this")}</span>
@@ -90,7 +90,7 @@ function MachineList({ view }: { view: PeersView }) {
             <a
               href={p.url}
               {...(standalone ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-              className="flex items-center gap-3 rounded-[10px] px-3 py-3 transition-colors hover:bg-muted/60 active:bg-muted"
+              className="flex items-center gap-3 rounded-sm px-3 py-3 transition-colors hover:bg-muted/60 active:bg-muted"
             >
               <Dot state={state} />
               <span className="min-w-0 flex-1">
@@ -114,7 +114,7 @@ function Dot({ state }: { state: "up" | "down" | "pending" }) {
       aria-hidden
       className={cn(
         "size-2.5 shrink-0 rounded-full",
-        state === "up" ? "bg-status-done" : state === "down" ? "bg-status-blocked" : "animate-pulse bg-muted-foreground/40",
+        state === "up" ? "bg-status-done" : state === "down" ? "bg-destructive" : "animate-pulse bg-muted-foreground/40",
       )}
     />
   );

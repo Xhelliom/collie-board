@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import { FileText, SquareTerminal } from "lucide-react";
 
-import { STEP_TONE } from "@/components/project-step";
+import { StatusSignal, cardSignal } from "@/components/status-signal";
 import { useT } from "@/i18n";
 import { CARD_STATUS_LABEL, cardPath, type CardView } from "@/lib/board";
 import type { LotHold } from "@/lib/lot-hold";
@@ -23,10 +23,7 @@ export function CardRow({ card, hold = null, note }: { card: CardView; hold?: Lo
       data-group={group}
       className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto_2.75rem] items-center gap-x-2.5 rounded-lg px-2 py-1 hover:bg-muted/40 sm:grid-cols-[auto_minmax(0,1fr)_auto_2rem]"
     >
-      <span
-        aria-hidden="true"
-        className={cn("size-2 rounded-full", STEP_TONE[card.status] ?? "bg-muted-foreground/50", group === "flight" && "motion-safe:animate-pulse")}
-      />
+      <StatusSignal status={cardSignal(card.status)} decorative />
       {/* Never cut to a few letters: two lines on a wide screen, whole on a phone with the status under it. */}
       <span className="flex min-w-0 flex-col gap-x-3 sm:flex-row sm:items-center">
         <Link to={cardPath(card.id)} className="min-w-0 text-sm sm:line-clamp-2 font-medium leading-snug hover:underline sm:flex-1">

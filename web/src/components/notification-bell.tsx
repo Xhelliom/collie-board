@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { StatusSignal, type Signal } from "@/components/status-signal";
 import { Bell, X } from "lucide-react";
 import { useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 
@@ -29,13 +30,13 @@ const content = (e: NotifyLogEntry) => notifyContent(e, e.subtitle ?? null);
 /** The state dot, one colour per notifiable state. The board's own two reuse the tint the board
  *  already gives that card — `orphaned` for `stalled`, `ready` for `ready` (lib/board.ts) — so the
  *  bell and the column agree at a glance. */
-const DOT: Record<NotifyLogEntry["status"], string> = {
-  blocked: "bg-status-blocked",
-  stalled: "bg-status-unknown",
-  ready: "bg-status-idle",
-  done: "bg-status-done",
-  note: "bg-status-working",
-};
+const SIGNAL: Record<NotifyLogEntry["status"], Signal> = {
+  blocked: "blocked",
+  stalled: "stuck",
+  ready: "idle",
+  done: "done",
+  note: "idle",
+}
 
 export function NotificationBell() {
   const t = useT();
@@ -57,7 +58,7 @@ export function NotificationBell() {
         {count > 0 && (
           <span
             aria-hidden
-            className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-blocked px-1 text-[10px] font-bold tabular-nums text-white"
+            className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-sm bg-status-blocked px-1 text-[10px] font-bold tabular-nums text-white"
           >
             {count}
           </span>
@@ -161,9 +162,9 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
                 if (card) navigate(cardPath(card));
                 else if (e.paneId) navigate(panePath(e.paneId, e.session));
               }}
-              className="flex min-w-0 flex-1 items-start gap-2 rounded-[10px] py-2.5 pl-3 pr-2 text-left transition-colors hover:bg-muted/60 active:bg-muted"
+              className="flex min-w-0 flex-1 items-start gap-2 rounded-sm py-2.5 pl-3 pr-2 text-left transition-colors hover:bg-muted/60 active:bg-muted"
             >
-              <span className={`mt-1.5 size-2 shrink-0 rounded-full ${DOT[e.status]}`} aria-hidden />
+              <StatusSignal status={SIGNAL[e.status]} className="mt-0.5" decorative />
               <span className="min-w-0 flex-1">
                 {/* The same sentence the push sent, composed once (lib/notify-content.ts): the marker
                     and the SUBJECT here, then where/repo/what happened on the line below, which is

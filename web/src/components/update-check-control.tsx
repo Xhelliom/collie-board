@@ -79,7 +79,7 @@ export function UpdateCheckControl() {
           )}
         </Button>
         {/* Lightweight result — the actionable "available"/"restart" case is left to the UpdateBanner. */}
-        {!busy && error && <span className="text-xs text-status-blocked">{t("settings.updates.failed")}</span>}
+        {!busy && error && <span className="text-xs text-destructive">{t("settings.updates.failed")}</span>}
         {!busy && !error && upToDate && (
           <span className="text-xs text-muted-foreground">{t("settings.updates.upToDate")}</span>
         )}

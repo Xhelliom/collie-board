@@ -202,7 +202,7 @@ export function NavTray({ onSend, disabled }: NavTrayProps) {
             <button
               type="button"
               onClick={() => setCtrlOpen((o) => !o)}
-              className="flex items-center gap-1 px-1 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+              className="flex items-center gap-1 px-1 py-0.5 text-xs font-medium text-muted-foreground"
             >
               {t("pane.nav.presets")}
               <ChevronDown className={cn("size-3 transition-transform", ctrlOpen && "rotate-180")} />

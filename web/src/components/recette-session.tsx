@@ -77,7 +77,7 @@ export function RecetteSession({
           </div>
           <span className="flex items-center gap-3 text-xs tabular-nums" aria-label={t("recette.session.tally")}>
             <span className="inline-flex items-center gap-1 text-status-done"><Check className="size-3.5" aria-label={t("recette.step.markOk")} />{tally.ok}</span>
-            <span className="inline-flex items-center gap-1 text-status-blocked"><X className="size-3.5" aria-label={t("recette.step.markKo")} />{tally.ko}</span>
+            <span className="inline-flex items-center gap-1 text-destructive"><X className="size-3.5" aria-label={t("recette.step.markKo")} />{tally.ko}</span>
             <span className="inline-flex items-center gap-1 text-muted-foreground"><SkipForward className="size-3.5" aria-label={t("recette.step.markSkip")} />{tally.skip}</span>
           </span>
         </div>
@@ -153,13 +153,13 @@ function SessionStep({ item: { e, s }, onChange, onJudged, onNext }: { item: Ite
             type="button"
             onClick={() => (e.shots.includes(s.shot ?? e.shots[0]!) ? openLightbox(shots, at) : openLightbox([shot]))}
             aria-label={t("deliv.open", { name: s.shot ?? e.shots[0]! })}
-            className={cn("relative h-60 overflow-hidden rounded-[14px] border bg-muted/40 lg:h-[36rem]", FOCUS)}
+            className={cn("relative h-60 overflow-hidden rounded-sm border bg-muted/40 lg:h-[36rem]", FOCUS)}
           >
             <GalleryImg path={shot} alt={s.shot ?? e.shots[0]!} className="size-full object-contain" />
             <ZoomIn className="absolute bottom-2 right-2 size-7 rounded-full bg-background/85 p-1.5 text-foreground shadow" />
           </button>
         ) : (
-          <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed text-sm text-muted-foreground lg:h-[36rem]">
+          <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-sm border border-dashed text-sm text-muted-foreground lg:h-[36rem]">
             <Images className="size-6" aria-hidden />
             {t("recette.session.noShot")}
           </div>
@@ -184,7 +184,7 @@ function SessionStep({ item: { e, s }, onChange, onJudged, onNext }: { item: Ite
             <VerdictButtons big status={s.verdict?.status} busy={busy} onPick={(v) => void judge(v)} />
           </div>
           {(koed || s.verdict?.status === "ko") && (
-            <div className="flex flex-col gap-2 rounded-xl bg-status-blocked/8 p-3">
+            <div className="flex flex-col gap-2 rounded-xl bg-destructive/8 p-3">
               <KoNote busy={busy} onAdd={(n) => void addNote(s.id, n).then((ok) => ok && onNext())} />
               <button type="button" onClick={onNext} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "self-start", FOCUS)}>
                 {t("recette.session.continue")}

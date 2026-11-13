@@ -18,7 +18,7 @@ import { tileState, type TileTone } from "@/lib/tile-state";
 // Red means blocked and nothing else; a card waiting on you is loud in weight, not in colour.
 
 const TONE: Record<TileTone, string> = {
-  bad: "text-status-blocked",
+  bad: "text-destructive",
   good: "text-status-done",
   strong: "font-medium text-foreground",
   plain: "text-muted-foreground",
@@ -143,7 +143,7 @@ export function CardTile({
       <Card
         className={cn(
           "gap-1.5 rounded-2xl border p-3.5 shadow-sm transition-colors hover:bg-muted/40 lg:p-3",
-          !state.agent && state.tone === "bad" ? "border-status-blocked/45 bg-status-blocked/8" : "border-border",
+          !state.agent && state.tone === "bad" ? "border-destructive/45 bg-destructive/8" : "border-border",
         )}
       >
         <div
