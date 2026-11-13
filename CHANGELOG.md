@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.308.0] - 2026-11-13
+
+### Changed
+
+- Accueil : le titre est la phrase d'état ; dessous, les cartes à relire, bloquées et prêtes en une ligne de liens (3439733)
+- Agents en attente puis au travail, un par ligne avec projet et machine ; orchestrateurs exclus par défaut, filtre retenu par appareil (3439733)
+- Projets en cours un par ligne : objectif et budget, phase en cours avec sa barre, activité ; cinq puis « Tous les projets » (3439733)
+- Colonne Machines (état, moteur, agents, injoignable) à la place de la ligne d'erreur ; PR ouvertes et quota à part (3439733)
+- Un seul anneau, celui du projet, pour les agents au travail et le quota ; titres de section en casse normale (3439733)
+
 ## [0.307.0] - 2026-11-13
 
 ### Changed
