@@ -72,11 +72,11 @@ describe.each([":root", ".dark"] as const)("Balise contrast, %s", (theme) => {
 
   // The light theme's text inks (brand, status-*) are the signal colours a step darker: 4.5:1 is the
   // floor and the operator's own light values sit at 3.4–4.3 as text.
-  it("uses the operator's Balise values", () => {
+  it("uses the Semaphore colour values (true green, amber, orange, saturated blue)", () => {
     const want =
       theme === ".dark"
-        ? { background: "#0a1316", card: "#132227", foreground: "#e6f0ee", "text-secondary": "#bfd0cd", "muted-foreground": "#8fa6a3", brand: "#ff8f1f", "brand-foreground": "#1e1000", "signal-working": "#5ed6c0", "signal-stuck": "#e8476a", "status-info": "#8ec1f0" }
-        : { background: "#eef3f1", card: "#ffffff", foreground: "#0b1a1c", "text-secondary": "#2e4442", "muted-foreground": "#4c625f", "signal-blocked": "#c25e00", "signal-working": "#0e8c78", "signal-stuck": "#c42c4e" };
+        ? { "status-done": "#3ccf6e", "status-working": "#f5b83d", "signal-working": "#f5b83d", "signal-blocked": "#ff7a1a", brand: "#ff7a1a", "status-info": "#4fa3ff", "md-heading": "#4fa3ff" }
+        : { "status-done": "#136f37", "signal-blocked": "#d85f00", "signal-working": "#a86f00", brand: "#a84300", "status-info": "#1a5fb8", "md-heading": "#1a5fb8" };
     for (const [k, v] of Object.entries(want)) expect(t[k], k).toBe(v);
   });
 });
