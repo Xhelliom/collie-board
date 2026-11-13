@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794602603791.0003.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Épinglés au style de l Accueil et PR docs(plan) roulante"}}
 {"v":1,"hlc":"1794602603791.0004.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"max_parallel":2}}
 {"v":1,"hlc":"1794602634763.0000.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1794602633515}}
+{"v":1,"hlc":"1794603587590.0002.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"finished_at":1794603587566}}
