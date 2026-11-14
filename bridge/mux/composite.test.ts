@@ -140,6 +140,13 @@ describe("CompositeMux", () => {
     expect(h.calls.at(-1)?.split(" ")[0]).toBe("createWorkspace");
   });
 
+  test("a mux nobody snapshots (the copilot's) still launches on hc when hc answers", async () => {
+    const { mux, h, c } = setup("auto");
+    await mux.createWorkspace({ cwd: "/r" });
+    expect(c.calls.map((x) => x.split(" ")[0])).toEqual(["createWorkspace"]);
+    expect(h.calls).toEqual([]);
+  });
+
   test("a pinned engine is never a fallback, and a bridge without hc has nothing to fall back from", () => {
     expect(setup("herdr09").mux.launchEngine()).toEqual({ engine: "herdr09", fallback: false });
     expect(new CompositeMux({ herdr09: fake([]).mux }, "auto").launchEngine()).toEqual({ engine: "herdr09", fallback: false });

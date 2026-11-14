@@ -65,6 +65,12 @@ export class CompositeMux implements Mux {
     return { engine: this.launchEngine().engine, hc: (this.engines.hc as { hello?: HcHello | null } | undefined)?.hello ?? null };
   }
 
+  /** {@link launchEngine} for an actual launch: a mux nobody snapshots (the copilot's) asks hc itself. */
+  private async launcher(op: string): Promise<Mux> {
+    if (this.launch === "auto" && this.engines.hc && !this.hcUp) this.hcUp = await this.engines.hc.ping();
+    return this.on(this.launchEngine().engine, op);
+  }
+
   private kinds(): MuxKind[] {
     return Object.keys(this.engines) as MuxKind[];
   }
@@ -179,8 +185,8 @@ export class CompositeMux implements Mux {
   }
 
   // ── Spaces and tabs: a new space is a launch; the rest goes to the owner ──
-  createWorkspace(opts: { cwd: string; label?: string; show?: BoardTab }): Promise<CreatedShell> {
-    return this.on(this.launchEngine().engine, "createWorkspace").createWorkspace(opts);
+  async createWorkspace(opts: { cwd: string; label?: string; show?: BoardTab }): Promise<CreatedShell> {
+    return (await this.launcher("createWorkspace")).createWorkspace(opts);
   }
   async createTab(workspaceId: string, opts?: { label?: string; cwd?: string; show?: BoardTab }) {
     return (await this.to(workspaceId, "createTab")).createTab(workspaceId, opts);
@@ -208,11 +214,11 @@ export class CompositeMux implements Mux {
   async paneProcess(paneId: string) { return (await this.to(paneId, "paneProcess")).paneProcess(paneId); }
 
   // ── Worktrees: a new checkout's pane is a launch; removing one goes to its space's owner ──
-  createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string; show?: BoardTab }): Promise<CreatedWorktree> {
-    return this.on(this.launchEngine().engine, "createWorktree").createWorktree(opts);
+  async createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string; show?: BoardTab }): Promise<CreatedWorktree> {
+    return (await this.launcher("createWorktree")).createWorktree(opts);
   }
-  openWorktree(opts: { cwd: string; branch: string; label?: string; show?: BoardTab }): Promise<CreatedWorktree> {
-    return this.on(this.launchEngine().engine, "openWorktree").openWorktree(opts);
+  async openWorktree(opts: { cwd: string; branch: string; label?: string; show?: BoardTab }): Promise<CreatedWorktree> {
+    return (await this.launcher("openWorktree")).openWorktree(opts);
   }
   async removeWorktree(opts: { workspaceId: string; force?: boolean }) {
     return (await this.to(opts.workspaceId, "removeWorktree")).removeWorktree(opts);

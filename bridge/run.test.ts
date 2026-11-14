@@ -1439,6 +1439,23 @@ describe("a repo set to merge direct (ADR 0043)", () => {
     expect(w.calls.slice(-2)).toEqual(["merge a", "done a"]);
   });
 
+  it("a green gate buried under 150 copilot failures still merges — the gate is read by type, not a window", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db, { direct: true });
+    w.setGate("tools/gate");
+    const check = w.ports.lead.check;
+    w.ports.lead.check = async (i) => {
+      for (let n = 0; n < 150; n++) db.recordEvent(a.id, "copilot.review_failed", { sessionId: null });
+      return check(i);
+    };
+    await toIntegration(db, a, w);
+    for (let i = 0; i < 2; i++) (w.coord.update(snap({ "p-a": "idle" })), await flush());
+    expect(db.listEventsOf(a.id, ["run.gate"])[0]!.payload).toMatchObject({ ok: true });
+    expect(w.calls.slice(-2)).toEqual(["merge a", "done a"]);
+  });
+
   it("a lot merged direct lands each card on its own: no lot branch, no fold", async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });

@@ -644,7 +644,7 @@ export class RunCoordinator {
    * which `stepFor` reads as a new landing — the gate, then the lead, on what the branch holds now.
    */
   private async moved(run: Run, card: Card): Promise<boolean> {
-    const verdict = newest(this.db.listEvents(card.id, 200), (e) => e.type === "run.decision" && isRun(e, run.id) && isVerdict(e));
+    const verdict = this.db.listEventsOf(card.id, ["run.decision"]).findLast((e) => isRun(e, run.id) && isVerdict(e));
     const reviewed = (verdict?.payload as { head?: string } | undefined)?.head;
     const head = await this.ports.head?.(card);
     if (!reviewed || !head || head === reviewed) return false;
@@ -655,7 +655,8 @@ export class RunCoordinator {
   /** ADR 0027: the board merges only what the gate passed on this run. No gate set = the lead's word alone. */
   private mergeGate(run: Run, card: Card): MergeGate {
     const command = this.ports.gateCommand(card);
-    const verdict = newest(this.db.listEvents(card.id), (e) => e.type === "run.gate" && isRun(e, run.id));
+    // By type, not a window: a copilot failing in a loop once pushed a green gate out of the newest 100.
+    const verdict = this.db.listEventsOf(card.id, ["run.gate"]).findLast((e) => isRun(e, run.id));
     const ok = !command || (verdict?.payload as { ok?: boolean } | undefined)?.ok === true;
     return {
       runId: run.id,
