@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { MASK, redactAnsi, redactDeep, redactSegments, redactText } from "./redact.ts";
+import { MASK, redactAnsi, redactDeep, redactSegments, redactText, revealAt } from "./redact.ts";
 
 // PLACEHOLDERS ONLY. No string here is a real key. The ones whose shape a repo-wide secret scan
 // would flag (`ghp_…`, `AKIA…`, a bare `sk-…`) are joined at runtime from two halves, so the scan in
@@ -229,5 +229,26 @@ describe("redact — the board's wiring", () => {
       }).stdout.toString();
     expect(run("off")).toBe(OPENAI);
     expect(run("")).not.toBe(OPENAI);
+  });
+});
+
+describe("revealAt — the one secret behind a tapped mask", () => {
+  const screen = `$ cat .env  # ${"-".repeat(90)}\nDB_PASSWORD=hunter2hunter2\nKEY=${OPENROUTER}\nDB_PASSWORD=hunter2hunter2\n$ `;
+  const masked = redactAnsi(screen).split("\n");
+
+  test("answers the secret under the column, counting identical rows from the bottom", () => {
+    expect(revealAt(screen, masked[3]!, 0, 13)).toBe("hunter2hunter2");
+    expect(revealAt(screen, masked[1]!, 1, 13)).toBe("hunter2hunter2");
+    expect(revealAt(`\x1b[32m${screen}\x1b[0m`, masked[2]!, 0, 10)).toBe(OPENROUTER.slice(4));
+  });
+
+  test("answers nothing off a mask, off screen, or for a row that changed", () => {
+    expect(revealAt(screen, masked[3]!, 0, 2)).toBeNull();
+    expect(revealAt(screen, masked[3]!, 2, 13)).toBeNull();
+    expect(revealAt(screen, "DB_PASSWORD=••••", 0, 13)).toBeNull();
+  });
+
+  test("the default read still carries no secret", () => {
+    expect(redactAnsi(screen)).not.toContain("hunter2hunter2");
   });
 });

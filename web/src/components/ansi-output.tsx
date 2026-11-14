@@ -1,5 +1,7 @@
-import { Fragment, memo, useEffect, useMemo, useRef } from "react";
-import type { CSSProperties } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
+
+import { useT } from "@/i18n";
 
 import { cn } from "@/lib/utils";
 import { parseAnsi, type AnsiSegment } from "@/lib/ansi";
@@ -64,7 +66,13 @@ export interface AnsiOutputProps {
   onMultiSelectAction?: (action: MultiSelectIntent, multi: MultiSelectModel) => void | Promise<void>;
   /** Disable the prompt-select/wizard/preview/multi-select buttons (read-only device / gone pane). */
   promptDisabled?: boolean;
+  /** Fetch the secret behind one mask (lib/api.ts revealSecret). Absent = masks render as plain text. */
+  onReveal?: (line: string, fromEnd: number, col: number) => Promise<string | null>;
 }
+
+// A run of the bridge's mask character (bridge/redact.ts MASK). Six or more: every mask the bridge
+// writes is at least eight wide, and a short run of bullets is someone's list, not a secret.
+const MASK_RUN = /•{6,}/g;
 
 // Stable empty result so the "not searching" path keeps the same `matches` reference across polls
 // (no needless effect re-runs / parent count updates while find is closed).
@@ -120,7 +128,17 @@ export const AnsiOutput = memo(function AnsiOutput({
   onPreviewAction,
   onMultiSelectAction,
   promptDisabled,
+  onReveal,
 }: AnsiOutputProps) {
+  const tr = useT();
+  // Revealed secrets, keyed by where the mask sits. Component state only: leaving the pane unmounts
+  // it, and hiding the app clears it, so a secret is masked again whenever the operator looks away.
+  const [revealed, setRevealed] = useState<ReadonlyMap<string, string | null>>(new Map());
+  useEffect(() => {
+    const hide = () => document.visibilityState === "hidden" && setRevealed(new Map());
+    document.addEventListener("visibilitychange", hide);
+    return () => document.removeEventListener("visibilitychange", hide);
+  }, []);
   const segments = useMemo(() => parseAnsi(text), [text]);
   const blocks = useMemo(() => buildBlocks(splitLines(segments), { agent }), [segments, agent]);
 
@@ -144,6 +162,62 @@ export const AnsiOutput = memo(function AnsiOutput({
     () => blocks.find((b): b is MultiBlock => b.kind === "multi-select") ?? null,
     [blocks],
   );
+
+  // For every raw line that carries a mask: how many identical lines sit below it (the reveal route
+  // counts from the bottom). Empty, and nothing walked twice, on a screen with no mask.
+  const fromEnd = useMemo(() => {
+    const out = new Map<number, number>();
+    if (!onReveal) return out;
+    const texts = rawBlocks.flatMap((b) => b.lines.map(lineText));
+    const below = new Map<string, number>();
+    for (let i = texts.length - 1; i >= 0; i--) {
+      const t = texts[i]!;
+      if (!t.includes("••••••")) continue;
+      const n = below.get(t) ?? 0;
+      below.set(t, n + 1);
+      out.set(i, n);
+    }
+    return out;
+  }, [rawBlocks, onReveal]);
+
+  // One segment's text with each mask followed by its « Afficher » chip. `col` is the segment's start
+  // column in its line. shortcut: a mask split by a colour change is found from its first piece only.
+  const withReveal = (textOfSeg: string, line: string, below: number, col: number): ReactNode => {
+    if (!textOfSeg.includes("••••••")) return textOfSeg;
+    const parts: ReactNode[] = [];
+    let at = 0;
+    for (const m of textOfSeg.matchAll(MASK_RUN)) {
+      const key = `${below}\u0000${col + m.index}\u0000${line}`;
+      const state = revealed.get(key);
+      const shown = typeof state === "string";
+      parts.push(
+        textOfSeg.slice(at, m.index),
+        <span key={`v${m.index}`} className={shown ? "rounded-[2px] bg-terminal-foreground/15" : undefined}>
+          {shown ? state : m[0]}
+        </span>,
+        <button
+          key={`b${m.index}`}
+          type="button"
+          disabled={state === null}
+          aria-label={shown ? tr("pane.secret.hide") : tr("pane.secret.showLabel")}
+          onClick={async () => {
+            if (shown) {
+              setRevealed((prev) => { const next = new Map(prev); next.delete(key); return next; });
+              return;
+            }
+            const value = await onReveal!(line, below, col + m.index).catch(() => null);
+            setRevealed((prev) => new Map(prev).set(key, value));
+          }}
+          className="mx-1 inline-block select-none rounded-[3px] border border-terminal-muted px-1 align-baseline font-sans text-[0.85em] leading-[1.15] text-terminal-foreground hover:bg-terminal-foreground/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-foreground disabled:opacity-60"
+        >
+          {state === null ? tr("pane.secret.gone") : shown ? tr("pane.secret.hide") : tr("pane.secret.show")}
+        </button>,
+      );
+      at = m.index + m[0].length;
+    }
+    parts.push(textOfSeg.slice(at));
+    return parts;
+  };
 
   // Find offsets live over the *raw* mirror text (raw blocks joined by "\n", lines joined by "\n").
   // The join only runs while actually searching, so the idle polling path pays nothing.
@@ -205,6 +279,7 @@ export const AnsiOutput = memo(function AnsiOutput({
   // Fast path — not searching. No global offsets, no splitSegment: one plain span per segment, with
   // "\n" text nodes between lines (and between raw blocks). Identical DOM text to the pre-blocks render.
   if (matches.length === 0) {
+    let lineIndex = 0;
     return (
       <>
         {rawBlocks.length > 0 && (
@@ -212,16 +287,24 @@ export const AnsiOutput = memo(function AnsiOutput({
             {rawBlocks.map((block, bi) => (
               <Fragment key={bi}>
                 {bi > 0 ? "\n" : null}
-                {block.lines.map((line, li) => (
-                  <Fragment key={li}>
-                    {li > 0 ? "\n" : null}
-                    {line.segments.map((s, si) => (
-                      <span key={si} style={styleFor(s)}>
-                        {s.text}
-                      </span>
-                    ))}
-                  </Fragment>
-                ))}
+                {block.lines.map((line, li) => {
+                  const below = fromEnd.get(lineIndex++);
+                  let col = 0;
+                  return (
+                    <Fragment key={li}>
+                      {li > 0 ? "\n" : null}
+                      {line.segments.map((s, si) => {
+                        const start = col;
+                        col += s.text.length;
+                        return (
+                          <span key={si} style={styleFor(s)}>
+                            {below === undefined ? s.text : withReveal(s.text, lineText(line), below, start)}
+                          </span>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                })}
               </Fragment>
             ))}
           </pre>
