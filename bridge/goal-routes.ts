@@ -67,6 +67,11 @@ export function weekPercent(u: ClaudeUsage | null): number | null {
 /** {@link weekPercent} of a reading no older than the TTL, else null: a stale gauge journaled as a fact is worse than « inconnu ». */
 export const freshWeekPercent = (u: ClaudeUsage | null, now = Date.now()): number | null => weekPercent(u && now - u.checkedAt < USAGE_TTL_MS ? u : null);
 
+/** Journals the week gauge at a lot's start — off the request (the CLI read can take seconds); null if the read fails. */
+export function recordStartGauge(db: BoardDb, runId: string, read: () => Promise<ClaudeUsage | null> = () => usageTracker.get()): Promise<void> {
+  return read().catch(() => null).then((u) => void db.recordRunEvent(null, "run.quota", { runId, at: "start", percent: freshWeekPercent(u) }));
+}
+
 function claimOf(db: BoardDb, goalId: string): GoalView["claim"] {
   const e = db.lastGoalClaim(goalId);
   const proofs = (e?.payload as { proofs?: unknown } | null)?.proofs;

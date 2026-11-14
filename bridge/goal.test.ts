@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
-import { parseBudget, DEFAULT_BUDGET, weekPercent } from "./goal-routes.ts";
+import { parseBudget, DEFAULT_BUDGET, recordStartGauge, weekPercent } from "./goal-routes.ts";
 
 const ctx = (db: BoardDb) =>
   ({
@@ -184,5 +184,33 @@ describe("goal budget and quota", () => {
     expect(parseBudget({ maxLots: 1.5 }, DEFAULT_BUDGET)).toBeTypeOf("string");
     expect(parseBudget({ deadline: "tomorrow" }, DEFAULT_BUDGET)).toBeTypeOf("string");
     expect(parseBudget({ maxLots: 2 }, DEFAULT_BUDGET)).toEqual({ ...DEFAULT_BUDGET, maxLots: 2 });
+  });
+});
+
+describe("the start gauge of a lot", () => {
+  const usage = { checkedAt: Date.now(), limits: [{ label: "Current week (all models)", percent: 37 }] } as never;
+  it("is journaled by the helper; a failed read gives null", async () => {
+    const db = new BoardDb(":memory:");
+    const run = db.createRun({ repoPath: "/r", cardIds: [], foldInCap: 1, planned: false });
+    await recordStartGauge(db, run.id, async () => usage);
+    expect(db.runQuota(run.id).start).toBe(37);
+    const run2 = db.createRun({ repoPath: "/r", cardIds: [], foldInCap: 1, planned: false });
+    await recordStartGauge(db, run2.id, async () => { throw new Error("cli"); });
+    expect(db.runQuota(run2.id).start).toBeNull();
+  });
+  it("a lot created unplanned via POST /api/runs has a start reading", async () => {
+    const { usageTracker } = await import("./usage.ts");
+    const orig = usageTracker.get;
+    usageTracker.get = (async () => usage) as never;
+    try {
+      const db = new BoardDb(":memory:");
+      const card = db.createCard({ title: "c", repoPath: "/r" });
+      const r = await call(db, "POST", "/api/runs", { cardIds: [card.id], foldInCap: 1 });
+      expect(r.status).toBe(201);
+      await new Promise((res) => setTimeout(res, 0));
+      expect(db.runQuota(r.body.run.id).start).toBe(37);
+    } finally {
+      usageTracker.get = orig;
+    }
   });
 });

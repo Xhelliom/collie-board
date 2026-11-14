@@ -82,7 +82,7 @@ import { handleFactsRoute } from "./project-facts.ts";
 import { handleQuickRoute } from "./project-quick.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
 import { handleProjectRoute } from "./project-routes.ts";
-import { GOAL_JOURNAL, goalView, handleGoalRoute, weekPercent } from "./goal-routes.ts";
+import { GOAL_JOURNAL, goalView, handleGoalRoute, recordStartGauge, weekPercent } from "./goal-routes.ts";
 import { goalOfOrchestrator, openGoalOf, recordCheckpoint } from "./goal-mode.ts";
 import { handleRecetteRoute, parseRecetteBody } from "./recette.ts";
 import { handleDocsRoute } from "./docs.ts";
@@ -1091,6 +1091,8 @@ async function route(
       maxParallel: (maxParallel as number | null | undefined) ?? null,
       integration: integration as Integration | undefined,
     });
+    // A lot created unplanned is launched by createRun, never through /launch: its start reading is taken here.
+    if (run.launchedAt !== null) void recordStartGauge(ctx.db, run.id);
     ctx.audit.record({
       action: "run.create",
       session: ctx.session,
