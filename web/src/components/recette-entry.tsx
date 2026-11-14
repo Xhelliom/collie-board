@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { ArrowUpRight, Check, ChevronDown, Circle, CircleDot, GitPullRequest, Images, SkipForward, Smartphone, Sparkles, X, ZoomIn } from "lucide-react";
+import { ArrowUpRight, Archive, ArchiveRestore, Check, ChevronDown, Circle, CircleDot, GitPullRequest, Images, SkipForward, Smartphone, Sparkles, X, ZoomIn } from "lucide-react";
 
 import { ActorToken } from "@/components/actor-token";
 import { GalleryImg } from "@/components/gallery-img";
@@ -10,7 +10,7 @@ import { ApiError } from "@/lib/api";
 import { boardErrorMessage, cardPath, deliverableUrl, projectPath, repoName, sortOf } from "@/lib/board";
 import { openLightbox } from "@/lib/lightbox";
 import { ago } from "@/lib/project-facts";
-import { isPending, postVerdict, prepareStep, prLabel, stepDevice, stepTarget, type CheckStatus, type RecetteEntry, type RecetteStep } from "@/lib/recette";
+import { isPending, postAside, postVerdict, prepareStep, prLabel, stepDevice, stepTarget, type CheckStatus, type RecetteEntry, type RecetteStep } from "@/lib/recette";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -207,6 +207,30 @@ export function useChecksLine() {
 /** The first step still without a verdict — else a KO one, else none. */
 const firstOpen = (e: RecetteEntry) => (e.steps.find((s) => !s.verdict) ?? e.steps.find((s) => s.verdict?.status === "ko"))?.id ?? null;
 
+/** « Mettre de côté » / « Remettre dans la file »: out of the active queue, never lost. */
+function AsideButton({ entry: e, onChange }: { entry: RecetteEntry; onChange: () => Promise<void> }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const Icon = e.aside ? ArchiveRestore : Archive;
+  async function toggle() {
+    setBusy(true);
+    try {
+      await postAside(e.cardId, !e.aside);
+      await onChange();
+    } catch (err) {
+      setStatus(boardErrorMessage(err), "error", null);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button type="button" disabled={busy} onClick={() => void toggle()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-muted-foreground", FOCUS)}>
+      <Icon className="size-4" aria-hidden />
+      {t(e.aside ? "recette.aside.restore" : "recette.aside.set")}
+    </button>
+  );
+}
+
 export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry; defaultOpen: boolean; onChange: () => Promise<void> }) {
   const t = useT();
   const checksLine = useChecksLine();
@@ -215,7 +239,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
   const [picked, setPicked] = useState<number | null>(null);
   const { busy, send, addNote } = useVerdict(e, onChange);
   const shots = e.shots.map((s) => deliverableUrl(e.cardId, s));
-  const validated = !isPending(e);
+  const validated = !isPending(e) && !e.aside;
   const cur = e.steps.find((s) => s.id === current) ?? null;
   // The visual follows the current step's own capture until a thumbnail is picked.
   const stepShot = cur?.shot ? e.shots.indexOf(cur.shot) : -1;
@@ -260,6 +284,12 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
     </span>
   );
 
+  const asideLine = e.aside && (
+    <span className="text-xs text-muted-foreground">
+      {e.asideBy ? t("recette.aside.by", { by: e.asideBy.by, ago: ago(e.asideBy.at) }) + (e.asideBy.note ? ` — ${e.asideBy.note}` : "") : t("recette.aside.age")}
+    </span>
+  );
+
   if (!unfolded) {
     return (
       <article className={cn("flex min-w-0 items-center gap-3 rounded-sm border border-l-4 bg-card p-2.5", STATE_EDGE[e.state], validated && "bg-status-done/5")}>
@@ -276,7 +306,9 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
           <Thread entry={e} />
           {toggle}
           {status}
+          {asideLine}
         </div>
+        <AsideButton entry={e} onChange={onChange} />
         <button
           type="button"
           onClick={() => setUnfolded(true)}
@@ -325,6 +357,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
           <Thread entry={e} />
           {toggle}
           {status}
+          {asideLine}
           <ol className="flex flex-col gap-1">
             {e.steps.map((s) => {
               const isCurrent = s.id === current;
@@ -389,6 +422,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
                 {t("recette.fixCard")}
               </Link>
             )}
+            <AsideButton entry={e} onChange={onChange} />
             <Link to={cardPath(e.cardId)} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-muted-foreground", FOCUS)}>
               {t("recette.cardDetail")}
             </Link>

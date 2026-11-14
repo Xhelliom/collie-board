@@ -127,6 +127,7 @@ const REPOS_GATE_ROUTE = "/api/repos/gate";
 /** `/api/repos/integration` — how a run lands a repo's cards: a PR, or a merge direct (ADR 0043). */
 const REPOS_INTEGRATION_ROUTE = "/api/repos/integration";
 const REPOS_PLAN_EXPORT_ROUTE = "/api/repos/plan-export";
+const REPOS_RECETTE_ASIDE_ROUTE = "/api/repos/recette-aside";
 const REPOS_MODEL_ROUTE = "/api/repos/model";
 /** `/api/repos/gate/suggest` — the copilot's suggestion for it. Returned, never saved. */
 const REPOS_GATE_SUGGEST_ROUTE = "/api/repos/gate/suggest";
@@ -678,6 +679,28 @@ async function route(
     ctx.db.setPlanExport(path.trim(), enabled);
     ctx.audit.record({ action: "repo.plan_export", session: ctx.session, device: ctx.device, detail: { path: path.trim(), enabled } });
     return ctx.json({ ok: true, enabled });
+  }
+
+  // Recette: days after which a delivery with no verdict leaves the active queue (default 30). The
+  // operator's setting — an agent pane may read it, never set it.
+  if (pathname === REPOS_RECETTE_ASIDE_ROUTE) {
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      const repo = new URL(req.url).searchParams.get("repo");
+      if (!repo) return ctx.text("repo required", 400);
+      return ctx.json({ days: ctx.db.recetteAsideDaysOf(repo) });
+    }
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("the recette threshold is the operator's setting — an agent pane may not change it", 403);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const { path, days } = ((await req.json().catch(() => null)) ?? {}) as { path?: unknown; days?: unknown };
+    if (typeof path !== "string" || path.trim() === "") return ctx.text("path required", 400);
+    if (typeof days !== "number" || !Number.isInteger(days) || days < 1 || days > 3650) return ctx.text("days must be a whole number from 1 to 3650", 400);
+    ctx.db.setRecetteAsideDays(path.trim(), days);
+    ctx.audit.record({ action: "repo.recette_aside_days", session: ctx.session, device: ctx.device, detail: { path: path.trim(), days } });
+    return ctx.json({ ok: true, days });
   }
 
   // The model (and effort) of every launch in this repo whose template names none, per harness. The

@@ -277,7 +277,7 @@ describe("reconcileOne", () => {
     manualChecks: [],
     capability: null,
     usageGroup: null,
-    checkVerdicts: {},
+    checkVerdicts: {}, checkAside: null,
     held: null,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
@@ -681,7 +681,7 @@ describe("initialPrompt", () => {
     manualChecks: [],
     capability: null,
     usageGroup: null,
-    checkVerdicts: {},
+    checkVerdicts: {}, checkAside: null,
     held: null,
   };
 
@@ -1446,7 +1446,7 @@ describe("handoff prompts", () => {
     manualChecks: [],
     capability: null,
     usageGroup: null,
-    checkVerdicts: {},
+    checkVerdicts: {}, checkAside: null,
     held: null,
   };
 

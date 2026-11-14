@@ -105,6 +105,17 @@ export function openFixOf(cards: readonly Pick<Card, "id" | "originCardId" | "st
   return cards.find((c) => c.originCardId === cardId && c.status !== "done" && c.status !== "archived")?.id ?? null;
 }
 const RECETTE_ROUTE = "/api/recette";
+const ASIDE_ROUTE = /^\/api\/cards\/([^/]+)\/recette-aside$/;
+const DAY_MS = 86_400_000;
+
+/**
+ * Out of the active queue: the last gesture decides; with none, a delivery older than `days` that no
+ * verdict ever touched. Never lost — the « Mises de côté » filter lists it. Pure.
+ */
+export function isAside(card: Pick<Card, "checkAside" | "checkVerdicts">, deliveredAt: number, days: number, now = Date.now()): boolean {
+  if (card.checkAside) return card.checkAside.aside;
+  return Object.keys(card.checkVerdicts).length === 0 && now - deliveredAt > days * DAY_MS;
+}
 
 /**
  * When a card was delivered: its merge, else its move to done, else its last write — null when it is
@@ -172,14 +183,16 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
         const lot = lotOf(ctx, c);
         // Its own PR, else — a one-PR lot — the lot's, journaled on whichever member opened it.
         const prUrl = newestPrUrl([events]) ?? (lot ? newestPrUrl(lot.members) : null);
-        return { card: c, at: deliveredAt(c, events, lot), state: recetteState(c), followUpDone: fixed.has(c.id), prUrl };
+        const at = deliveredAt(c, events, lot);
+        const aside = at !== null && isAside(c, at, ctx.db.recetteAsideDaysOf(c.repoPath));
+        return { card: c, at, state: recetteState(c), aside, followUpDone: fixed.has(c.id), prUrl };
       })
       .filter((e): e is typeof e & { at: number } => e.at !== null)
-      .filter((e) => e.at >= since && (all || (e.state !== "ok" && !(e.state === "ko" && e.followUpDone))))
+      .filter((e) => e.at >= since && (all || (!e.aside && e.state !== "ok" && !(e.state === "ko" && e.followUpDone))))
       .sort((a, b) => b.at - a.at);
     const stateDir = ctx.cfg.stateDir;
     const groups = new Map<string, unknown[]>();
-    for (const { card, at, state, followUpDone, prUrl } of entries) {
+    for (const { card, at, state, aside, followUpDone, prUrl } of entries) {
       // The captures lead each entry: its image deliverables, read off disk (no store: none).
       const shots = stateDir
         ? (await listDeliverables(join(deliverablesRoot(stateDir), card.id))).filter((d) => servedAs(d.name).kind === "image").map((d) => d.name)
@@ -195,6 +208,9 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
         // Code or business — the page filters on it.
         category: card.category,
         state,
+        // Out of the active queue (the counter ignores it) but listed under « Mises de côté »; who and why ride along.
+        aside,
+        asideBy: card.checkAside,
         followUpDone,
         fixCardId: fixOf.get(card.id) ?? null,
         shots,
@@ -211,6 +227,9 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
     }
     return ctx.json({ groups: [...groups].map(([usage, items]) => ({ usage: usage || null, entries: items })) });
   }
+
+  const asideM = ASIDE_ROUTE.exec(pathname);
+  if (asideM) return asideRoute(asideM, req, ctx);
 
   const prep = PREPARE_ROUTE.exec(pathname);
   if (prep) return prepareRoute(prep, req, ctx);
@@ -299,4 +318,34 @@ async function prepareRoute(m: RegExpExecArray, req: Request, ctx: BoardContext)
   }
   ctx.audit.record({ action: "card.check_prepare", session: ctx.session, device: ctx.device, detail: { cardId, stepId } });
   return ctx.json({ ok: true, paneId });
+}
+
+/**
+ * `POST /api/cards/<id>/recette-aside` `{aside, note?}` — set an entry aside, or put it back in the queue.
+ * NOT a verdict: an agent (the orchestrator, the triage card) may do it, but must say why (`note`); the
+ * gesture is traced with who and why, derived from the headers, never the body.
+ */
+async function asideRoute(m: RegExpExecArray, req: Request, ctx: BoardContext): Promise<Response> {
+  if (req.method !== "POST") return ctx.text("method not allowed", 405);
+  const denied = ctx.guard("write");
+  if (denied) return denied;
+  let cardId: string;
+  try {
+    cardId = decodeURIComponent(m[1]!);
+  } catch {
+    return ctx.text("not found", 404);
+  }
+  const card = ctx.db.getCard(cardId);
+  if (!card) return ctx.text("card not found", 404);
+  const body = ((await req.json().catch(() => null)) ?? {}) as { aside?: unknown; note?: unknown };
+  if (typeof body.aside !== "boolean") return ctx.text("aside must be a boolean", 400);
+  if (body.note !== undefined && body.note !== null && typeof body.note !== "string") return ctx.text("bad note", 400);
+  const note = typeof body.note === "string" ? body.note.trim() : "";
+  const pane = req.headers.get("x-collie-pane")?.trim();
+  if (pane && !note) return ctx.text("an agent says why: a note is required", 400);
+  const repo = card.repoPath;
+  const by = pane ? `agent ${pane}` : (repo && ctx.db.repoShare(repo) && ctx.db.peerIdentity(repo)) || "operator";
+  const updated = ctx.db.setCheckAside(cardId, { aside: body.aside, by, at: Date.now(), ...(note ? { note } : {}) });
+  ctx.audit.record({ action: "card.recette_aside", session: ctx.session, device: ctx.device, detail: { cardId, aside: body.aside, by, ...(note ? { note } : {}) } });
+  return ctx.json({ ok: true, card: updated });
 }

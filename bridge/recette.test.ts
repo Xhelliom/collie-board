@@ -9,7 +9,7 @@ import { wrapupPrompt } from "./wrapup.ts";
 const REPO = "/r/app";
 
 function board(): BoardDb {
-  let t = 1_000;
+  let t = Date.now(); // une livraison de 1970 serait « ancienne » : mise de côté d office
   return new BoardDb(":memory:", () => t++);
 }
 
@@ -270,5 +270,81 @@ describe("deliveredAt", () => {
     expect(deliveredAt(card, [ev("card.status", 10, { to: "done" }), ev("card.merged", 15)], null)).toBe(15);
     expect(deliveredAt(card, [ev("card.status", 10, { to: "done" })], null)).toBe(10);
     expect(deliveredAt(card, [], null)).toBe(1);
+  });
+});
+
+describe("mise de côté", () => {
+  type Body = { groups: { entries: { cardId: string; state: string; aside: boolean }[] }[] };
+  const read = async (db: BoardDb) => ((await (await call(db, "GET", `/api/recette?repo=${REPO}&all=1`)).json()) as Body).groups.flatMap((g) => g.entries);
+  const DAY = 86_400_000;
+  /** Une base dont l'horloge a livré la carte il y a 31 jours, puis revient à maintenant. */
+  const aged = () => {
+    let t = Date.now() - 31 * DAY;
+    const db = new BoardDb(":memory:", () => t++);
+    const card = delivered(db);
+    t = Date.now();
+    return { db, card };
+  };
+
+  test("livrée depuis plus de 30 jours sans verdict : mise de côté d'office, mais toujours listée", async () => {
+    const { db, card } = aged();
+    const fresh = delivered(db, "récente");
+    const e = await read(db);
+    expect(e.find((x) => x.cardId === card.id)!.aside).toBe(true);
+    expect(e.find((x) => x.cardId === fresh.id)!.aside).toBe(false);
+  });
+
+  test("un verdict, même skip, la garde dans la file", async () => {
+    const { db, card } = aged();
+    await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "skip" });
+    expect((await read(db))[0]!.aside).toBe(false);
+  });
+
+  test("le seuil se règle par dépôt, 30 j par défaut", async () => {
+    const { db, card } = aged();
+    expect(db.recetteAsideDaysOf(REPO)).toBe(30);
+    expect((await call(db, "POST", "/api/repos/recette-aside", { path: REPO, days: 60 })).status).toBe(200);
+    expect(db.recetteAsideDaysOf(REPO)).toBe(60);
+    expect((await read(db)).find((x) => x.cardId === card.id)!.aside).toBe(false);
+    expect((await call(db, "POST", "/api/repos/recette-aside", { path: REPO, days: 0 })).status).toBe(400);
+    expect((await call(db, "POST", "/api/repos/recette-aside", { path: REPO, days: 5 }, { "x-collie-pane": "p1" })).status).toBe(403);
+  });
+
+  test("à la main : un bouton met de côté, un bouton remet en file — même une entrée ancienne", async () => {
+    const db = board();
+    const card = delivered(db);
+    expect((await call(db, "POST", `/api/cards/${card.id}/recette-aside`, { aside: true })).status).toBe(200);
+    expect((await read(db))[0]!.aside).toBe(true);
+    expect((await call(db, "POST", `/api/cards/${card.id}/recette-aside`, { aside: false })).status).toBe(200);
+    expect((await read(db))[0]!.aside).toBe(false);
+    const { db: db2, card: o } = aged();
+    await call(db2, "POST", `/api/cards/${o.id}/recette-aside`, { aside: false });
+    expect((await read(db2))[0]!.aside).toBe(false);
+    expect((await call(db, "POST", `/api/cards/${card.id}/recette-aside`, { aside: "x" })).status).toBe(400);
+    expect((await call(db, "POST", `/api/cards/nope/recette-aside`, { aside: true })).status).toBe(404);
+  });
+
+  test("un agent met de côté avec une note obligatoire, tracée ; il ne pose toujours pas de verdict", async () => {
+    const db = board();
+    const card = delivered(db);
+    const as = { "x-collie-pane": "p1" };
+    expect((await call(db, "POST", `/api/cards/${card.id}/recette-aside`, { aside: true }, as)).status).toBe(400);
+    expect((await call(db, "POST", `/api/cards/${card.id}/recette-aside`, { aside: true, note: "  " }, as)).status).toBe(400);
+    expect((await call(db, "POST", `/api/cards/${card.id}/recette-aside`, { aside: true, note: "périmé, refondu" }, as)).status).toBe(200);
+    expect(db.getCard(card.id)!.checkAside).toMatchObject({ aside: true, note: "périmé, refondu", by: "agent p1" });
+    expect((await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "ok" }, as)).status).toBe(403);
+    expect(db.getCard(card.id)!.checkVerdicts).toEqual({});
+  });
+
+  test("voyage par le journal partagé", async () => {
+    const a = board();
+    a.setRepoShare(REPO, "origin");
+    const card = delivered(a);
+    await call(a, "POST", `/api/cards/${card.id}/recette-aside`, { aside: true, note: "n" });
+    const entries = a.journalOutbox(REPO, new Hlc("aaaaaaaaaaaa"), "a@pair");
+    const b = board();
+    b.setRepoShare(REPO, "origin");
+    b.applyJournal(REPO, entries, new Hlc("bbbbbbbbbbbb"));
+    expect(b.getCard(card.id)!.checkAside).toMatchObject({ aside: true, note: "n" });
   });
 });
