@@ -449,6 +449,7 @@ curl -s "$B/api/board/prs"                    # the cards whose PR is still open
 #   POST /api/board/prs/merge|close {"repo","number","mode"?:"squash|merge|rebase"} is the operator's tap on the Open PRs screen — refused (403) to an x-collie-pane. GET /api/board/prs/<n>?repo= carries `modes` (what the repo allows, default first) and `blocker` (draft|conflict|red|pending|review|null).
 curl -s "$B/api/board/prs/<number>?repo=<path>"  # one open PR's sheet: title, body, author, base/head, linked card, files, capped diff (read-only; repo must be known)
 #   The sheet's `checks`: [{name, state success|failure|pending|skipped|cancelled, startedAt, completedAt, url, runId}].
+#   `behind` (true = behind its base without a conflict) — POST /api/board/prs/<number>/update-branch {"repo","mode"?:"rebase"} runs `gh pr update-branch` (by merge; rebase only if the repo allows it) — the operator's tap, 403 to any pane.
 #   POST /api/board/prs/<number>/rerun {"repo","runId"} re-runs a run's failed jobs — the operator's tap, 403 to any pane.
 curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable, conflicting (asks GitHub)
 #   GET /api/cards/<id> carries `card.prUrl` (its PR, from the journal; null = none). With one, finish_card

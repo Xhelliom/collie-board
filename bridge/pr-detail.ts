@@ -3,7 +3,7 @@
 // validated here as a plain integer and the repo must be one the board reads, or nothing is spawned.
 
 import type { BoardDb } from "./db.ts";
-import { mergeModesOf, prDiffText, prViewRaw, rerunFailed, type GitRunner, type MergeMode } from "./git.ts";
+import { mergeModesOf, prDiffText, prViewRaw, rerunFailed, updatePrBranch, type GitRunner, type MergeMode } from "./git.ts";
 import { openPrsOf, reposOf } from "./prs.ts";
 
 export interface PrCheck {
@@ -44,6 +44,8 @@ export interface PrDetail {
   card: { id: string; title: string } | null;
   /** What the repo allows, the preselected one first; empty when GitHub could not say. */
   modes: MergeMode[];
+  /** Behind its base without a conflict (GitHub's BEHIND): « Update the branch » can fix it. */
+  behind: boolean;
   /** Why Merge would fail, or null when it can pass — said before the tap. */
   blocker: MergeBlocker | null;
   files: { path: string; additions: number; deletions: number }[];
@@ -115,6 +117,7 @@ export function parsePrDetail(stdout: string): Omit<PrDetail, "card" | "diff" | 
     state,
     mergeable: r.mergeable === "MERGEABLE",
     conflicting: r.mergeable === "CONFLICTING",
+    behind: r.mergeStateStatus === "BEHIND",
     isDraft: r.isDraft === true,
     reviewDecision: str(r.reviewDecision),
     url: r.url,
@@ -157,5 +160,22 @@ export async function prRerun(
   if (!parsePrNumber(rawNumber)) return { ok: false, status: 400, error: "bad PR number" };
   if (typeof runId !== "string" || !/^\d{1,15}$/.test(runId)) return { ok: false, status: 400, error: "bad run id" };
   const r = await rerunFailed(repoPath, runId, gh);
+  return r.ok ? r : { ok: false, status: 409, error: r.error };
+}
+
+/** The operator brings a PR's branch up to its base: by merge, or by rebase when the repo allows it. The route refuses panes. */
+export async function prUpdateBranch(
+  db: BoardDb,
+  repoPath: string,
+  rawNumber: string,
+  mode: unknown,
+  gh?: GitRunner,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (!reposOf(db).has(repoPath)) return { ok: false, status: 403, error: "unknown repo" };
+  const number = parsePrNumber(rawNumber);
+  if (!number) return { ok: false, status: 400, error: "bad PR number" };
+  if (mode !== undefined && mode !== "merge" && mode !== "rebase") return { ok: false, status: 400, error: "bad update mode" };
+  if (mode === "rebase" && !(await mergeModesOf(repoPath, gh)).includes("rebase")) return { ok: false, status: 409, error: "this repository does not allow rebase" };
+  const r = await updatePrBranch(repoPath, number, mode === "rebase", gh);
   return r.ok ? r : { ok: false, status: 409, error: r.error };
 }

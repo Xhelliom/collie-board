@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -29,6 +29,7 @@ const detail = (over: Partial<PrDetail> = {}): PrDetail => ({
   card: { id: "c1", title: "The card" },
   modes: [],
   blocker: null,
+  behind: false,
   checks: [],
   files: [{ path: "src/a.ts", additions: 3, deletions: 1 }],
   diff: "diff --git a/src/a.ts b/src/a.ts\n+added line\n-removed line",
@@ -77,6 +78,23 @@ describe("PrRoute", () => {
     mount({ repo: "/repo", number: "7", detail: detail({ conflicting: true, mergeable: false, blocker: "conflict" }), error: null });
     expect(await screen.findByText("Can't merge: it conflicts with main.")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^merge$/i })).toBeDisabled();
+  });
+
+  it("a PR behind its base says so and updates the branch on tap", async () => {
+    const calls: unknown[] = [];
+    server.use(http.post("*/api/board/prs/7/update-branch", async ({ request }) => (calls.push(await request.json()), HttpResponse.json({ ok: true }))));
+    mount({ repo: "/repo", number: "7", detail: detail({ behind: true, modes: ["squash", "rebase"] }), error: null });
+    expect(await screen.findByText("Behind main")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /^update the branch$/i }));
+    await waitFor(() => expect(calls).toEqual([{ repo: "/repo" }]));
+    await userEvent.click(screen.getByRole("button", { name: /by rebase/i }));
+    await waitFor(() => expect(calls[1]).toEqual({ repo: "/repo", mode: "rebase" }));
+  });
+
+  it("offers no update on an up-to-date or conflicting PR", async () => {
+    mount({ repo: "/repo", number: "7", detail: detail(), error: null });
+    await screen.findByRole("button", { name: /^merge$/i });
+    expect(screen.queryByRole("button", { name: /update the branch/i })).toBeNull();
   });
 
   it("names the red check that blocks the merge", async () => {

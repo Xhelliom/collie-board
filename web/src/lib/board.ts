@@ -1331,6 +1331,8 @@ export interface PrDetail {
   card: { id: string; title: string } | null;
   /** The merge modes the repo allows, the preselected one first; empty: no choice to offer. */
   modes: MergeMode[];
+  /** Behind its base with no conflict: the branch can be updated. */
+  behind: boolean;
   /** Why Merge would fail now; null when it can pass. */
   blocker: "draft" | "conflict" | "red" | "pending" | "review" | null;
   files: { path: string; additions: number; deletions: number }[];
@@ -1350,6 +1352,11 @@ export function fetchPrDetail(repo: string, number: string, signal?: AbortSignal
 /** Re-run the failed jobs of one run — the operator's tap. */
 export function rerunPrChecks(repo: string, number: number, runId: string): Promise<{ ok: true }> {
   return apiRequest(`/api/board/prs/${number}/rerun`, { method: "POST", body: JSON.stringify({ repo, runId }) }, INTEGRATION_TIMEOUT_MS);
+}
+
+/** Bring a PR's branch up to its base (merge, or rebase) — the operator's tap. */
+export function updatePrBranch(repo: string, number: number, mode?: "rebase"): Promise<{ ok: true }> {
+  return apiRequest(`/api/board/prs/${number}/update-branch`, { method: "POST", body: JSON.stringify({ repo, mode }) }, INTEGRATION_TIMEOUT_MS);
 }
 
 /** Merge or close a PR by number — the operator's tap; a card's PR merges through `integrateCard`. */
