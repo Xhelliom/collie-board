@@ -1,0 +1,2 @@
+{"v":1,"hlc":"1794686592368.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Ce que coûte le travail","goal":"La consommation de chaque carte, lot, phase et projet, visible. Monitorer, sans frein.","position":51,"roadmap_item_id":"56ea1fe1","closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794686582834}}
+{"v":1,"hlc":"1794686592368.0001.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"pipeline_id":"ea6ec2d6-c4c0-41e7-9230-58f18b60c3d1"}}
