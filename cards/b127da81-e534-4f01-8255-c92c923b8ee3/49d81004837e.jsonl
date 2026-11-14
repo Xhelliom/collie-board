@@ -2,3 +2,9 @@
 {"v":1,"hlc":"1794673066013.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Audit des prompts intégrés de l orchestrateur : garde-fous oui, freins inutiles non","status":"backlog"},"ts":1794673064142}}
 {"v":1,"hlc":"1794673066013.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"ad08c5ae-18ea-4b07-9b88-60de5b0baa81"}}
 {"v":1,"hlc":"1794677491410.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794677501861.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/audit-des-prompts-integres-de-l-orchestrateur-ga"}}
+{"v":1,"hlc":"1794677501861.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794677501861.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794677494100}}
+{"v":1,"hlc":"1794677501861.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794677501861.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794677500541}}
+{"v":1,"hlc":"1794677501861.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":5090},"ts":1794677500771}}
