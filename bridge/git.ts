@@ -1188,6 +1188,30 @@ export async function createPr(
 /** How a run's PR merges once GitHub says it may. A constant until something asks to choose. */
 export const AUTO_MERGE_STRATEGY = "--squash";
 
+export const MERGE_MODES = ["squash", "merge", "rebase"] as const;
+export type MergeMode = (typeof MERGE_MODES)[number];
+const modesCache = new Map<string, MergeMode[]>();
+
+/**
+ * The merge modes the repo allows, read on GitHub once then kept (a settings change shows after a
+ * restart — shortcut: no expiry). Squash first: it is the mode the board always used, so it is the
+ * default when allowed. Empty when GitHub cannot be read: the sheet then offers no choice and merges as before.
+ */
+export async function mergeModesOf(repoPath: string, gh: GitRunner = runGh): Promise<MergeMode[]> {
+  const hit = modesCache.get(repoPath);
+  if (hit) return hit;
+  try {
+    const r = await gh(["repo", "view", "--json", "squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed"], repoPath);
+    if (!r.ok) return [];
+    const j = JSON.parse(r.stdout) as Record<string, unknown>;
+    const modes = MERGE_MODES.filter((m) => j[{ squash: "squashMergeAllowed", merge: "mergeCommitAllowed", rebase: "rebaseMergeAllowed" }[m]] === true);
+    modesCache.set(repoPath, modes);
+    return modes;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Ask GitHub to merge the branch's PR itself once its checks pass (ADR 0017, step 7). GitHub is the
  * watcher: the board never polls for green. A repo without branch protection makes `gh` refuse —
@@ -1200,10 +1224,12 @@ export async function enableAutoMerge(
   gh: GitRunner = runGh,
   /** `--auto` arms GitHub's merge-on-green; without it the PR merges now (ADR 0027). */
   flags: string[] = ["--auto"],
+  /** The operator's pick on a PR's sheet; every other caller keeps the squash. */
+  mode: MergeMode = "squash",
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!branch || branch.startsWith("-")) return { ok: false, error: `refusing branch name ${JSON.stringify(branch)}` };
   try {
-    const r = await gh(["pr", "merge", branch, ...flags, AUTO_MERGE_STRATEGY], repoPath);
+    const r = await gh(["pr", "merge", branch, ...flags, mode === "squash" ? AUTO_MERGE_STRATEGY : `--${mode}`], repoPath);
     return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -1422,7 +1448,7 @@ export async function listPrs(repoPath: string, state: "open" | "merged", gh: Gi
 /** `gh pr view <n> --json …` for the PR sheet: raw JSON, or null when GitHub cannot be read. `number` is a validated integer. */
 export async function prViewRaw(repoPath: string, number: number, gh: GitRunner = runGh): Promise<string | null> {
   if (!Number.isSafeInteger(number) || number <= 0) return null;
-  const fields = "number,title,body,author,createdAt,updatedAt,baseRefName,headRefName,state,mergeable,isDraft,url,files,statusCheckRollup";
+  const fields = "number,title,body,author,createdAt,updatedAt,baseRefName,headRefName,state,mergeable,isDraft,reviewDecision,url,files,statusCheckRollup";
   try {
     const r = await gh(["pr", "view", String(number), "--json", fields], repoPath);
     return r.ok ? r.stdout : null;

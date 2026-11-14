@@ -1312,6 +1312,8 @@ export interface PrCheck {
   runId: string | null;
 }
 
+export type MergeMode = "squash" | "merge" | "rebase";
+
 export interface PrDetail {
   number: number;
   title: string;
@@ -1327,6 +1329,10 @@ export interface PrDetail {
   isDraft: boolean;
   url: string;
   card: { id: string; title: string } | null;
+  /** The merge modes the repo allows, the preselected one first; empty: no choice to offer. */
+  modes: MergeMode[];
+  /** Why Merge would fail now; null when it can pass. */
+  blocker: "draft" | "conflict" | "red" | "pending" | "review" | null;
   files: { path: string; additions: number; deletions: number }[];
   checks: PrCheck[];
   diff: string;
@@ -1347,8 +1353,8 @@ export function rerunPrChecks(repo: string, number: number, runId: string): Prom
 }
 
 /** Merge or close a PR by number — the operator's tap; a card's PR merges through `integrateCard`. */
-export function prGesture(repo: string, number: number, what: "merge" | "close"): Promise<{ ok: true }> {
-  return apiRequest(`/api/board/prs/${what}`, { method: "POST", body: JSON.stringify({ repo, number }) }, INTEGRATION_TIMEOUT_MS);
+export function prGesture(repo: string, number: number, what: "merge" | "close", mode?: MergeMode): Promise<{ ok: true }> {
+  return apiRequest(`/api/board/prs/${what}`, { method: "POST", body: JSON.stringify({ repo, number, mode }) }, INTEGRATION_TIMEOUT_MS);
 }
 
 /**

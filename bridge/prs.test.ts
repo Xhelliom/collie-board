@@ -188,4 +188,13 @@ describe("the open-PR list read on GitHub (the screen's open, and its Re-read ta
     expect(await prGesture(db, "/repo", 9, "close", gh)).toEqual({ ok: true });
     expect(calls.at(-1)).toEqual(["pr", "close", "9"]);
   });
+
+  it("merges with the mode the operator picked, squash by default", async () => {
+    const { db, gh, calls } = setup();
+    expect(await prGesture(db, "/repo", 9, "merge", gh, "rebase")).toEqual({ ok: true });
+    expect(calls.at(-1)).toEqual(["pr", "merge", "9", "--rebase"]);
+    await prGesture(db, "/repo", 9, "merge", gh);
+    expect(calls.at(-1)).toEqual(["pr", "merge", "9", "--squash"]);
+    expect(await prGesture(db, "/repo", 9, "merge", gh, "--admin" as never)).toMatchObject({ ok: false, status: 400 });
+  });
 });
