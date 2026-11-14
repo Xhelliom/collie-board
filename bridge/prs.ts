@@ -9,7 +9,7 @@
 
 import type { BoardDb, BoardEvent, Card } from "./db.ts";
 import { boardBranchPrefix } from "./config.ts";
-import { closePr, enableAutoMerge, listPrs, prStatusOf, type GhPr, type GitRunner, type PrStatus } from "./git.ts";
+import { closePr, enableAutoMerge, listPrs, MERGE_MODES, prStatusOf, type GhPr, type GitRunner, type MergeMode, type PrStatus } from "./git.ts";
 import { rollingPlanPr } from "./plan-export.ts";
 import { notePrOutcome, prStatusFor } from "./integrate.ts";
 
@@ -164,10 +164,12 @@ export async function prGesture(
   number: number,
   what: "merge" | "close",
   gh?: GitRunner,
+  mode: MergeMode = "squash",
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   if (!reposOf(db).has(repoPath)) return { ok: false, status: 404, error: "unknown repo" };
+  if (!MERGE_MODES.includes(mode)) return { ok: false, status: 400, error: "bad merge mode" };
   if (!Number.isSafeInteger(number) || number <= 0) return { ok: false, status: 400, error: "bad PR number" };
-  const r = what === "merge" ? await enableAutoMerge(repoPath, String(number), gh, []) : await closePr(repoPath, String(number), gh);
+  const r = what === "merge" ? await enableAutoMerge(repoPath, String(number), gh, [], mode) : await closePr(repoPath, String(number), gh);
   forgetPrRead();
   return r.ok ? r : { ok: false, status: 409, error: r.error };
 }

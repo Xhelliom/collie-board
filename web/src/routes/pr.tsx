@@ -11,7 +11,7 @@ import { MENU_ITEM, MoreActions } from "@/components/project-more";
 import { buttonVariants } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { useT } from "@/i18n";
-import { boardErrorMessage, cardPath, integrateCard, prGesture, rerunPrChecks, type PrCheck, type PrDetail } from "@/lib/board";
+import { boardErrorMessage, cardPath, integrateCard, prGesture, rerunPrChecks, type MergeMode, type PrCheck, type PrDetail } from "@/lib/board";
 import type { PrSheetData } from "@/lib/board-loaders";
 import { ago } from "@/lib/project-facts";
 import { setStatus } from "@/lib/status";
@@ -30,6 +30,7 @@ export function PrRoute() {
   const confirm = usePendingConfirm(4000);
   const [busy, setBusy] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
+  const [picked, setPicked] = useState<MergeMode | null>(null);
   const back = () => navigate(`/board/prs?repo=${encodeURIComponent(repo)}`);
 
   if (!detail) {
@@ -69,12 +70,18 @@ export function PrRoute() {
   // Several failed jobs often share one run: re-run each run once.
   const failedRuns = [...new Set(failed.flatMap((c) => (c.runId ? [c.runId] : [])))];
   const stateLabel = detail.state === "merged" ? t("pr.state.merged") : detail.state === "closed" ? t("pr.state.closed") : verdict.why;
+  const mode = picked && detail.modes.includes(picked) ? picked : detail.modes[0];
+  const blockedWhy = detail.blocker
+    ? t(`pr.block.${detail.blocker}`, { base: detail.base, name: failed[0]?.name ?? "" })
+    : verdict.lane !== "ready"
+      ? verdict.why
+      : null;
   const act = async (what: "merge" | "close") => {
     if (what === "close" && !confirm.confirm("close")) return;
     setBusy(true);
     try {
-      // A card's PR merges through its card (the landing is journaled there), as in the list.
-      await (what === "merge" && detail.card ? integrateCard(detail.card.id, "merge") : prGesture(repo, detail.number, what));
+      // A card's PR merges through its card (lock, 409 while the agent works, landing journaled), as in the list.
+      await (what === "merge" && detail.card ? integrateCard(detail.card.id, "merge", false, undefined, mode) : prGesture(repo, detail.number, what, what === "merge" ? mode : undefined));
       setStatus(what === "merge" ? t("prs.mergedNow", { count: 1 }) : t("prs.closedNow"), "success");
       back();
     } catch (e) {
@@ -172,12 +179,27 @@ export function PrRoute() {
 
         {detail.state === "open" && (
           <div className="flex flex-wrap gap-2">
-            {verdict.lane === "ready" && (
-              <button type="button" disabled={busy} onClick={() => void act("merge")} className={cn(buttonVariants({ variant: "success", size: "sm" }), "h-11 flex-1 text-sm")}>
-                <GitMerge className="size-4" />
-                {busy ? t("prs.merging") : t("prs.merge")}
-              </button>
+            {detail.modes.length > 1 && !blockedWhy && (
+              <div role="radiogroup" aria-label={t("pr.mode.label")} className="flex w-full gap-1 rounded-lg border p-1">
+                {detail.modes.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={m === mode}
+                    onClick={() => setPicked(m)}
+                    className={cn("min-h-11 flex-1 rounded-md text-sm font-medium", m === mode ? "bg-secondary text-foreground" : "text-muted-foreground")}
+                  >
+                    {t(`pr.mode.${m}`)}
+                  </button>
+                ))}
+              </div>
             )}
+            <button type="button" disabled={busy || !!blockedWhy} onClick={() => void act("merge")} className={cn(buttonVariants({ variant: "success", size: "sm" }), "h-11 flex-1 text-sm")}>
+              <GitMerge className="size-4" />
+              {busy ? t("prs.merging") : t("prs.merge")}
+            </button>
+            {blockedWhy && <p className="w-full text-sm text-destructive">{blockedWhy}</p>}
             <button type="button" disabled={busy} onClick={() => void act("close")} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-11 flex-1 text-sm text-destructive")}>
               <X className="size-4" />
               {confirm.pending === "close" ? t("prs.closeConfirm") : t("prs.close")}

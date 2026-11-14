@@ -1184,6 +1184,19 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     return { repo, origin, store, card: store.getCard(card.id)!, cleanup };
   };
 
+  it("the mode picked on the sheet reaches gh, and the landing is journaled", async () => {
+    const t = await fixture();
+    const { git: gh, calls } = fakeGit({
+      "pr view": { stdout: JSON.stringify({ state: "OPEN", url: "https://x/pull/148", mergeable: "MERGEABLE", mergedAt: null, createdAt: null }) },
+    });
+    t.store.recordEvent(t.card.id, "card.pr_opened", { branch: "board/x", base: "main", url: "https://x/pull/148" });
+    const r = await mergeCard(t.store, t.card, gh, { mode: "rebase" });
+    expect(r.ok).toBe(true);
+    expect(calls.some((a) => a.join(" ") === "pr merge board/x --rebase")).toBe(true);
+    expect(t.store.listEvents(t.card.id).some((e) => e.type === "card.pr_merged")).toBe(true);
+    await t.cleanup();
+  }, GIT_TIMEOUT);
+
   it("an open PR is merged on GitHub — no local merge, the merge journaled", async () => {
     const t = await fixture();
     const before = git(t.repo, "rev-parse", "main");

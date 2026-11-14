@@ -446,7 +446,7 @@ curl -s -X POST "$B/api/pane/<paneId>/reply" -H 'content-type: application/json'
 curl -s "$B/api/board/prs"                    # the cards whose PR is still open (journal only, free)
 #   ?check=1 reads GitHub (one `gh pr list` per repo, shared for 15 s): adds `others` (open PRs on no
 #   card — the board's docs(plan)), `merged` (10 latest) and `checkedAt`; journals the PRs that are over.
-#   POST /api/board/prs/merge|close {"repo","number"} is the operator's tap on the Open PRs screen — never an agent's.
+#   POST /api/board/prs/merge|close {"repo","number","mode"?:"squash|merge|rebase"} is the operator's tap on the Open PRs screen — refused (403) to an x-collie-pane. GET /api/board/prs/<n>?repo= carries `modes` (what the repo allows, default first) and `blocker` (draft|conflict|red|pending|review|null).
 curl -s "$B/api/board/prs/<number>?repo=<path>"  # one open PR's sheet: title, body, author, base/head, linked card, files, capped diff (read-only; repo must be known)
 #   The sheet's `checks`: [{name, state success|failure|pending|skipped|cancelled, startedAt, completedAt, url, runId}].
 #   POST /api/board/prs/<number>/rerun {"repo","runId"} re-runs a run's failed jobs — the operator's tap, 403 to any pane.

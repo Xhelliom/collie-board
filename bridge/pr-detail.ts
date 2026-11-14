@@ -3,7 +3,7 @@
 // validated here as a plain integer and the repo must be one the board reads, or nothing is spawned.
 
 import type { BoardDb } from "./db.ts";
-import { prDiffText, prViewRaw, rerunFailed, type GitRunner } from "./git.ts";
+import { mergeModesOf, prDiffText, prViewRaw, rerunFailed, type GitRunner, type MergeMode } from "./git.ts";
 import { openPrsOf, reposOf } from "./prs.ts";
 
 export interface PrCheck {
@@ -13,6 +13,18 @@ export interface PrCheck {
   completedAt: number | null;
   url: string;
   runId: string | null;
+}
+
+export type MergeBlocker = "draft" | "conflict" | "red" | "pending" | "review";
+
+/** The first reason an open PR cannot merge now, in the order the operator fixes them. Pure + exported. */
+export function mergeBlocker(d: { state: string; isDraft: boolean; conflicting: boolean; reviewDecision: string; checks: PrCheck[] }): MergeBlocker | null {
+  if (d.state !== "open") return null;
+  if (d.isDraft) return "draft";
+  if (d.conflicting) return "conflict";
+  if (d.checks.some((c) => c.state === "failure" || c.state === "cancelled")) return "red";
+  if (d.checks.some((c) => c.state === "pending")) return "pending";
+  return d.reviewDecision === "CHANGES_REQUESTED" || d.reviewDecision === "REVIEW_REQUIRED" ? "review" : null;
 }
 
 export interface PrDetail {
@@ -30,6 +42,10 @@ export interface PrDetail {
   isDraft: boolean;
   url: string;
   card: { id: string; title: string } | null;
+  /** What the repo allows, the preselected one first; empty when GitHub could not say. */
+  modes: MergeMode[];
+  /** Why Merge would fail, or null when it can pass — said before the tap. */
+  blocker: MergeBlocker | null;
   files: { path: string; additions: number; deletions: number }[];
   checks: PrCheck[];
   diff: string;
@@ -71,7 +87,7 @@ export function parseCheckRows(rollup: unknown): PrCheck[] {
 }
 
 /** Shape `gh pr view --json …`; null when it is not a PR. The card and the diff are added by the caller. Pure + exported. */
-export function parsePrDetail(stdout: string): Omit<PrDetail, "card" | "diff" | "diffTruncated"> | null {
+export function parsePrDetail(stdout: string): Omit<PrDetail, "card" | "diff" | "diffTruncated" | "modes" | "blocker"> & { reviewDecision: string } | null {
   let r: Record<string, unknown>;
   try {
     r = JSON.parse(stdout);
@@ -100,6 +116,7 @@ export function parsePrDetail(stdout: string): Omit<PrDetail, "card" | "diff" | 
     mergeable: r.mergeable === "MERGEABLE",
     conflicting: r.mergeable === "CONFLICTING",
     isDraft: r.isDraft === true,
+    reviewDecision: str(r.reviewDecision),
     url: r.url,
     files,
     checks: parseCheckRows(r.statusCheckRollup),
@@ -115,15 +132,16 @@ export async function prDetail(
   if (!reposOf(db).has(repoPath)) return { ok: false, status: 403, error: "unknown repo" };
   const number = parsePrNumber(rawNumber);
   if (!number) return { ok: false, status: 400, error: "bad PR number" };
-  const [view, diff] = await Promise.all([prViewRaw(repoPath, number, gh), prDiffText(repoPath, number, gh)]);
-  const d = view ? parsePrDetail(view) : null;
+  const [view, diff, modes] = await Promise.all([prViewRaw(repoPath, number, gh), prDiffText(repoPath, number, gh), mergeModesOf(repoPath, gh)]);
+  const parsed = view ? parsePrDetail(view) : null;
+  const d = parsed && { ...parsed, blocker: mergeBlocker(parsed) };
   if (!d) return { ok: false, status: 404, error: "PR not readable on GitHub" };
   // The card that carries it: by the journaled url first (a lot's cards share one PR), then by branch.
   const journaled = [...openPrsOf(db.listPrEvents())].find(([, v]) => v.url === d.url)?.[0];
   const card = (journaled && db.getCard(journaled)) || db.listCards({ includeArchived: true }).find((c) => c.repoPath === repoPath && c.branch === d.head);
   return {
     ok: true,
-    detail: { ...d, card: card ? { id: card.id, title: card.title } : null, diff: diff?.diff ?? "", diffTruncated: diff?.truncated ?? false },
+    detail: { ...d, modes, card: card ? { id: card.id, title: card.title } : null, diff: diff?.diff ?? "", diffTruncated: diff?.truncated ?? false },
   };
 }
 

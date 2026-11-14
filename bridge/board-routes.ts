@@ -58,6 +58,8 @@ import {
   gitUserEmail,
   readWorktreeFile,
   worktreePathFor,
+  MERGE_MODES,
+  type MergeMode,
 } from "./git.ts";
 import { redactDeep, redactText } from "./redact.ts";
 import { parseGate } from "./gate.ts";
@@ -141,7 +143,7 @@ const BOARD_USAGE_ROUTE = "/api/board/usage";
 
 /** `/api/board/prs` — the cards whose PR is still open, `?check=1` to ask GitHub (see prs.ts). */
 const BOARD_PRS_ROUTE = "/api/board/prs";
-/** `POST /api/board/prs/{merge|close}` `{repo, number}` — the operator's tap on a PR, card or not. */
+/** `POST /api/board/prs/{merge|close}` `{repo, number, mode?: squash|merge|rebase}` — the operator's tap on a PR, card or not. */
 const BOARD_PRS_GESTURE = /^\/api\/board\/prs\/(merge|close)$/;
 
 /** `GET /api/board/prs/<number>?repo=` — one open PR's sheet (see pr-detail.ts). */
@@ -743,6 +745,7 @@ async function route(
   const prGestureMatch = BOARD_PRS_GESTURE.exec(pathname);
   if (prGestureMatch) {
     if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("merging or closing a PR is the operator's gesture — an agent pane may not", 403);
     const denied = ctx.guard("write");
     if (denied) return denied;
     let body: unknown;
@@ -751,10 +754,10 @@ async function route(
     } catch {
       return ctx.text("bad body", 400);
     }
-    const { repo, number } = (body ?? {}) as { repo?: unknown; number?: unknown };
+    const { repo, number, mode } = (body ?? {}) as { repo?: unknown; number?: unknown; mode?: unknown };
     if (typeof repo !== "string" || typeof number !== "number") return ctx.text("repo and number required", 400);
     const what = prGestureMatch[1] as "merge" | "close";
-    const r = await prGesture(ctx.db, repo, number, what);
+    const r = await prGesture(ctx.db, repo, number, what, undefined, (mode ?? "squash") as MergeMode);
     ctx.audit.record({ action: `pr.${what}`, session: ctx.session, device: ctx.device, detail: { path: repo, number, ok: r.ok } });
     return r.ok ? ctx.json({ ok: true }) : ctx.json({ error: r.error }, r.status);
   }
@@ -1753,6 +1756,10 @@ async function route(
     // Which gesture hit the conflict a resolve settles. An enumeration, never a ref: the base it
     // picks is typed into a terminal.
     const via = (body as { via?: unknown }).via === "pr" ? "pr" : "merge";
+    // The merge mode, when the sheet picked one: an enumeration too — it becomes a `gh` flag.
+    const rawMode = (body as { mode?: unknown }).mode;
+    if (rawMode !== undefined && !(MERGE_MODES as readonly unknown[]).includes(rawMode)) return text("bad merge mode", 400);
+    const mode = rawMode as MergeMode | undefined;
 
     // A worker mid-turn (incident cimaise 08/11): merged now, what it commits next reaches nothing.
     if (what === "merge" || (what === "pr" && andDone)) {
@@ -1767,7 +1774,7 @@ async function route(
       // on the card that one left, not on a snapshot taken before it.
       const now = db.getCard(id) ?? card;
       return what === "merge"
-        ? await mergeCard(db, now)
+        ? await mergeCard(db, now, undefined, { mode })
         : what === "pr"
           ? await prForCard(db, now)
           : what === "resolve"

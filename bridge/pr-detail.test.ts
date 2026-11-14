@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { BoardDb } from "./db.ts";
 import type { GitRunner } from "./git.ts";
 import { handleBoardRoute, PANE_HEADER } from "./board-routes.ts";
-import { parseCheckRows, parsePrDetail, parsePrNumber, prDetail, prRerun } from "./pr-detail.ts";
+import { mergeBlocker, parseCheckRows, parsePrDetail, parsePrNumber, prDetail, prRerun } from "./pr-detail.ts";
 
 const VIEW = JSON.stringify({
   number: 7,
@@ -97,6 +97,38 @@ describe("rerun", () => {
       body: JSON.stringify({ repo: "/repo", runId: "123" }),
     });
     const res = await handleBoardRoute("/api/board/prs/7/rerun", req, { db, guard: () => null, text: (m: string, status: number) => new Response(m, { status }), json: (b: unknown, status = 200) => Response.json(b, { status }) } as never);
+    expect(res!.status).toBe(403);
+  });
+});
+
+describe("merge modes and blockers", () => {
+  const ok = { state: "open", isDraft: false, conflicting: false, reviewDecision: "", checks: [] as never[] };
+  const chk = (state: string) => [{ state }] as never[];
+  it("names the first reason a PR cannot merge, in fixing order", () => {
+    expect(mergeBlocker(ok)).toBeNull();
+    expect(mergeBlocker({ ...ok, isDraft: true, conflicting: true })).toBe("draft");
+    expect(mergeBlocker({ ...ok, conflicting: true, checks: chk("failure") })).toBe("conflict");
+    expect(mergeBlocker({ ...ok, checks: chk("failure") })).toBe("red");
+    expect(mergeBlocker({ ...ok, checks: chk("pending") })).toBe("pending");
+    expect(mergeBlocker({ ...ok, reviewDecision: "CHANGES_REQUESTED" })).toBe("review");
+    expect(mergeBlocker({ ...ok, state: "merged", isDraft: true })).toBeNull();
+  });
+  it("puts the repo's allowed modes and the blocker on the sheet", async () => {
+    const db = new BoardDb(":memory:");
+    db.setRepoListed("/modes", true);
+    const gh: GitRunner = async (args) =>
+      args[1] === "view" && args[0] === "repo"
+        ? { ok: true, stdout: JSON.stringify({ squashMergeAllowed: false, mergeCommitAllowed: true, rebaseMergeAllowed: true }), stderr: "" }
+        : args[1] === "view"
+          ? { ok: true, stdout: JSON.stringify({ ...JSON.parse(VIEW), mergeable: "CONFLICTING" }), stderr: "" }
+          : { ok: true, stdout: "", stderr: "" };
+    const r = await prDetail(db, "/modes", "7", gh);
+    expect(r).toMatchObject({ ok: true, detail: { modes: ["merge", "rebase"], blocker: "conflict" } });
+  });
+  it("the merge route refuses a pane (403)", async () => {
+    const db = new BoardDb(":memory:");
+    const req = new Request("http://x/api/board/prs/merge", { method: "POST", headers: { "x-collie-pane": "p1" }, body: JSON.stringify({ repo: "/repo", number: 7 }) });
+    const res = await handleBoardRoute("/api/board/prs/merge", req, { db, guard: () => null, text: (m: string, status: number) => new Response(m, { status }), json: (b: unknown, status = 200) => Response.json(b, { status }) } as never);
     expect(res!.status).toBe(403);
   });
 });

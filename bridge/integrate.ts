@@ -36,6 +36,7 @@ import {
   createPr,
   deleteBranch,
   enableAutoMerge,
+  type MergeMode,
   failedLog,
   fetchBase,
   formatDiffStat,
@@ -193,10 +194,10 @@ export async function mergeCard(
   card: Card,
   gh: GitRunner = runGh,
   /** A run on a repo set to merge direct (ADR 0043): nobody is watching, so a dirty base is refused too. */
-  opts: { direct?: boolean } = {},
+  opts: { direct?: boolean; mode?: MergeMode } = {},
 ): Promise<Result<{ base: string; ahead: number; url?: string }>> {
   const pr = card.repoPath && card.branch ? await prStatusOf(card.repoPath, card.branch, gh) : null;
-  if (pr?.state === "open") return await mergeOpenPr(db, card, pr, gh);
+  if (pr?.state === "open") return await mergeOpenPr(db, card, pr, gh, opts.mode);
 
   const checked = await gate(card, "merge");
   if (!checked.ok) return checked;
@@ -287,12 +288,13 @@ async function mergeOpenPr(
   card: Card,
   pr: PrStatus,
   gh: GitRunner,
+  mode?: MergeMode,
 ): Promise<Result<{ base: string; ahead: number; url: string }>> {
   const base = (await baseOf(card)) ?? "the base";
   if (pr.conflicting) {
     return { ok: false, error: { kind: "conflict", message: `the PR ${pr.url} conflicts with ${base} — hand it to the agent to settle. Nothing was merged.` } };
   }
-  const r = await enableAutoMerge(card.repoPath!, card.branch!, gh, []);
+  const r = await enableAutoMerge(card.repoPath!, card.branch!, gh, [], mode);
   prCache.delete(prKey(card));
   if (!r.ok) {
     db.recordEvent(card.id, "card.merge_failed", { branch: card.branch, via: "pr", url: pr.url, error: r.error });

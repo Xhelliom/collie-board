@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { server } from "@/test/setup";
 import { PrRoute } from "./pr";
 import { setPreference } from "@/i18n";
 import type { PrDetail } from "@/lib/board";
@@ -25,6 +27,8 @@ const detail = (over: Partial<PrDetail> = {}): PrDetail => ({
   isDraft: false,
   url: "https://github.com/o/r/pull/7",
   card: { id: "c1", title: "The card" },
+  modes: [],
+  blocker: null,
   checks: [],
   files: [{ path: "src/a.ts", additions: 3, deletions: 1 }],
   diff: "diff --git a/src/a.ts b/src/a.ts\n+added line\n-removed line",
@@ -69,10 +73,38 @@ describe("PrRoute", () => {
     expect(screen.getByRole("menuitem", { name: /open on github/i })).toHaveAttribute("href", "https://github.com/o/r/pull/7");
   });
 
-  it("offers no Merge on a conflicting PR, and says why it could not be read", async () => {
-    mount({ repo: "/repo", number: "7", detail: detail({ conflicting: true, mergeable: false }), error: null });
-    expect(await screen.findByText("Conflicts with its base")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^merge$/i })).toBeNull();
+  it("disables Merge on a conflicting PR and says why before the tap", async () => {
+    mount({ repo: "/repo", number: "7", detail: detail({ conflicting: true, mergeable: false, blocker: "conflict" }), error: null });
+    expect(await screen.findByText("Can't merge: it conflicts with main.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^merge$/i })).toBeDisabled();
+  });
+
+  it("names the red check that blocks the merge", async () => {
+    const checks = [{ name: "build", state: "failure" as const, startedAt: 0, completedAt: 1, url: "", runId: null }];
+    mount({ repo: "/repo", number: "7", detail: detail({ checks, blocker: "red" }), error: null });
+    expect(await screen.findByText("Can't merge: build failed.")).toBeTruthy();
+  });
+
+  it("offers the modes the repo allows, the first preselected, and merges with the one picked", async () => {
+    const calls: unknown[] = [];
+    server.use(http.post("*/api/board/prs/merge", async ({ request }) => (calls.push(await request.json()), HttpResponse.json({ ok: true }))));
+    mount({ repo: "/repo", number: "7", detail: detail({ modes: ["squash", "rebase"], card: null }), error: null });
+    expect(await screen.findByRole("radio", { name: "Squash" })).toBeChecked();
+    expect(screen.queryByRole("radio", { name: "Merge commit" })).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: "Rebase" }));
+    await userEvent.click(screen.getByRole("button", { name: /^merge$/i }));
+    await screen.findByText("list");
+    expect(calls).toEqual([{ repo: "/repo", number: 7, mode: "rebase" }]);
+  });
+
+  it("a card's PR merges through the card's integration, with the mode", async () => {
+    const calls: unknown[] = [];
+    server.use(http.post("*/api/cards/c1/integration", async ({ request }) => (calls.push(await request.json()), HttpResponse.json({ ok: true, card: {} }))));
+    mount({ repo: "/repo", number: "7", detail: detail({ modes: ["squash", "rebase"] }), error: null });
+    await userEvent.click(await screen.findByRole("radio", { name: "Rebase" }));
+    await userEvent.click(screen.getByRole("button", { name: /^merge$/i }));
+    await screen.findByText("list");
+    expect(calls).toEqual([{ action: "merge", andDone: false, mode: "rebase" }]);
   });
 
   it("lists the checks, with Re-run on a failure only", async () => {
