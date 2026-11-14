@@ -41,5 +41,26 @@ describe("navCached", () => {
     expect(await nav).toBe("y");
     expect(await prefetched).toBe("y");
     expect(slow).toHaveBeenCalledTimes(1);
+
+    // The joined load is aborted (its navigation superseded): the joiner loads for itself, never the abort.
+    router.state.navigation.state = "idle";
+    let abort!: () => void;
+    const first = vi.fn(() => new Promise<string>((_, j) => (abort = () => j(new DOMException("x", "AbortError")))));
+    const superseded = navCached("/z", first).catch((e: Error) => e.name);
+    router.state.navigation.state = "loading";
+    const joined = navCached("/z", async () => "z");
+    abort();
+    expect(await superseded).toBe("AbortError");
+    expect(await joined).toBe("z");
+
+    // Any other failure still reaches the joiner (its error page stays).
+    router.state.navigation.state = "idle";
+    let fail!: () => void;
+    const broken = navCached("/w", () => new Promise<string>((_, j) => (fail = () => j(new Error("boom"))))).catch(() => {});
+    router.state.navigation.state = "loading";
+    const joinedBroken = navCached("/w", async () => "w");
+    fail();
+    await broken;
+    await expect(joinedBroken).rejects.toThrow("boom");
   });
 });
