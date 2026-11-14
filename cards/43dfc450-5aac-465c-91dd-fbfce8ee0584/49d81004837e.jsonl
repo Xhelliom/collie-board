@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794667738248.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"0c75e773-4c6b-4a7d-9d75-39d8770fe9b5"}}
 {"v":1,"hlc":"1794667738248.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Fiche PR : « Mettre à jour la branche » quand elle est en retard sur la base","status":"backlog"},"ts":1794667730788}}
 {"v":1,"hlc":"1794667738249.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c2a03053-acf6-40e6-9cc6-246755e2599d"}}
+{"v":1,"hlc":"1794674223395.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
