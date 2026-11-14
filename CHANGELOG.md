@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.337.0] - 2026-11-14
+
+### Added
+
+- Tokens consommés par lot, par phase et par projet (orchestrateur du projet compris), semaine ou tout (b5b9db3)
+- `GET /api/cost?repo=…[&runId=|&phaseId=][&period=week|all]` ; « + N cartes inconnues » pour un agent non Claude (b5b9db3)
+- À propos : « Consommation du board » (lead + copilote), à part des projets (b5b9db3)
+
 ## [0.336.0] - 2026-11-14
 
 ### Added
