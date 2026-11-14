@@ -13,6 +13,7 @@ import { PANE_HEADER } from "./board-routes.ts";
 import { isMaxChain, isMaxRounds } from "./autonomy.ts";
 import { SINCE_EVENT_TYPES, sinceChanges } from "./since.ts";
 import { repoPathOf } from "./paths.ts";
+import { ClaudeTranscriptSource } from "./transcript.ts";
 
 export const ORCHESTRATOR_ROUTE = "/api/orchestrator";
 const MEMORY_ROUTE = `${ORCHESTRATOR_ROUTE}/memory`;
@@ -49,6 +50,8 @@ const depsOf = (ctx: BoardContext): OrchestratorDeps => ({
   snapshot: () => ctx.engine.current(),
   memory: (repo) => ctx.db.getMemory(repo),
   modelArgs: (repo, kind) => modelArgs(kind, null, ctx.adapters, ctx.db.repoModel(repo, kind)),
+  // The test contexts carry no transcript root: no lookup, a fresh start.
+  ...(ctx.cfg.transcriptRoot ? { transcripts: new ClaudeTranscriptSource(ctx.cfg.transcriptRoot) } : {}),
 });
 
 async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {

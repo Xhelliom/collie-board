@@ -643,8 +643,11 @@ export interface TranscriptSource {
    * Only sound because the CALLER knows the exact directory the agent was launched in — the board
    * creates the worktree itself. `resolve()` deliberately refuses to derive a path from a pane's
    * reported cwd, because that drifts as the agent works; a checkout root does not.
+   *
+   * With `marker`: the newest log whose head carries it — how a repo's orchestrator is told from the
+   * operator's own sessions in the same checkout (its start prompt opens the conversation).
    */
-  resolveByCwd(cwd: string): Promise<string | null>;
+  resolveByCwd(cwd: string, marker?: string): Promise<string | null>;
   /** Tail-read a log. `complete` is false when the byte cap clipped the head. */
   load(path: string): Promise<{ text: string; complete: boolean; size: number; mtimeMs: number }>;
   /** The log's size and mtime, without reading it — what tells a cached parse it is still current. */
@@ -766,6 +769,9 @@ const realStat: StatFn = async (path) => {
  * exist. Session uuids are globally unique, so scanning the project dirs for `<uuid>.jsonl` is both
  * correct and cheap (measured: ~14 ms across 306 logs, and the hit is then cached).
  */
+/** How far into a log `resolveByCwd`'s marker is looked for: the opening prompt sits in the first lines. */
+const MARKER_HEAD_BYTES = 256 * 1024;
+
 export class ClaudeTranscriptSource implements TranscriptSource {
   private readonly pathCache = new Map<string, string>();
 
@@ -978,7 +984,7 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     return pickByContent(scores);
   }
 
-  async resolveByCwd(cwd: string): Promise<string | null> {
+  async resolveByCwd(cwd: string, marker?: string): Promise<string | null> {
     const dir = join(this.root, mangleProjectDir(cwd));
     let names: string[];
     try {
@@ -988,19 +994,22 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     }
     // Newest wins: a resumed/forked conversation writes a fresh file, exactly as followContinuation
     // handles for the id path.
-    let best: { path: string; mtimeMs: number } | null = null;
+    const found: { path: string; mtimeMs: number }[] = [];
     for (const name of names) {
       if (!name.endsWith(".jsonl")) continue;
       const candidate = join(dir, name);
       try {
-        const st = await this.statFile(candidate);
-        if (!best || st.mtimeMs > best.mtimeMs) best = { path: candidate, mtimeMs: st.mtimeMs };
+        found.push({ path: candidate, mtimeMs: (await this.statFile(candidate)).mtimeMs });
       } catch {
         continue;
       }
     }
-    if (best === null) return null;
-    return this.contained(best.path);
+    found.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    for (const { path } of found) {
+      if (marker !== undefined && !(await Bun.file(path).slice(0, MARKER_HEAD_BYTES).text().catch(() => "")).includes(marker)) continue;
+      return this.contained(path);
+    }
+    return null;
   }
 
   /**

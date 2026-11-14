@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { BoardDb } from "./db.ts";
-import { ASLEEP_MS, classify, lastTurn, LostAgentResumer, recapLine, RESUMED_EVENT } from "./resume-lost.ts";
+import { ASLEEP_MS, classify, lastTurn, LostAgentResumer, recapLine, RESUMED_EVENT, verdictWhy } from "./resume-lost.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { TranscriptSource } from "./transcript.ts";
 import type { AgentView } from "./types.ts";
@@ -59,6 +59,18 @@ describe("classify", () => {
 
   it("no message for longer than the threshold: asleep, even with its turn open", () => {
     expect(classify({ turn: open, cardStatus: "working", bilan: false, now: T0 + ASLEEP_MS + 1 })).toBe("asleep");
+  });
+
+  it("a night off is not sleep: the orchestrator and a card left overnight come back after a reboot", () => {
+    const morning = T0 + 14 * 3_600_000;
+    expect(classify({ turn: closed, cardStatus: null, bilan: false, now: morning })).toBe("resume");
+    expect(classify({ turn: open, cardStatus: "working", bilan: false, now: morning })).toBe("resume");
+  });
+
+  it("the journal says why", () => {
+    expect(verdictWhy("resume", { turn: open, cardStatus: "working", bilan: false, now })).toBe("tour ouvert");
+    expect(verdictWhy("finished", { turn: closed, cardStatus: "review", bilan: false, now })).toBe("tour clos, carte en review");
+    expect(verdictWhy("asleep", { turn: open, cardStatus: "working", bilan: false, now: T0 + 80 * 3_600_000 })).toBe("muet depuis 80 h");
   });
 });
 
