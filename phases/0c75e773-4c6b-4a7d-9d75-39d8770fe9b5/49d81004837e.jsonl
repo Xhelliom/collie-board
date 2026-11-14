@@ -1,2 +1,3 @@
 {"v":1,"hlc":"1794609279685.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Les PR sans quitter Collie","goal":"Tout ce qu on fait sur GitHub pour une PR se fait dans Collie, depuis le téléphone : lire, vérifier, fusionner, débloquer.","position":50,"roadmap_item_id":"c526c6c9","closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794609277275}}
 {"v":1,"hlc":"1794609279687.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"pipeline_id":"ea6ec2d6-c4c0-41e7-9230-58f18b60c3d1"}}
+{"v":1,"hlc":"1794685690620.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794685684024}}
