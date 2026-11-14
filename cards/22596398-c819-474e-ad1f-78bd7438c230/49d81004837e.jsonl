@@ -8,3 +8,5 @@
 {"v":1,"hlc":"1794664249735.0010.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3152},"ts":1794664242455}}
 {"v":1,"hlc":"1794664249737.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794664249737.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent working"},"ts":1794664242793}}
+{"v":1,"hlc":"1794664814496.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"22596398-c819-474e-ad1f-78bd7438c230","name":"documents-pages.png","size":66677,"by":"agent","pane":"t7g"},"ts":1794664802822}}
+{"v":1,"hlc":"1794664814496.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"22596398-c819-474e-ad1f-78bd7438c230","name":"onglet-livrable.png","size":28501,"by":"agent","pane":"t7g"},"ts":1794664802868}}
