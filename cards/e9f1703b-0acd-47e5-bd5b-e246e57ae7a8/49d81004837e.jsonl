@@ -2,3 +2,5 @@
 {"v":1,"hlc":"1794661892901.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Retours du 14/11 après redémarrage — 7 petites choses","status":"backlog"},"ts":1794661883574}}
 {"v":1,"hlc":"1794661921544.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794661921544.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"working","reason":"derived from sub-tasks"},"ts":1794661920544}}
+{"v":1,"hlc":"1794662030275.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
+{"v":1,"hlc":"1794662030275.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"derived from sub-tasks"},"ts":1794662030250}}
