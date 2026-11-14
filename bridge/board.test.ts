@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
@@ -30,6 +30,7 @@ import {
   startCard,
   withCardFields,
   wouldCycle,
+  RESUME_PROMPT,
 } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { handleBoardRoute, PANE_HEADER, parseCardBody } from "./board-routes.ts";
@@ -851,9 +852,66 @@ describe("startCard", () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo" });
     store.openSession({ cardId: card.id, paneId: "wZ:p1" });
-    const { client } = fakeHerdr();
+    const { client } = fakeHerdr(new Set(["agentPresent"]));
     const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
     expect(res).toMatchObject({ ok: false, error: { kind: "already-running" } });
+  });
+
+  it("relaunches a card whose session is left on a bare shell (a reboot), in the same worktree", async () => {
+    const store = db();
+    const card = store.createCard({ title: "ship it", repoPath: "/repo", branch: "board/ship-it", status: "working" });
+    const old = store.openSession({ cardId: card.id, paneId: "wZ:p1" });
+    const { client, calls } = fakeHerdr(new Set(["createWorktree"]));
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+    expect(res.ok).toBe(true);
+    expect(store.listSessions(card.id).find((s) => s.id === old.id)!.outcome).toBe("lost");
+    expect(calls).toContain("openWorktree");
+    expect(store.getCard(card.id)!.branch).toBe("board/ship-it");
+  });
+
+  it("never restarts a card still starting, even on a shell", async () => {
+    const store = db();
+    const card = store.createCard({ title: "ship it", repoPath: "/repo", status: "starting" });
+    store.openSession({ cardId: card.id, paneId: "wZ:p1" });
+    const res = await startCard(store, fakeHerdr().client as never, startCfg, card.id, { sleep: async () => {} });
+    expect(res).toMatchObject({ ok: false, error: { kind: "already-running" } });
+  });
+
+  it("resumes the last agent's conversation when its transcript is on disk, without re-sending the spec", async () => {
+    const root = mkdtempSync(join(tmpdir(), "resume-"));
+    const id = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+    mkdirSync(join(root, "-wt-board-ship-it"));
+    writeFileSync(join(root, "-wt-board-ship-it", `${id}.jsonl`), "");
+    const store = db();
+    const card = store.createCard({ title: "ship it", spec: "the spec", repoPath: "/repo", branch: "board/ship-it", status: "orphaned" });
+    const s = store.openSession({ cardId: card.id, paneId: "wZ:p0", agentSessionId: id });
+    store.closeSession(s.id, "lost");
+    const { client } = fakeHerdr(new Set(["createWorktree"]));
+    let args: unknown;
+    let text = "";
+    const startAgent = client.startAgent;
+    (client as { startAgent: (o: { args?: string[] }) => Promise<void> }).startAgent = async (o) => ((args = o.args), startAgent());
+    const promptAgent = client.promptAgent;
+    (client as { promptAgent: (o: { text: string }) => Promise<void> }).promptAgent = async (o) => ((text = o.text), promptAgent());
+    const res = await startCard(store, client as never, { ...startCfg, transcriptRoot: root }, card.id, { sleep: async () => {} });
+    expect(res.ok).toBe(true);
+    expect(args).toEqual(["--resume", id]);
+    expect(text).toBe(RESUME_PROMPT);
+    expect(store.openSessionFor(card.id)!.agentSessionId).toBe(id);
+  });
+
+  it("starts afresh when the last conversation's transcript is gone", async () => {
+    const store = db();
+    const card = store.createCard({ title: "ship it", repoPath: "/repo", branch: "board/ship-it", status: "orphaned" });
+    const s = store.openSession({ cardId: card.id, paneId: "wZ:p0", agentSessionId: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d" });
+    store.closeSession(s.id, "lost");
+    const { client } = fakeHerdr(new Set(["createWorktree"]));
+    let args: unknown = "unset";
+    const startAgent = client.startAgent;
+    (client as { startAgent: (o: { args?: string[] }) => Promise<void> }).startAgent = async (o) => ((args = o.args), startAgent());
+    const res = await startCard(store, client as never, { ...startCfg, transcriptRoot: mkdtempSync(join(tmpdir(), "none-")) }, card.id, { sleep: async () => {} });
+    expect(res.ok).toBe(true);
+    expect(args).toBeUndefined();
   });
 
   it("enforces the concurrency semaphore from the DATABASE, so a restart doesn't forget", async () => {
