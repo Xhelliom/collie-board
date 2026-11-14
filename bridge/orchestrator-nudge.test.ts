@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { BoardDb } from "./db.ts";
 import { OrchestratorNudger } from "./orchestrator-nudge.ts";
+import { DEFAULT_BUDGET } from "./goal-routes.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -118,5 +119,55 @@ describe("OrchestratorNudger (ADR 0028)", () => {
     w.nudger.update(snap(false));
     await flush();
     expect(w.sent).toHaveLength(0);
+  });
+  describe("end of a lot with nothing planned next", () => {
+    const endWith = async (autonomy: { enabled: boolean; startWhenIdle: boolean } | null) => {
+      const w = world();
+      if (autonomy) w.db.setAutonomy("/g/r", { ...autonomy, maxChain: null, stopOnRed: false, maxRounds: 5 });
+      w.db.recordRunEvent(null, "run.finished", { runId: w.run.id });
+      w.nudger.update(snap(true));
+      await flush();
+      return w.sent[0]!;
+    };
+
+    it("autonomy off: forbids launching", async () => {
+      expect(await endWith(null)).toContain("Ne lance rien et ne valide rien toi-même.");
+    });
+
+    it("autonomy on with startWhenIdle: prepare the next lot, then launch it yourself", async () => {
+      const text = await endWith({ enabled: true, startWhenIdle: true });
+      expect(text).toContain("Aucun lot planifié : prépare le suivant.");
+      expect(text).toContain("lance-le toi-même");
+      expect(text).not.toContain("Ne lance rien");
+    });
+
+    it("autonomy on without startWhenIdle: prepare it and propose it to the operator", async () => {
+      const text = await endWith({ enabled: true, startWhenIdle: false });
+      expect(text).toContain("Aucun lot planifié : prépare le suivant.");
+      expect(text).toContain("propose-le à l'opérateur");
+      expect(text).not.toContain("Ne lance rien");
+    });
+
+    it("under an active objective, neither the end of lot nor goal.created says « Ne lance rien »", async () => {
+      const wake = async (type: "goal.created" | "run.finished") => {
+        const w = world();
+        if (type === "goal.created") {
+          // goal.created only wakes with no lot of the repo open: close world()'s lot first.
+          w.db.recordRunEvent(null, "run.finished", { runId: w.run.id });
+          w.nudger.update(snap(true));
+          await flush();
+          w.sent.length = 0;
+        }
+        const g = w.db.createGoal({ repoPath: "/g/r", text: "v1", criteria: ["CI verte"], budget: DEFAULT_BUDGET })!;
+        if (type === "goal.created") w.db.recordEvent(null, type, { goalId: g.id });
+        else w.db.recordRunEvent(null, type, { runId: w.run.id });
+        w.nudger.update(snap(true));
+        for (let i = 0; i < 5 && !w.sent.length; i++) await flush();
+        return w.sent;
+      };
+      const sent = [...(await wake("goal.created")), ...(await wake("run.finished"))];
+      expect(sent).toHaveLength(2);
+      for (const t of sent) expect(t).not.toContain("Ne lance rien");
+    });
   });
 });

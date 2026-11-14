@@ -21,7 +21,7 @@ const FILED = new Set<string>(["done", "archived"]);
 const line = (c: Card) => `- « ${c.title} » (${c.id}) : ${c.status}`;
 
 /** The message for a lot that ended: its cards, merged ones (journal, or a PR GitHub says is merged) apart from those that were ever blocked. Pure. */
-export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, merged: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null, goal?: GoalWake | null): string {
+export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, merged: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null, goal?: GoalWake | null, autonomy?: { enabled: boolean; startWhenIdle: boolean }): string {
   const ok = cards.filter((c) => merged.has(c.id) || (FILED.has(c.status) && !blocked.has(c.id)));
   const ko = cards.filter((c) => !ok.includes(c));
   return [
@@ -47,7 +47,15 @@ export function lotMessage(name: string | null, cards: Card[], blocked: Set<stri
         ? [`Autonomie arrêtée : ${auto.why}. Ne lance rien ; l'opérateur a été prévenu et reprend la main.`, "Ne valide rien toi-même."]
         : goal
           ? []
-          : ["Ne lance rien et ne valide rien toi-même."]),
+          : autonomy?.enabled
+            ? [
+                // Nothing planned yet is the usual case under autonomy: the next lot is cut just in time, after this bilan.
+                "Aucun lot planifié : prépare le suivant.",
+                autonomy.startWhenIdle
+                  ? "Dès qu'il est planifié et que rien ne tourne, lance-le toi-même (POST /api/runs/<id>/launch avec ton x-collie-pane). Ne valide aucune phase toi-même."
+                  : "Puis propose-le à l'opérateur : c'est lui qui le lance. Ne valide rien toi-même.",
+              ]
+            : ["Ne lance rien et ne valide rien toi-même."]),
     ...(goal && !(auto && !auto.go) ? goalLines(goal, repoPath ?? "<repo>", !auto) : []),
   ].join("\n");
 }
@@ -181,7 +189,7 @@ export class OrchestratorNudger {
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
       // Under an objective the phases are not validated one by one: the end of a phase is not proposed.
       const endPhase = ends && phase && !goal ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null;
-      const text = lotMessage(run.name, cards, blocked, merged, endPhase, run.repoPath, auto, goal);
+      const text = lotMessage(run.name, cards, blocked, merged, endPhase, run.repoPath, auto, goal, this.db.autonomyOf(run.repoPath));
       return { repoPath: run.repoPath, text: openGoalOf(this.db, run.repoPath) ? `${text}\n${GOAL_LOT_LINE}` : text };
     }
     if (e.type === "goal.created" || e.type === "goal.resumed") {
