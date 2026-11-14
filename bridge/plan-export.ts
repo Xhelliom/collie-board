@@ -204,8 +204,9 @@ export async function openPlanPr(
   if (was.ok && was.stdout.trim() === tree) return { ok: true, skipped: "docs/plan already up to date" };
   const commit = await git(["commit-tree", tree, ...parents.flatMap((p) => ["-p", p]), "-m", title], repo);
   if (!commit.ok) return { ok: false, error: commit.stderr.trim() || "commit-tree failed" };
+  // --no-verify : le commit est construit par le pont (docs/plan/ seul) ; le hook pre-push (typecheck + tests) n'a rien à y juger et saturait le CPU.
   // Une branche neuve ou en avance rapide, jamais forcée : la base n'est jamais poussée.
-  const push = await git(["push", "origin", `${commit.stdout.trim()}:refs/heads/${branch}`], repo);
+  const push = await git(["push", "--no-verify", "origin", `${commit.stdout.trim()}:refs/heads/${branch}`], repo);
   if (!push.ok) return { ok: false, error: (push.stderr || push.stdout).trim().split("\n").slice(-2).join(" ") || "push failed" };
   if (input.existing) {
     const edit = await editPrTitle(repo, input.existing.number, title, gh, body);
