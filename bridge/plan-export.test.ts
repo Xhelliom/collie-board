@@ -197,4 +197,28 @@ describe("the rolling docs(plan) PR", () => {
     expect(await git(["show", `${branch}:docs/plan/lots/${lotSlugOf(a)}.md`], origin)).toContain("Lot A");
     expect(await git(["rev-parse", "main"], origin)).toBe(mainBefore); // the base is never pushed
   });
+
+  it("two lot ends of the same repo launched together export one after the other, on one rolling PR", async () => {
+    const { repo, origin } = await repoWithOrigin();
+    const db = new BoardDb(":memory:");
+    const mk = (name: string) => db.createRun({ repoPath: repo, cardIds: [db.createCard({ title: name, repoPath: repo, status: "done" }).id], foldInCap: 0, name }) as Run;
+    const a = mk("Lot A");
+    const b = mk("Lire une PR");
+    (db as unknown as { runFinishedAt: (id: string) => number | null }).runFinishedAt = () => Date.UTC(2026, 10, 14);
+    let open: unknown[] = [];
+    const creates: string[][] = [];
+    const gh: GitRunner = async (args) => {
+      if (args[1] === "list") return { ok: true, stdout: JSON.stringify(open), stderr: "" };
+      if (args[1] === "create") {
+        creates.push(args);
+        open = [{ number: 9, title: "x", url: "https://g/pull/9", headRefName: `board/plan-${lotSlugOf(a)}` }];
+      }
+      return { ok: true, stdout: "https://g/pull/9\n", stderr: "" };
+    };
+    const [ra, rb] = await Promise.all([exportPlanAtLotEnd(db, a, runGit, gh), exportPlanAtLotEnd(db, b, runGit, gh)]);
+    expect(ra).toMatchObject({ ok: true, url: "https://g/pull/9" });
+    expect(rb.ok).toBe(true); // committed on the rolling branch, or already there through the catch-up
+    expect(creates).toHaveLength(1);
+    expect(await git(["show", `board/plan-${lotSlugOf(a)}:docs/plan/lots/${lotSlugOf(b)}.md`], origin)).toContain("Lire une PR");
+  });
 });
