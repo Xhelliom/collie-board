@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794663621556.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Le message de démarrage cite le socket herdr-core réellement attendu","status":"backlog"},"ts":1794663610462}}
 {"v":1,"hlc":"1794664234503.0034.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"c4af22c1-3c5f-41ea-bc71-cb50a4e7418b"}}
 {"v":1,"hlc":"1794664234503.0035.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"855c55fd-3b9f-4c56-9b46-6a3ca6a75020"}}
+{"v":1,"hlc":"1794665037979.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
