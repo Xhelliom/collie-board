@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.335.0] - 2026-11-14
+
+### Added
+
+- Accueil : un projet au travail porte le signal bleu « au travail » et le nom de son lot en cours ; un projet qui attend l'opérateur garde son orange (6c74d32)
+
+### Fixed
+
+- Fin de lot sous autonomie sans lot planifié : l'orchestrateur prépare le suivant (et le lance lui-même si « Peut démarrer un lot quand rien ne tourne ») au lieu de « Ne lance rien ». (fed732f)
+- Prompt de l'orchestrateur : les deux exceptions au « tu ne lances pas » (objectif actif ; autonomie qui peut démarrer quand rien ne tourne) sont données d'emblée. (fed732f)
+
 ## [0.334.0] - 2026-11-14
 
 ### Added
