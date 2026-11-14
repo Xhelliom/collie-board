@@ -354,9 +354,11 @@ network — no external stylesheet, font or image, no fetch. So it must be self-
 
 ## Plan a project: phases, lots, roadmap
 
-A project is one repo: **roadmap → phase → lot → card**. You prepare all of it; **you never
-launch a lot** — launching is the user's tap. Always send `x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}`:
-the launch routes refuse any request that carries it (`403`), which is the guarantee.
+A project is one repo: **roadmap → phase → lot → card**. You prepare all of it; launching a lot is the
+user's tap **unless** an objective is active or the user turned autonomy on (below). Always send
+`x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}`: the bridge is the guard — it checks those settings and
+refuses (`403`) a launch they do not allow, with the reason in the body. When the user asked you for a
+gesture the bridge refuses, tell them that reason and the setting that would allow it, not « tap here ».
 
 The project tab's **orchestrator** is this same skill running in a pane the user starts
 (`POST /api/orchestrator {"repoPath"}` from the tab's "Démarrer l'orchestrateur"; `GET
@@ -510,7 +512,7 @@ These spend quota or drive a real terminal. Never fire one unasked:
   filing or closing the card. It ends when the user gives it back, or by itself after 2 h without a
   message from them; then ask again. `POST`/`DELETE /api/cards/<id>/hold` (take / give back to the lead)
   are the user's own gestures — `403` to any pane.
-- `POST /api/cards/<id>/next-step` — hands a landed card (outside a run) to the next role of its flow; the user's tap, never yours.
+- `POST /api/cards/<id>/next-step` — hands a landed card (outside a run) to the next role of its flow; the user's tap, or yours when they asked for it.
 - `POST /api/cards/<id>/reformulate` — hands the card to the copilot.
 - `POST /api/cards/<id>/handoff`, `DELETE` on a card that has work in it.
 - `DELETE /api/cards/<id>/remote` — ends a card's session on its peer (closes the pane there).

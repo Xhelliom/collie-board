@@ -130,8 +130,10 @@ describe("OrchestratorNudger (ADR 0028)", () => {
       return w.sent[0]!;
     };
 
-    it("autonomy off: forbids launching", async () => {
-      expect(await endWith(null)).toContain("Ne lance rien et ne valide rien toi-même.");
+    it("autonomy off: says the bridge will refuse a launch, and to propose", async () => {
+      const text = await endWith(null);
+      expect(text).toContain("le bridge te refusera un lancement");
+      expect(text).not.toContain("Ne lance rien");
     });
 
     it("autonomy on with startWhenIdle: prepare the next lot, then launch it yourself", async () => {
