@@ -142,8 +142,23 @@ export interface OptionalFile {
 export const rollingPlanPr = (prs: GhPr[]): GhPr | null =>
   prs.filter((p) => p.branch.startsWith(`${boardBranchPrefix()}plan-`)).sort((a, b) => b.number - a.number)[0] ?? null;
 
-/** « fin du lot « A » » ou « fin des lots A, B, C ». Pur. */
-export const planTitle = (names: string[]): string => (names.length === 1 ? `docs(plan): fin du lot « ${names[0]} »` : `docs(plan): fin des lots ${names.join(", ")}`);
+const NAME_MAX = 60;
+const cut = (n: string): string => (n.length > NAME_MAX ? `${n.slice(0, NAME_MAX - 1).trimEnd()}…` : n);
+
+/** Titre BORNÉ (GitHub refuse > 256) : un lot, deux lots, au-delà un compte et le dernier. La liste complète va dans le corps. Pur. */
+export const planTitle = (names: string[]): string => {
+  const [first = "", second = ""] = names;
+  const last = names[names.length - 1] ?? "";
+  return names.length === 1
+    ? `docs(plan): fin du lot « ${cut(first)} »`
+    : names.length === 2
+      ? `docs(plan): fin des lots ${cut(first)} et ${cut(second)}`
+      : `docs(plan): fin de ${names.length} lots (dernier : ${cut(last)})`;
+};
+
+/** Corps de la PR roulante : la liste complète des lots (le titre n'en porte plus que le compte). Pur. */
+export const planBody = (names: string[]): string =>
+  `Roadmap, étapes et bilan des lots, exportés par Collie Board à la fin de chaque lot. À merger par l'opérateur.\n\nLots :\n${names.map((n) => `- ${n}`).join("\n")}\n\nCouper l'export : réglages du projet, « Exporter le plan à chaque fin de lot ».`;
 
 /**
  * Pose `files` sur origin/<base> dans un commit à part, pousse, ouvre la PR. Jamais la base.
@@ -151,7 +166,7 @@ export const planTitle = (names: string[]): string => (names.length === 1 ? `doc
  */
 export async function openPlanPr(
   repo: string,
-  input: { base: string; branch: string; title: string | ((labels: string[]) => string); body: string; files: Record<string, string>; optional?: OptionalFile[]; existing?: { number: number; branch: string } },
+  input: { base: string; branch: string; title: string | ((labels: string[]) => string); body: string | ((labels: string[]) => string); files: Record<string, string>; optional?: OptionalFile[]; existing?: { number: number; branch: string } },
   git: GitRunner = runGit,
   gh: GitRunner = runGh,
 ): Promise<ExportResult> {
@@ -164,7 +179,9 @@ export async function openPlanPr(
   const sha = parent.stdout.trim();
   const absent: OptionalFile[] = [];
   for (const o of input.optional ?? []) if (!(await git(["cat-file", "-e", `${sha}:${o.path}`], repo)).ok) absent.push(o);
-  const title = typeof input.title === "function" ? input.title(absent.map((o) => o.label)) : input.title;
+  const labels = absent.map((o) => o.label);
+  const title = typeof input.title === "function" ? input.title(labels) : input.title;
+  const body = typeof input.body === "function" ? input.body(labels) : input.body;
   let tree: string;
   try {
     tree = await treeWith(repo, `${sha}:`, { ...Object.fromEntries(absent.map((o) => [o.path, o.content])), ...input.files }, git);
@@ -187,10 +204,10 @@ export async function openPlanPr(
   const push = await git(["push", "origin", `${commit.stdout.trim()}:refs/heads/${branch}`], repo);
   if (!push.ok) return { ok: false, error: (push.stderr || push.stdout).trim().split("\n").slice(-2).join(" ") || "push failed" };
   if (input.existing) {
-    const edit = await editPrTitle(repo, input.existing.number, title, gh);
+    const edit = await editPrTitle(repo, input.existing.number, title, gh, body);
     return edit.ok ? { ok: true, url: null } : edit;
   }
-  const pr = await createPr(repo, { branch, base: input.base, title, body: input.body }, gh);
+  const pr = await createPr(repo, { branch, base: input.base, title, body }, gh);
   return pr.ok ? { ok: true, url: pr.url } : pr;
 }
 
@@ -210,7 +227,7 @@ export async function exportPlanAtLotEnd(db: BoardDb, run: Run, git: GitRunner =
         base,
         branch: `${boardBranchPrefix()}plan-${slug}`,
         title: (labels) => planTitle([...labels, run.name ?? "sans nom"]),
-        body: `Roadmap, étapes et bilan du lot, exportés par Collie Board à la fin du lot. À merger par l'opérateur.\n\nCouper l'export : réglages du projet, « Exporter le plan à chaque fin de lot ».`,
+        body: (labels) => planBody([...labels, run.name ?? "sans nom"]),
         files: planFiles(db, run, Date.now()),
         optional: catchUpBilans(db, run),
         ...(existing ? { existing: { number: existing.number, branch: existing.branch } } : {}),

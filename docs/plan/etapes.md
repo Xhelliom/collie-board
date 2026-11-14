@@ -60,9 +60,17 @@
 
 Tout ce qu on fait sur GitHub pour une PR se fait dans Collie, depuis le téléphone : lire, vérifier, fusionner, débloquer.
 
-### Lot — Lire une PR (planned, one at a time)
+### Lot — Lire une PR (launched, 2 at a time)
 
-- **Les checks d une PR sur sa fiche, et Relancer ceux qui ont échoué** — backlog
+- **Bug : le titre de la PR docs(plan) roulante dépasse 256 caractères, GitHub refuse la mise à jour** — done
+
+  Après #411 (rattrapage des exports au démarrage), le redémarrage du 13/11 23:36 (local) a réexporté les lots manqués, mais plusieurs exports échouent : `[plan] lot … export failed — GraphQL: Title is too long (maximum is 256 characters) (updatePullRequest)` (journalctl --user -u collie-board). Le titre de la PR docs(plan) roulante (« docs(plan): fin des lots A, B, C, … ») concatène tous les noms de lots : avec ~23 lots en attente il dépasse 256 caractères et GitHub refuse la mise à jour.
+  À faire dans bridge/plan-export.ts : un titre BORNÉ (≤ 256, viser ≤ 120) : « docs(plan): fin du lot X » pour un lot, « docs(plan): fin des lots X et Y » pour deux, au-delà « docs(plan): fin de N lots (dernier : X) » ; la liste complète des lots va dans le CORPS de la PR. Couper proprement un nom de lot trop long (…). Test bun : 1, 2, 23 lots, et un nom de 300 caractères → titre ≤ 256. Vérifier ensuite que la PR roulante de collie-board se met à jour au prochain export (ou au redémarrage, via le rattrapage).
+
+  - [x] Titre de la PR roulante toujours ≤ 256 caractères, liste complète dans le corps
+  - [x] Test bun : 1, 2, 23 lots, nom très long
+  - [x] La PR roulante de collie-board se met à jour
+- **Les checks d une PR sur sa fiche, et Relancer ceux qui ont échoué** — review
   - after: La fiche d une PR dans Collie : description, fichiers et diff, depuis PR ouvertes
 
   Phase « Les PR sans quitter Collie », lot 1, carte 2/2 — part de la fiche d une PR livrée par la carte 1 (web/src/routes/pr.tsx, bridge/pr-detail.ts).
@@ -75,7 +83,7 @@ Tout ce qu on fait sur GitHub pour une PR se fait dans Collie, depuis le télép
   - [ ] La fiche liste les checks avec état, durée et lien
   - [ ] Relancer un check en échec depuis Collie (geste opérateur, refusé à un pane)
   - [ ] Route documentée dans le skill ; tests verts
-- **La fiche d une PR dans Collie : description, fichiers et diff, depuis PR ouvertes** — backlog
+- **La fiche d une PR dans Collie : description, fichiers et diff, depuis PR ouvertes** — done
 
   UTILISE LE SKILL frontend-design AVANT DE COMMENCER (charge-le).
   Phase « Les PR sans quitter Collie », lot 1, carte 1/2. Aujourd hui l onglet PR ouvertes (web/src/routes/prs.tsx, bridge/prs.ts) liste les PR et sait fusionner une PR prête ou en fermer une ; pour LIRE une PR l opérateur doit ouvrir GitHub.
@@ -85,7 +93,7 @@ Tout ce qu on fait sur GitHub pour une PR se fait dans Collie, depuis le télép
   - Documente la route dans skills/collie-board/SKILL.md (bridge/skill.test.ts l exige). i18n fr/en dans web/src/i18n/messages/prs.ts.
   Tests : bun (mise en forme, validation du numéro/repo), vitest (la fiche rend titre, description, fichiers ; le lien depuis la liste).
 
-  - [ ] Toucher une PR dans PR ouvertes ouvre sa fiche dans Collie
-  - [ ] La fiche montre titre, état, auteur, branche, carte liée, description, fichiers et diff
-  - [ ] Fusionner/Fermer existants disponibles sur la fiche ; Ouvrir sur GitHub dans un ⋯
-  - [ ] Route documentée dans le skill ; tests verts
+  - [x] Toucher une PR dans PR ouvertes ouvre sa fiche dans Collie
+  - [x] La fiche montre titre, état, auteur, branche, carte liée, description, fichiers et diff
+  - [x] Fusionner/Fermer existants disponibles sur la fiche ; Ouvrir sur GitHub dans un ⋯
+  - [x] Route documentée dans le skill ; tests verts

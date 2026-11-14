@@ -141,9 +141,12 @@ describe("PrsRoute", () => {
     expect(within(ready).getByRole("button", { name: /merge all 2/i })).toBeTruthy();
     expect(within(blocked).getByRole("button", { name: /update with an agent/i })).toBeTruthy();
     expect(within(blocked).getByRole("button", { name: /close/i })).toBeTruthy();
-    expect(within(blocked).getByRole("link", { name: /open on github/i })).toBeTruthy();
+    // « Open on GitHub » waits in the row's ⋯.
+    await userEvent.click(within(blocked).getByRole("button", { name: /more actions/i }));
+    expect(within(blocked).getByRole("menuitem", { name: /open on github/i })).toBeTruthy();
     expect(within(waiting).getByText("pr 13")).toBeTruthy();
-    expect(within(ready).getByRole("link", { name: /card ready/i })).toHaveAttribute("href", "/card/ready");
+    // The title opens the PR's sheet (which links the card), not GitHub.
+    expect(within(ready).getByRole("link", { name: /open pr 10/i })).toHaveAttribute("href", "/board/prs/10?repo=%2Fhome%2Fme%2Fcollie-board");
     // What the journal knows about auto-merge, once per row, not as a paragraph.
     expect(within(ready).getByText("auto-merge armed")).toBeTruthy();
     // The merged ones are one tap away.

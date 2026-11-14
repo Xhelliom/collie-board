@@ -9,6 +9,34 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.326.0] - 2026-11-13
+
+### Added
+
+- Fiche d'une PR ouverte dans Collie : description, fichiers, diff, Fusionner / Fermer ; la liste y mène (cb9888e)
+- `GET /api/board/prs/<n>?repo=` (lecture seule) (cb9888e)
+
+### Changed
+
+- « Ouvrir sur GitHub » passe dans le ⋯ de chaque ligne de PR (cb9888e)
+
+## [0.325.1] - 2026-11-13
+
+### Fixed
+
+- Le titre de la PR `docs(plan)` roulante est borné (≤ 256, GitHub refusait « Title is too long ») ; la liste des lots passe dans le corps, mis à jour avec le titre. (301e1c9)
+
+## [0.325.0] - 2026-11-13
+
+### Changed
+
+- Réglages › Apparence : plus de choix de style, le Sémaphore est le seul look (un « Classique » mémorisé est effacé). (ec0a65d)
+
+### Fixed
+
+- Un redémarrage du bridge pendant l'export du plan ne perd plus la PR docs(plan) : au démarrage, les lots finis sans export réussi sont réexportés (une fois par dépôt, rattrapage compris). (c10e801)
+- Un échec d'export est journalisé dans le journal du lot (`plan.exported`) en plus du log. (c10e801)
+
 ## [0.324.0] - 2026-11-13
 
 ### Changed

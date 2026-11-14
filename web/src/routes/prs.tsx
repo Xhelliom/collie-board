@@ -5,6 +5,7 @@ import { Check, ChevronRight, Clock, ExternalLink, GitMerge, Play, RefreshCw, X 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { Panel, PanelLink } from "@/components/card-panel";
+import { MENU_ITEM, MoreActions } from "@/components/project-more";
 import { t, useT, type MessageKey } from "@/i18n";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
@@ -14,6 +15,7 @@ import {
   fetchOpenPrs,
   integrateCard,
   loadRepoScope,
+  prPath,
   prGesture,
   repoName,
   type GhPr,
@@ -231,7 +233,12 @@ export function PrsRoute() {
     return (
       <li key={r.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 py-2 first:border-t-0 first:pt-0 lg:flex-nowrap">
         <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">{r.number ? `#${r.number}` : "—"}</span>
-        {r.card ? (
+        {r.repoPath && r.number ? (
+          <Link to={prPath(r.repoPath, r.number)} aria-label={t("prs.open", { n: r.number })} className="flex min-w-0 flex-1 basis-48 items-center gap-1">
+            {title}
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </Link>
+        ) : r.card ? (
           <Link to={cardPath(r.card.id)} className="flex min-w-0 flex-1 basis-48 items-center gap-1">
             {title}
             <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -266,12 +273,15 @@ export function PrsRoute() {
     );
   }
 
+  // « Open on GitHub » waits in the ⋯ — the sheet is the row's tap now.
   const gh = (r: PrRow) =>
     r.url && (
-      <a href={r.url} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "text-[13px]")}>
-        <ExternalLink className="size-3.5" />
-        {t("prs.github")}
-      </a>
+      <MoreActions label={t("prs.more")}>
+        <a role="menuitem" href={r.url} target="_blank" rel="noreferrer" className={MENU_ITEM}>
+          <ExternalLink className="size-4" />
+          {t("prs.github")}
+        </a>
+      </MoreActions>
     );
 
   return (
