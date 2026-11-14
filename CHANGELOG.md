@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.340.0] - 2026-11-14
+
+### Added
+
+- Réglages : une mise à jour en échec propose « Faire réparer par un agent », lancé dans le checkout du plugin avec la sortie complète (8a8643a)
+
 ## [0.339.0] - 2026-11-14
 
 ### Added
