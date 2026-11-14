@@ -173,5 +173,17 @@ describe("UpdateCheckControl", () => {
       expect(screen.getByText("fatal: Not possible to fast-forward")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /update to 0\.12\.0/i })).not.toBeDisabled();
     });
+
+    it("hands a failed update to an agent, then links to it", async () => {
+      server.use(
+        http.post("/api/update/apply", () => HttpResponse.json({ error: "exit 141", kind: "update-failed" }, { status: 502 })),
+        http.post("/api/update/repair", () => HttpResponse.json({ ok: true, pane: { paneId: "p9" } })),
+      );
+      const user = userEvent.setup();
+      renderControl(newer);
+      await user.click(await screen.findByRole("button", { name: /update to 0\.12\.0/i }));
+      await user.click(await screen.findByRole("button", { name: /have an agent fix it/i }));
+      expect(await screen.findByRole("link", { name: /the agent is on it/i })).toHaveAttribute("href", "/pane/p9");
+    });
   });
 });

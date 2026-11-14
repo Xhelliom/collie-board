@@ -104,7 +104,7 @@ describe("parseInvoke / parseLogOutcome", () => {
       JSON.stringify({ result: { logs: [{ log_id: "other", status: "failed" }, { log_id: "l1", status, exit_code: 1, stdout: "updating…", stderr: "error: build failed" }] } });
     expect(parseLogOutcome(list("running"), "l1")).toBeNull();
     expect(parseLogOutcome(list("succeeded"), "l1")).toEqual({ error: null });
-    expect(parseLogOutcome(list("failed"), "l1")).toEqual({ error: "updating…\nerror: build failed" });
+    expect(parseLogOutcome(list("failed"), "l1")).toEqual({ error: "updating…\nerror: build failed", output: "updating…\nerror: build failed" });
     expect(parseLogOutcome("not json", "l1")).toBeNull();
   });
 });

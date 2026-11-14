@@ -31,7 +31,7 @@ export function parseInvoke(stdout: string): { logId: string } | { error: string
 }
 
 /** Where that log stands: still running (null), or done — with the reason when it failed. Pure. */
-export function parseLogOutcome(stdout: string, logId: string): null | { error: string | null } {
+export function parseLogOutcome(stdout: string, logId: string): null | { error: string | null; output?: string } {
   let log: { status?: string; exit_code?: number; stdout?: string; stderr?: string } | undefined;
   try {
     log = JSON.parse(stdout)?.result?.logs?.find((l: { log_id?: string }) => l.log_id === logId);
@@ -41,7 +41,8 @@ export function parseLogOutcome(stdout: string, logId: string): null | { error: 
   if (!log || log.status === "running") return null;
   if (log.status === "succeeded") return { error: null };
   // Errors land on stderr, but git and bun print warnings there too: keep the tail of both, in order.
-  return { error: summarizeGate(`${log.stdout ?? ""}\n${log.stderr ?? ""}`.trim()) || `exit ${log.exit_code ?? "?"}` };
+  const output = `${log.stdout ?? ""}\n${log.stderr ?? ""}`.trim();
+  return { error: summarizeGate(output) || `exit ${log.exit_code ?? "?"}`, output: output || `exit ${log.exit_code ?? "?"}` };
 }
 
 async function capture(argv: string[]): Promise<string> {
@@ -60,15 +61,35 @@ async function capture(argv: string[]): Promise<string> {
  * which kills this request mid-wait — the page then learns the outcome from the new build's reload.
  */
 async function invokeAndWatch(): Promise<string | null> {
+  const command = UPDATE_ACTION.join(" ");
   const invoked = parseInvoke(await capture(UPDATE_ACTION));
-  if ("error" in invoked) return `herdr refused the update action: ${invoked.error}`;
+  if ("error" in invoked) {
+    const error = `herdr refused the update action: ${invoked.error}`;
+    lastFailure = { command, output: error };
+    return error;
+  }
+  lastFailure = null;
   for (const deadline = Date.now() + WATCH_MS; Date.now() < deadline; ) {
     await Bun.sleep(WATCH_EVERY_MS);
     const outcome = parseLogOutcome(await capture(LOG_LIST), invoked.logId);
-    if (outcome) return outcome.error;
+    if (outcome) {
+      if (outcome.error) lastFailure = { command, output: outcome.output ?? outcome.error };
+      return outcome.error;
+    }
   }
   return null;
 }
+
+/** The last update that failed in this process, whole — what « Faire réparer par un agent » briefs (update-repair.ts). Session state, never persisted. */
+export interface UpdateFailure {
+  command: string;
+  output: string;
+}
+let lastFailure: UpdateFailure | null = null;
+export const lastUpdateFailure = (): UpdateFailure | null => lastFailure;
+
+/** The checkout this bridge runs from — the one the service serves, the one an update rewrites. */
+export const PLUGIN_CHECKOUT = join(import.meta.dir, "..");
 
 /** The newest release strictly older than `current` (dotted, no `v`), or null. Pure. */
 export function previousRelease(tags: string[], current: string): string | null {
@@ -90,7 +111,7 @@ export interface RollbackDeps {
   invoke: () => Promise<string | null>;
 }
 
-const repo = resolveUpdateRepo(process.env, join(import.meta.dir, ".."));
+const repo = resolveUpdateRepo(process.env, PLUGIN_CHECKOUT);
 const defaultDeps: RollbackDeps = {
   fetchTags: repo ? githubTagsFetcher(repo) : async () => [],
   configDir: process.env.HERDR_PLUGIN_CONFIG_DIR ?? "",
