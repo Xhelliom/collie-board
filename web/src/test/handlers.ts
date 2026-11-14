@@ -143,7 +143,7 @@ export const handlers = [
   http.get("/api/board/launch-engine", () => HttpResponse.json({ engine: "hc", fallback: false })),
   http.get("/api/repos", () => HttpResponse.json({ repos: [], hiddenCount: 0 })),
   http.get("/api/repos/listed", () => HttpResponse.json({ paths: [] })),
-  http.get("/api/docs/pages", () => HttpResponse.json({ ref: "main", pages: [] })),
+  http.get("/api/docs/page-tabs", () => HttpResponse.json({ ref: "main", pages: [], deliverables: [], tabs: [] })),
   http.get("/api/repos/environments", () => HttpResponse.json({ remote: null, environments: [], unreachable: [] })),
   http.get(/\/api\/cards\/[^/]+\/remote$/, () =>
     HttpResponse.json({ environment: null, session: null, state: null }),

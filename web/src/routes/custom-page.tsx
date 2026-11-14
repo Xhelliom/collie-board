@@ -9,7 +9,8 @@ import { loadRepoScope, repoName } from "@/lib/board";
 import { pageUrl } from "@/lib/docs";
 import { cn } from "@/lib/utils";
 
-// One custom page of the project (`docs/pages/<name>.html` on main), one tab each. Agent HTML is
+// One HTML page of the project — `docs/pages/<name>.html` on main, or a card's HTML deliverable
+// (`?card=<id>&name=<file>`) — shown as a tab when the operator ticked it in Documents › Pages. Agent HTML is
 // untrusted: the bridge scrubs it and serves it under its own sandbox CSP, and the iframe is sandboxed
 // with NO allowance — no script, no same-origin, so it can neither read the board nor call /api.
 // ADR 0053. Full screen is a fixed overlay, not the Fullscreen API (absent on iPhone).
@@ -18,18 +19,19 @@ export function CustomPageRoute() {
   const [params] = useSearchParams();
   const repo = params.get("repo") ?? loadRepoScope();
   const name = params.get("name") ?? "";
+  const card = params.get("card");
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader children={<RepoTitle repos={repo ? [{ path: repo, name: repoName(repo) }] : []} subtitle={name} />} />
+      <AppHeader children={<RepoTitle repos={repo ? [{ path: repo, name: repoName(repo) }] : []} subtitle={card ? name.replace(/\.html?$/i, "") : name} />} />
       <BoardTabs />
-      <main className="flex min-h-0 flex-1 flex-col p-3 pb-24 lg:p-5">{repo && name && <PageFrame repo={repo} name={name} />}</main>
+      <main className="flex min-h-0 flex-1 flex-col p-3 pb-24 lg:p-5">{repo && name && <PageFrame repo={repo} name={name} card={card} />}</main>
     </div>
   );
 }
 
 /** The sandboxed frame and its full-screen button — the tab's and the Documents tree's, one of each. */
-export function PageFrame({ repo, name }: { repo: string; name: string }) {
+export function PageFrame({ repo, name, card }: { repo: string; name: string; card?: string | null }) {
   const t = useT();
   const [full, setFull] = useState(false);
 
@@ -57,7 +59,7 @@ export function PageFrame({ repo, name }: { repo: string; name: string }) {
       <iframe
         title={t("docs.page.frame", { name })}
         sandbox=""
-        src={pageUrl(repo, name)}
+        src={pageUrl(repo, name, card)}
         className={cn("min-h-[60vh] w-full flex-1 bg-white", full ? "border-t" : "rounded-md border")}
       />
     </div>

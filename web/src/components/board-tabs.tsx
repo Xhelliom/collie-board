@@ -5,7 +5,7 @@ import { BookOpen, ChevronDown, FileCode, ClipboardCheck, Columns3, GitPullReque
 import { useT, type MessageKey } from "@/i18n";
 import { AddProjectSheet } from "@/components/add-project-sheet";
 import { loadRepoScope, repoName, saveRepoScope, withListedRepos } from "@/lib/board";
-import { fetchPages } from "@/lib/docs";
+import { fetchPageTabs, PAGE_TABS_EVENT, pageTab } from "@/lib/docs";
 import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
 import { cn } from "@/lib/utils";
 
@@ -72,29 +72,29 @@ export function BoardTabs({ counts = {} }: { counts?: Partial<Record<(typeof TAB
   const active = boardTabFor(pathname);
   const repo = params.get("repo") ?? loadRepoScope();
   const q = repo ? `?repo=${encodeURIComponent(repo)}` : "";
-  // The repo's custom pages (docs/pages/*.html on main), one tab each — read when the row mounts, never polled.
-  const [pages, setPages] = useState<string[]>([]);
+  // The pages the operator ticked « En onglet » in Documents — read when the row mounts and when a tick
+  // changes them, never polled. Nothing is a tab until it is ticked.
+  const [tabs, setTabs] = useState<string[]>([]);
   useEffect(() => {
-    setPages([]);
+    setTabs([]);
     if (!repo) return;
     const ctl = new AbortController();
-    fetchPages(repo, ctl.signal)
-      // "roadmap" is the live tab now: its old static export is not shown twice.
-      .then((r) => setPages(r.pages.map((p) => p.name).filter((n) => n !== "roadmap")))
-      .catch(() => {});
-    return () => ctl.abort();
+    const read = () =>
+      fetchPageTabs(repo, ctl.signal)
+        .then((r) => setTabs(r.tabs))
+        .catch(() => {});
+    void read();
+    window.addEventListener(PAGE_TABS_EVENT, read);
+    return () => {
+      ctl.abort();
+      window.removeEventListener(PAGE_TABS_EVENT, read);
+    };
   }, [repo]);
-  const pageOpen = pathname === "/board/page" ? params.get("name") : null;
+  const pageOpen = pathname === "/board/page" ? `${params.get("card") ? `${params.get("card")}/` : ""}${params.get("name") ?? ""}` : null;
 
   const items: TabItem[] = [
     ...TABS.map((tab) => ({ key: tab.key, to: `${tab.path}${q}`, label: t(tab.label), icon: tab.icon, current: active === tab.key, count: counts[tab.key] || undefined })),
-    ...(repo ? pages : []).map((name) => ({
-      key: `page:${name}`,
-      to: `/board/page${q}&name=${encodeURIComponent(name)}`,
-      label: name,
-      icon: FileCode,
-      current: pageOpen === name,
-    })),
+    ...(repo ? tabs : []).map((key) => ({ key: `page:${key}`, to: pageTab(repo!, key).to, label: pageTab(repo!, key).label, icon: FileCode, current: pageOpen === key })),
   ];
   const activeIndex = items.findIndex((i) => i.current);
 

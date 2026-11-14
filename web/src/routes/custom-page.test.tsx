@@ -12,15 +12,31 @@ import { CustomPageRoute } from "./custom-page";
 const at = (url: string, element: React.ReactNode) => render(<RouterProvider router={createMemoryRouter([{ path: "*", element }], { initialEntries: [url] })} />);
 
 describe("custom pages", () => {
-  it("adds one tab per docs/pages/*.html of main", async () => {
-    server.use(http.get("/api/docs/pages", () => HttpResponse.json({ ref: "main", pages: [{ name: "marketing", size: 9 }] })));
+  const listing = (tabs: string[]) =>
+    server.use(
+      http.get("/api/docs/page-tabs", () =>
+        HttpResponse.json({
+          ref: "main",
+          pages: [{ name: "marketing", size: 9 }, { name: "roadmap", size: 9 }],
+          deliverables: [{ cardId: "c1", cardTitle: "Plan", name: "offre.html", size: 9 }],
+          tabs,
+        }),
+      ),
+    );
+
+  it("adds a tab only for the pages ticked « En onglet », whatever their name", async () => {
+    listing(["marketing", "roadmap", "c1/offre.html"]);
     at("/board/page?repo=%2Fr%2Fapp&name=marketing", <BoardTabs />);
     const tab = await screen.findByRole("link", { name: "marketing" });
     expect(tab).toHaveAttribute("href", "/board/page?repo=%2Fr%2Fapp&name=marketing");
     expect(tab).toHaveAttribute("aria-current", "page");
+    // A page named « roadmap » is a page like any other — no name is set aside.
+    expect(screen.getByRole("link", { name: "roadmap" })).toHaveAttribute("href", "/board/page?repo=%2Fr%2Fapp&name=roadmap");
+    expect(screen.getByRole("link", { name: "offre" })).toHaveAttribute("href", "/board/page?repo=%2Fr%2Fapp&card=c1&name=offre.html");
   });
 
-  it("adds no tab when the repo has no docs/pages", async () => {
+  it("adds no tab for a page nobody ticked", async () => {
+    listing([]);
     at("/board/project?repo=%2Fr%2Fapp", <BoardTabs />);
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getAllByRole("link")).toHaveLength(7);
@@ -39,5 +55,12 @@ describe("custom pages", () => {
     await userEvent.click(within(box).getByRole("button", { name: /Full screen/ }));
     await userEvent.click(within(box).getByRole("button", { name: /Exit full screen/ }));
     expect(box).not.toHaveClass("fixed");
+  });
+
+  it("frames a card's HTML deliverable from its deliverable route", () => {
+    at("/board/page?repo=%2Fr%2Fapp&card=c1&name=offre.html", <CustomPageRoute />);
+    const frame = screen.getByTitle("Project page offre.html");
+    expect(frame).toHaveAttribute("sandbox", "");
+    expect(frame).toHaveAttribute("src", "/api/cards/c1/deliverables/offre.html");
   });
 });
