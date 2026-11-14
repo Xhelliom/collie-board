@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.329.0] - 2026-11-14
+
+### Added
+
+- Documents › Pages : les pages HTML du dépôt et les livrables HTML des cartes, chacun avec « En onglet » (2f05b32)
+- Un livrable HTML de carte s'ouvre en onglet, inerte comme une page docs/pages (2f05b32)
+
+### Changed
+
+- Seules les pages cochées « En onglet » apparaissent dans la rangée d'onglets (aucune par défaut, choix gardé par dépôt) (2f05b32)
+
+### Removed
+
+- Le filtre par nom « roadmap » de la rangée d'onglets et la copie figée docs/pages/roadmap.html (2f05b32)
+
 ## [0.328.2] - 2026-11-14
 
 ### Fixed
