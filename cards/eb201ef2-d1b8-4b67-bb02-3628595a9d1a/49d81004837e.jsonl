@@ -333,3 +333,4 @@
 {"v":1,"hlc":"1794665584305.0028.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"a13cee65-7515-435d-965b-7ffe9df6f300"},"ts":1794665575154}}
 {"v":1,"hlc":"1794665584305.0038.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"a13cee65-7515-435d-965b-7ffe9df6f300"},"ts":1794665576212}}
 {"v":1,"hlc":"1794665584305.0048.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"a13cee65-7515-435d-965b-7ffe9df6f300"},"ts":1794665583918}}
+{"v":1,"hlc":"1794665607922.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"a13cee65-7515-435d-965b-7ffe9df6f300"},"ts":1794665595994}}
