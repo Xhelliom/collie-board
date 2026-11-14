@@ -48,6 +48,8 @@ describe("foldCost", () => {
     expect(c.byModel[0]!.label).toBe("Opus 5.5");
     expect(foldCost([], true)).toMatchObject({ known: false, sessions: 0 });
     expect(foldCost([a], false).known).toBe(false);
+    expect(foldCost([a, null, a], true)).toMatchObject({ known: true, sessions: 3, counted: 2, partial: true });
+    expect(foldCost([null], true)).toMatchObject({ known: false, sessions: 1, counted: 0 });
   });
 });
 
@@ -88,5 +90,26 @@ describe("CostTracker", () => {
     db.openSession({ cardId: card.id, paneId: "p1", agentSessionId: "s1", agentKind: "codex" });
     await t.update(snap);
     expect(t.forCard(card.id)).toMatchObject({ known: false });
+  });
+
+  it("counts a session with no figure instead of passing a low total as complete", async () => {
+    const { db, t, snap } = setup({ s1: LOG });
+    const card = db.createCard({ title: "x" } as never);
+    db.openSession({ cardId: card.id, paneId: "p1", agentSessionId: "s1", agentKind: "claude" });
+    db.openSession({ cardId: card.id, paneId: "p2", agentSessionId: "gone", agentKind: "claude" });
+    await t.update(snap);
+    expect(t.forCard(card.id)).toMatchObject({ known: true, partial: true, sessions: 2, counted: 1 });
+  });
+
+  it("re-resolves the transcript when the agent session id changes", async () => {
+    const { db, t, snap, tick } = setup({ s1: LOG, s2: row("claude-opus-5-5", [0, 100, 0, 0], "z") });
+    const card = db.createCard({ title: "x" } as never);
+    const s = db.openSession({ cardId: card.id, paneId: "p1", agentSessionId: "s1", agentKind: "claude" });
+    await t.update(snap);
+    expect(t.forCard(card.id).tokens.output).toBe(27);
+    db.patchSession(s.id, { agentSessionId: "s2" } as never);
+    tick(60_000);
+    await t.update(snap);
+    expect(t.forCard(card.id).tokens.output).toBe(100);
   });
 });

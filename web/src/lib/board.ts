@@ -1708,7 +1708,9 @@ export interface CardCost {
   tokens: { input: number; output: number; cacheWrite: number; cacheRead: number };
   byModel: { model: string; label: string; tokens: CardCost["tokens"] }[];
   sessions: number;
+  counted: number;
   known: boolean;
+  partial: boolean;
 }
 export const fetchCardCost = (cardId: string, signal?: AbortSignal): Promise<CardCost> =>
   apiRequest(`/api/cards/${encodeURIComponent(cardId)}/cost`, { signal });

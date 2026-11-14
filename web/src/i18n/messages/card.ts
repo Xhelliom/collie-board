@@ -264,6 +264,7 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "cost.label": { en: "Consumed", fr: "Consommé" },
   "cost.unknown": { en: "unknown", fr: "inconnu" },
   "cost.tokens": { en: "{n} tokens", fr: "{n} tokens" },
+  "cost.partial": { en: "partial, {counted}/{sessions} sessions", fr: "partiel, {counted}/{sessions} sessions" },
   "cost.input": { en: "Input", fr: "Entrée" },
   "cost.output": { en: "Output", fr: "Sortie" },
   "cost.cacheWrite": { en: "Cache written", fr: "Cache écrit" },

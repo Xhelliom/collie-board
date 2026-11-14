@@ -29,8 +29,12 @@ export interface ModelTokens {
 export interface CardCost {
   tokens: Tokens;
   byModel: (ModelTokens & { label: string })[];
+  /** Every session of the card. */
   sessions: number;
+  /** How many of them have a figure; below `sessions`, the total is a floor, not the whole. */
+  counted: number;
   known: boolean;
+  partial: boolean;
 }
 
 const zero = (): Tokens => ({ input: 0, output: 0, cacheWrite: 0, cacheRead: 0 });
@@ -77,12 +81,13 @@ export function sumTranscript(text: string): ModelTokens[] {
   return [...byModel].map(([model, tokens]) => ({ model, tokens }));
 }
 
-/** The card's total over its sessions' per-model sums. `known` false when nothing is, or an agent is unverified. */
-export function foldCost(parts: ModelTokens[][], verified: boolean): CardCost {
+/** The card's total over its sessions' per-model sums (null: a session with no figure). `known` false when none is, or an agent is unverified; `partial` when only some are. */
+export function foldCost(parts: (ModelTokens[] | null)[], verified: boolean): CardCost {
   const tokens = zero();
   const byModel = new Map<string, Tokens>();
+  const counted = parts.filter((p) => p).length;
   for (const part of parts)
-    for (const { model, tokens: t } of part) {
+    for (const { model, tokens: t } of part ?? []) {
       add(tokens, t);
       add(byModel.get(model) ?? byModel.set(model, zero()).get(model)!, t);
     }
@@ -90,13 +95,15 @@ export function foldCost(parts: ModelTokens[][], verified: boolean): CardCost {
     tokens,
     byModel: [...byModel].map(([model, t]) => ({ model, label: modelLabel(model) ?? model, tokens: t })),
     sessions: parts.length,
-    known: verified && parts.length > 0,
+    counted,
+    known: verified && counted > 0,
+    partial: counted < parts.length,
   };
 }
 
 export class CostTracker {
   /** sessionId → what its transcript summed to the last time it was read. Memory only. */
-  private readonly live = new Map<string, { at: number; path: string; usage: ModelTokens[] }>();
+  private readonly live = new Map<string, { at: number; sessionId: string; path: string; usage: ModelTokens[] }>();
 
   constructor(
     private readonly db: BoardDb,
@@ -131,10 +138,11 @@ export class CostTracker {
         const sessionId = s.agentSessionId ?? snap.agents.find((p) => p.paneId === s.paneId)?.agentSessionId ?? null;
         if (!sessionId) return; // never guess a log by directory: a wrong total is worse than none
         try {
-          const path = last?.path ?? (await this.source.resolve(sessionId));
+          // the agent session id can change under a card session (a resume): re-resolve then
+          const path = last?.sessionId === sessionId ? last.path : await this.source.resolve(sessionId);
           if (!path) return;
           const { text } = await this.source.load(path);
-          this.live.set(s.id, { at: now, path, usage: sumTranscript(text) });
+          this.live.set(s.id, { at: now, sessionId, path, usage: sumTranscript(text) });
         } catch {
           // keep the last figure
         }
@@ -150,10 +158,7 @@ export class CostTracker {
       if (p?.sessionId && Array.isArray(p.byModel)) recorded.set(p.sessionId, p.byModel);
     }
     const sessions = this.db.listSessions(cardId);
-    const parts = sessions.flatMap((s) => {
-      const usage = recorded.get(s.id) ?? this.live.get(s.id)?.usage;
-      return usage ? [usage] : [];
-    });
+    const parts = sessions.map((s) => recorded.get(s.id) ?? this.live.get(s.id)?.usage ?? null);
     const verified = sessions.length > 0 && sessions.every((s) => adapterFor(this.adapters, s.agentKind ?? "").context);
     return foldCost(parts, verified);
   }

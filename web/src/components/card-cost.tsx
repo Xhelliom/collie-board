@@ -31,6 +31,7 @@ export function CardCostLine({ cardId }: { cardId: string }) {
         {cost.known ? (
           <>
             {t("cost.tokens", { n: formatTokens(total) })}
+            {cost.partial && ` · ${t("cost.partial", { counted: cost.counted, sessions: cost.sessions })}`}
             {cost.byModel.length > 0 && ` · ${cost.byModel.map((m) => m.label).join(", ")}`}
           </>
         ) : (
