@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator } from "react-router";
-import { ChevronDown, ChevronRight, ExternalLink, GitBranch, GitMerge, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, GitBranch, GitMerge, RotateCw, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { lineClass } from "@/components/card-diff";
 import { Panel } from "@/components/card-panel";
 import { MarkdownText } from "@/components/markdown-text";
+import { StatusSignal } from "@/components/status-signal";
 import { MENU_ITEM, MoreActions } from "@/components/project-more";
 import { buttonVariants } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { useT } from "@/i18n";
-import { boardErrorMessage, cardPath, integrateCard, prGesture, type PrDetail } from "@/lib/board";
+import { boardErrorMessage, cardPath, integrateCard, prGesture, rerunPrChecks, type PrCheck, type PrDetail } from "@/lib/board";
 import type { PrSheetData } from "@/lib/board-loaders";
 import { ago } from "@/lib/project-facts";
 import { setStatus } from "@/lib/status";
@@ -40,10 +41,33 @@ export function PrRoute() {
     );
   }
 
+  // The verdict reads the checks the way the list does: a failure is red, a running one pending.
+  const failed = detail.checks.filter((c) => c.state === "failure" || c.state === "cancelled");
+  const checks = failed[0]
+    ? { state: "red" as const, name: failed[0].name }
+    : detail.checks.some((c) => c.state === "pending")
+      ? { state: "pending" as const }
+      : detail.checks.length
+        ? { state: "green" as const }
+        : undefined;
   const verdict = laneOf(
     { state: detail.state, url: detail.url, mergedAt: null, conflicting: detail.conflicting, mergeable: detail.mergeable },
-    { draft: detail.isDraft } as Parameters<typeof laneOf>[1],
+    { draft: detail.isDraft, checks } as Parameters<typeof laneOf>[1],
   );
+  const rerun = async (runIds: string[]) => {
+    setBusy(true);
+    try {
+      for (const id of runIds) await rerunPrChecks(repo, detail.number, id);
+      setStatus(t("pr.rerunning"), "success");
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    } finally {
+      setBusy(false);
+      revalidator.revalidate();
+    }
+  };
+  // Several failed jobs often share one run: re-run each run once.
+  const failedRuns = [...new Set(failed.flatMap((c) => (c.runId ? [c.runId] : [])))];
   const stateLabel = detail.state === "merged" ? t("pr.state.merged") : detail.state === "closed" ? t("pr.state.closed") : verdict.why;
   const act = async (what: "merge" | "close") => {
     if (what === "close" && !confirm.confirm("close")) return;
@@ -94,6 +118,24 @@ export function PrRoute() {
             <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
           </Link>
         )}
+
+        <Panel title={t("pr.checks")} count={detail.checks.length}>
+          {detail.checks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("pr.noChecks")}</p>
+          ) : (
+            <ul className="flex flex-col">
+              {detail.checks.map((c, i) => (
+                <CheckRow key={`${c.name}-${i}`} check={c} busy={busy} onRerun={(id) => void rerun([id])} />
+              ))}
+            </ul>
+          )}
+          {failedRuns.length > 1 && detail.state === "open" && (
+            <button type="button" disabled={busy} onClick={() => void rerun(failedRuns)} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "mt-2 h-11 w-full text-sm")}>
+              <RotateCw className="size-4" />
+              {t("pr.rerunAll")}
+            </button>
+          )}
+        </Panel>
 
         <Panel title={t("pr.description")}>
           {detail.body.trim() ? <MarkdownText text={detail.body} className="text-sm leading-[1.6]" /> : <p className="text-sm text-muted-foreground">{t("pr.noBody")}</p>}
@@ -163,5 +205,38 @@ function DiffBlock({ detail }: { detail: PrDetail }) {
       </div>
       {detail.diffTruncated && <p className="pt-2 text-xs text-muted-foreground">{t("pr.diffTruncated")}</p>}
     </>
+  );
+}
+
+const checkSignal = (s: PrCheck["state"]) => (s === "success" ? "done" : s === "pending" ? "working" : s === "failure" ? "stuck" : "idle");
+
+/** « 2m 5s », or "" while it has not both ends. */
+export function checkDuration(c: PrCheck): string {
+  if (c.startedAt == null || c.completedAt == null || c.completedAt < c.startedAt) return "";
+  const s = Math.round((c.completedAt - c.startedAt) / 1000);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+function CheckRow({ check, busy, onRerun }: { check: PrCheck; busy: boolean; onRerun: (runId: string) => void }) {
+  const t = useT();
+  return (
+    <li className="flex items-center gap-3 border-t border-border/60 py-1.5 text-xs first:border-t-0">
+      <StatusSignal status={checkSignal(check.state)} label={check.state} />
+      <span className="min-w-0 flex-1 break-all">{check.name}</span>
+      <span className="shrink-0 tabular-nums text-muted-foreground">{checkDuration(check)}</span>
+      {check.state === "failure" && check.runId && (
+        <button type="button" disabled={busy} onClick={() => onRerun(check.runId!)} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-9 shrink-0 text-xs")}>
+          {t("pr.rerun")}
+        </button>
+      )}
+      {check.url && (
+        <MoreActions label={t("prs.more")}>
+          <a role="menuitem" href={check.url} target="_blank" rel="noreferrer" className={MENU_ITEM}>
+            <ExternalLink className="size-4" />
+            {t("pr.checkLog")}
+          </a>
+        </MoreActions>
+      )}
+    </li>
   );
 }

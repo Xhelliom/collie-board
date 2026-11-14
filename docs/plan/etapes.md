@@ -70,7 +70,7 @@ Tout ce qu on fait sur GitHub pour une PR se fait dans Collie, depuis le télép
   - [x] Titre de la PR roulante toujours ≤ 256 caractères, liste complète dans le corps
   - [x] Test bun : 1, 2, 23 lots, nom très long
   - [x] La PR roulante de collie-board se met à jour
-- **Les checks d une PR sur sa fiche, et Relancer ceux qui ont échoué** — review
+- **Les checks d une PR sur sa fiche, et Relancer ceux qui ont échoué** — done
   - after: La fiche d une PR dans Collie : description, fichiers et diff, depuis PR ouvertes
 
   Phase « Les PR sans quitter Collie », lot 1, carte 2/2 — part de la fiche d une PR livrée par la carte 1 (web/src/routes/pr.tsx, bridge/pr-detail.ts).
@@ -80,9 +80,9 @@ Tout ce qu on fait sur GitHub pour une PR se fait dans Collie, depuis le télép
   - Documente la route dans skills/collie-board/SKILL.md ; i18n fr/en.
   Tests : bun (mapping des états, refus 403 avec x-collie-pane), vitest (lignes de checks, bouton Relancer sur un échec seulement).
 
-  - [ ] La fiche liste les checks avec état, durée et lien
-  - [ ] Relancer un check en échec depuis Collie (geste opérateur, refusé à un pane)
-  - [ ] Route documentée dans le skill ; tests verts
+  - [x] La fiche liste les checks avec état, durée et lien
+  - [x] Relancer un check en échec depuis Collie (geste opérateur, refusé à un pane)
+  - [x] Route documentée dans le skill ; tests verts
 - **La fiche d une PR dans Collie : description, fichiers et diff, depuis PR ouvertes** — done
 
   UTILISE LE SKILL frontend-design AVANT DE COMMENCER (charge-le).

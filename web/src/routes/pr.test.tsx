@@ -25,6 +25,7 @@ const detail = (over: Partial<PrDetail> = {}): PrDetail => ({
   isDraft: false,
   url: "https://github.com/o/r/pull/7",
   card: { id: "c1", title: "The card" },
+  checks: [],
   files: [{ path: "src/a.ts", additions: 3, deletions: 1 }],
   diff: "diff --git a/src/a.ts b/src/a.ts\n+added line\n-removed line",
   diffTruncated: false,
@@ -72,6 +73,20 @@ describe("PrRoute", () => {
     mount({ repo: "/repo", number: "7", detail: detail({ conflicting: true, mergeable: false }), error: null });
     expect(await screen.findByText("Conflicts with its base")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^merge$/i })).toBeNull();
+  });
+
+  it("lists the checks, with Re-run on a failure only", async () => {
+    const chk = (name: string, state: PrDetail["checks"][number]["state"], runId: string | null = "9") => ({
+      name, state, startedAt: 0, completedAt: 65_000, url: "https://github.com/o/r/actions/runs/9", runId,
+    });
+    mount({ repo: "/repo", number: "7", detail: detail({ checks: [chk("lint", "success"), chk("test", "failure"), chk("e2e", "pending")] }), error: null });
+    expect(await screen.findByText("test")).toBeTruthy();
+    expect(screen.getByText("lint")).toBeTruthy();
+    expect(screen.getAllByText("1m 5s").length).toBe(3);
+    expect(screen.getAllByRole("button", { name: /^re-run$/i }).length).toBe(1);
+    expect(screen.queryByRole("button", { name: /re-run the failures/i })).toBeNull();
+    // The verdict reads the red check, like the list.
+    expect(screen.getByText(/test/i, { selector: "span.font-medium" })).toBeTruthy();
   });
 
   it("shows the error when the PR cannot be read", async () => {
