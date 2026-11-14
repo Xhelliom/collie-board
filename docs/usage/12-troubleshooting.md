@@ -47,6 +47,14 @@ headless host enable lingering once (`loginctl enable-linger $USER`) and the `co
 `enable`d) starts at boot with your user manager. The `tailscale serve` mapping persists on its own
 (`--bg`), so lingering is usually the whole fix.
 
+**After a reboot the phone shows no agent and can't start a card.** Lingering starts Collie, not
+herdr-core: the core starts with its first client (herdr-app, `hc`, `herdr`), so between boot and
+that client the bridge runs but sees no herd. Open herdr-app, or run `hc server start` (or `hc ls`)
+from a plain desktop terminal — not from an agent pane ([why](05-herdr-core-hc-the-default-engine-for-new-launche.md)).
+Check `ls $XDG_RUNTIME_DIR/herdr-core/default.sock`; the bridge reconnects on its own within a poll.
+Collie deliberately does not start herdr-core
+([decision](../architecture/demarrage-herdr-core-au-boot.md)).
+
 **Phone shows a stale UI after a rebuild.** A PWA's service-worker cache is per-origin, so reaching
 Collie at two origins (a custom domain *and* the raw `host:8788`) gives you two installs, each
 caching its own bundle. The footer **build stamp** (`vX.Y.Z · sha · time`) shows the bundle you're

@@ -296,6 +296,12 @@ bash scripts/collie-board-ctl.sh push-test                 # or: push-test "Titl
 
 → [`docs/usage/12-troubleshooting.md`](docs/usage/12-troubleshooting.md)
 
+**After a reboot the phone shows no agent and can't start a card.** herdr-core only starts with its
+first client (herdr-app, `hc`, `herdr`); until then the bridge runs and waits. Open herdr-app, or run
+`hc server start` (or `hc ls`) from a plain desktop terminal — never from an agent pane. The bridge
+expects `$XDG_RUNTIME_DIR/herdr-core/default.sock` and reconnects on its own. Collie does not start
+herdr-core itself ([why](docs/architecture/demarrage-herdr-core-au-boot.md)).
+
 ## Architecture
 
 → [`docs/usage/13-architecture.md`](docs/usage/13-architecture.md)
