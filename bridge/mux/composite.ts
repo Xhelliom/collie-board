@@ -60,6 +60,11 @@ export class CompositeMux implements Mux {
     return { engine: "herdr09", fallback: Boolean(this.engines.hc) };
   }
 
+  /** Whether hc answered the last snapshot (Settings → About). */
+  get hcReachable(): boolean {
+    return this.hcUp;
+  }
+
   /** What this machine runs on: where a launch goes now, and hc's last hello if it has a core. */
   machineEngine(): MachineEngine {
     return { engine: this.launchEngine().engine, hc: (this.engines.hc as { hello?: HcHello | null } | undefined)?.hello ?? null };

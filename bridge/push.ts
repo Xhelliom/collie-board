@@ -98,6 +98,11 @@ export class Push {
     return this._enabled;
   }
 
+  /** How many devices are subscribed — a count, never an endpoint. */
+  get devices(): number {
+    return this.subs.size;
+  }
+
   get publicKey(): string {
     return this.enabled ? this.cfg.vapidPublic : "";
   }

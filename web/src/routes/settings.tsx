@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Bell, ChevronRight, Images, Loader2 } from "lucide-react";
 import { Link, useRouteLoaderData } from "react-router";
 
+import { AboutControl } from "@/components/about-control";
 import { AppHeader } from "@/components/app-header";
 import { AutoHandoffControl } from "@/components/auto-handoff";
 import { BackupControl } from "@/components/backup-control";
@@ -30,7 +31,7 @@ import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { galleryPath } from "@/lib/nav";
 import type { PushAvailability } from "@/lib/push";
 
-const TABS = ["display", "notifications", "agents", "peers", "system"] as const;
+const TABS = ["display", "notifications", "agents", "peers", "system", "about"] as const;
 type Tab = (typeof TABS)[number];
 
 // Settings page — appearance + the push-notification toggle. Reachable via the nav (a root tab).
@@ -181,6 +182,8 @@ export function SettingsRoute() {
         )}
 
         {tab === "peers" && <PeersControl />}
+
+        {tab === "about" && <AboutControl />}
 
         {tab === "system" && (
           <>
