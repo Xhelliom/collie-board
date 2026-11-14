@@ -12,9 +12,12 @@
 // when `engine.onUpdate` does.
 
 import { lotTokens, type CostTracker } from "./cost.ts";
-import { weekPercent } from "./goal-routes.ts";
+import { freshWeekPercent } from "./goal-routes.ts";
 import { usageTracker } from "./usage.ts";
 import { join } from "node:path";
+
+/** Longest the end of a lot waits for the gauge CLI. */
+const GAUGE_WAIT_MS = 10_000;
 
 import type { AgentAdapter } from "./adapters.ts";
 import { COPILOT_DOWN_AFTER, copilotDown, REVIEW_OUTCOMES } from "./board-notify.ts";
@@ -101,6 +104,8 @@ export interface RunPorts {
   lotFinished?(run: Run): void;
   /** The lot's tokens, summed from its cards (cost.ts `lotTokens`), journaled with the end gauge. */
   lotTokens?(run: Run): number | null;
+  /** A FRESH week-gauge reading at the end of a lot (null if it fails or takes too long). */
+  weekGauge?(): Promise<number | null>;
 }
 
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
@@ -393,6 +398,8 @@ export class RunCoordinator {
   private readonly startingBy = new Map<string, number>();
   /** Lots with a fold, a filing or a PR in flight: who closes a one-PR lot is read from who is filed, so those go one at a time. */
   private readonly lotBusy = new Set<string>();
+  /** Lots whose end is being journaled (the gauge read is awaited). */
+  private readonly finishing = new Set<string>();
   /** The last snapshot's bare shells: a worker pane among them has lost its agent. */
   private shells = new Set<string>();
   /** The startup retry of the plan export ran. */
@@ -429,10 +436,16 @@ export class RunCoordinator {
       const members = this.db.runMembers(run.id).map((card) => ({ card, events: this.db.listEvents(card.id, 200) }));
       if (members.length === 0) continue;
       if (runState(run, members) === "finished") {
-        // Before run.finished: the nudger and the export read it when they hear it.
-        this.db.recordRunEvent(null, "run.quota", { runId: run.id, at: "end", percent: weekPercent(usageTracker.peek()), tokens: this.ports.lotTokens?.(run) ?? null });
-        this.db.recordRunEvent(null, "run.finished", { runId: run.id });
-        this.ports.lotFinished?.(open);
+        // A real gauge reading takes a CLI call: the lot is not finished twice while it is awaited.
+        if (this.finishing.has(run.id)) continue;
+        this.finishing.add(run.id);
+        void (async () => {
+          const percent = await (this.ports.weekGauge?.() ?? Promise.resolve(null)).catch(() => null);
+          // Journaled BEFORE run.finished: the nudger and the export read it when they hear it.
+          this.db.recordRunEvent(null, "run.quota", { runId: run.id, at: "end", percent, tokens: this.ports.lotTokens?.(run) ?? null });
+          this.db.recordRunEvent(null, "run.finished", { runId: run.id });
+          this.ports.lotFinished?.(open);
+        })().finally(() => this.finishing.delete(run.id));
         continue;
       }
       let slots = this.ports.freeSlots() - this.starting;
@@ -878,6 +891,7 @@ export function runHook(
     },
     openPr: (card, gate) => prForCard(db, prView(card), { autoMerge: true, gate }),
     direct: (repoPath) => db.repoIntegration(repoPath) === "direct",
+    weekGauge: () => Promise.race([usageTracker.get(true).then((u) => freshWeekPercent(u)), new Promise<null>((r) => setTimeout(() => r(null), GAUGE_WAIT_MS))]),
     lotTokens: (run) => (cost ? lotTokens(cost.forCards(db.runMembers(run.id).map((c) => c.id))) : null),
     lotFinished: (run) =>
       void exportPlanAtLotEnd(db, run).then((r) => {

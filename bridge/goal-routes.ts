@@ -6,7 +6,7 @@
 import type { BoardContext } from "./board-routes.ts";
 import type { BoardDb, Goal, GoalStatus } from "./db.ts";
 import { repoPathOf } from "./paths.ts";
-import { usageTracker, type ClaudeUsage } from "./usage.ts";
+import { USAGE_TTL_MS, usageTracker, type ClaudeUsage } from "./usage.ts";
 
 const GOALS = "/api/goals";
 const GOAL = /^\/api\/goals\/([^/]+)(?:\/(pause|resume|claim|achieve|abandon|activate))?$/;
@@ -63,6 +63,9 @@ export function weekPercent(u: ClaudeUsage | null): number | null {
   const week = u?.limits.filter((l) => /week/i.test(l.label)) ?? [];
   return (week.find((l) => /all models/i.test(l.label)) ?? week[0])?.percent ?? null;
 }
+
+/** {@link weekPercent} of a reading no older than the TTL, else null: a stale gauge journaled as a fact is worse than « inconnu ». */
+export const freshWeekPercent = (u: ClaudeUsage | null, now = Date.now()): number | null => weekPercent(u && now - u.checkedAt < USAGE_TTL_MS ? u : null);
 
 function claimOf(db: BoardDb, goalId: string): GoalView["claim"] {
   const e = db.lastGoalClaim(goalId);
