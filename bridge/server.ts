@@ -244,6 +244,10 @@ export function startServer(opts: {
           const rt = registry.get();
           return rt ? readPane(rt.herdr, cfg, paneId, url, req) : unknownSession();
         },
+        readHistory: async (paneId) => {
+          const rt = registry.get();
+          return rt ? paneHistory(cfg, transcripts, rt.engine, rt.herdr, adapters, paneId, url, req) : unknownSession();
+        },
         json: (data, status) => (status ? secure(Response.json(data, { status })) : json(data, req.headers.get("accept-encoding"))),
         text,
         actions: nodeActions,

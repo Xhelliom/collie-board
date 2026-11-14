@@ -13,7 +13,7 @@ import { WizardBlock } from "@/components/wizard-block";
 import { PreviewSelectBlock, type PreviewBlockAction } from "@/components/preview-select-block";
 import { MultiSelectBlock } from "@/components/multi-select-block";
 import type { MultiSelectIntent } from "@/lib/multi-select-action";
-import { fetchHistory } from "@/lib/api";
+import { fetchHistory, isApiErrorStatus } from "@/lib/api";
 import { t, useT, type MessageKey } from "@/i18n";
 import type { TranscriptEntry } from "@/lib/types";
 import type {
@@ -179,9 +179,12 @@ export function ReadingView({
       setEntries(next);
       setQueued(res.queued);
       setNote(next.length === 0 ? unavailableCopy("empty") : null);
-    } catch {
+    } catch (e) {
       // Keep whatever is on screen — a poll that failed is not a conversation that vanished.
-      if (held.current.length === 0) setNote(unavailableCopy("error"));
+      // A peer's pane answers 502 when that machine can't be reached: say so, not "couldn't read".
+      const peer = paneId.slice(paneId.lastIndexOf("@") + 1);
+      if (held.current.length === 0)
+        setNote(paneId.includes("@") && isApiErrorStatus(e, 502) ? t("pane.reading.peer", { peer }) : unavailableCopy("error"));
     } finally {
       busy.current = false;
     }

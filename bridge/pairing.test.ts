@@ -39,6 +39,7 @@ const nodeDeps = (t: PeerRouteDeps): NodeRouteDeps => ({
   audit: () => {},
   snapshot: () => ({ bridge: "connected", agents: [{}, {}], shellPanes: [{}], workspaces: [], tabs: [] }),
   readPane: async () => new Response(),
+  readHistory: async () => new Response(),
   json: t.json,
   text: t.text,
   actions: {} as NodeRouteDeps["actions"],

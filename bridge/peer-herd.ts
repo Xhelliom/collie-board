@@ -2,7 +2,7 @@
 // `/api/node/snapshot` and served beside the local ones, each marked with its peer. Hung off
 // `engine.onUpdate`, NO timer of its own: a peer is read at most every READ_EVERY_MS, one call in
 // flight per peer. In memory only — runtime state, never persisted. Reading, answering and keys on a
-// remote pane are relayed to its `/api/node/pane|reply|keys` through remote-launch's `call()`; the
+// remote pane are relayed to its `/api/node/pane[/history]|reply|keys` through remote-launch's `call()`; the
 // token stays in `peers.toml`, the browser only ever names the peer.
 
 import type { OutboundPeer } from "./pairing.ts";
@@ -159,9 +159,9 @@ export interface HerdRouteDeps {
   text: (body: string, status: number) => Response;
 }
 
-const HERD_PANE_ROUTE = /^\/api\/herd\/([^/]+)\/pane\/([^/]+?)(?:\/(reply|keys))?$/;
+const HERD_PANE_ROUTE = /^\/api\/herd\/([^/]+)\/pane\/([^/]+?)(?:\/(reply|keys|history))?$/;
 
-/** `GET /api/herd` and `/api/herd/<peer>/pane/<paneId>[/reply|/keys]`. Null for any other path. */
+/** `GET /api/herd` and `/api/herd/<peer>/pane/<paneId>[/reply|/keys|/history]`. Null for any other path. */
 export async function handleHerdRoute(pathname: string, req: Request, d: HerdRouteDeps): Promise<Response | null> {
   if (pathname === "/api/herd") {
     const denied = d.guard("read");
@@ -171,7 +171,9 @@ export async function handleHerdRoute(pathname: string, req: Request, d: HerdRou
   if (!pathname.startsWith("/api/herd/")) return null;
   const m = HERD_PANE_ROUTE.exec(pathname);
   if (!m) return d.text("not found", 404);
-  const action = m[3];
+  // `history` is a read (its conversation, the same pane the bare route reads): no write guard.
+  const history = m[3] === "history";
+  const action = history ? undefined : m[3];
   const denied = d.guard(action ? "write" : "read");
   if (denied) return denied;
   const peerName = decodeURIComponent(m[1]!);
@@ -182,7 +184,7 @@ export async function handleHerdRoute(pathname: string, req: Request, d: HerdRou
 
   if (!action) {
     if (req.method !== "GET") return d.text("method not allowed", 405);
-    return relay(await call(d, peer, `/api/node/pane/${encodeURIComponent(paneId)}${new URL(req.url).search}`));
+    return relay(await call(d, peer, `/api/node/pane/${encodeURIComponent(paneId)}${history ? "/history" : ""}${new URL(req.url).search}`));
   }
   if (req.method !== "POST") return d.text("method not allowed", 405);
   let b: { text?: unknown; submit?: unknown; keys?: unknown };
