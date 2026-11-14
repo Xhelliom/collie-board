@@ -384,11 +384,20 @@ function currentUserId(): string {
   return `${process.env.USERDOMAIN ?? "."}\\${process.env.USERNAME ?? ""}`;
 }
 
+/** A failed step names itself and its code — never a silent non-zero. */
+function stepFailed(name: string, code: number): number {
+  console.error(`error: ${name} a échoué (code ${code})`);
+  return code;
+}
+
 async function build(c: Ctx): Promise<number> {
   if (c.env.SKIP_VERSION_CHECK !== "1") {
     const v = checkVersions(c.root);
     (v.ok ? console.log : console.error)(v.lines.join("\n"));
-    if (!v.ok) return 1;
+    if (!v.ok) {
+      console.error("error: check-version a échoué (code 1)");
+      return 1;
+    }
   }
   const bun = c.bun;
   const web = join(c.root, "web");
@@ -398,16 +407,20 @@ async function build(c: Ctx): Promise<number> {
     [[bun, "install"], c.root],
     [[bun, "install"], web],
   ] as const) {
-    if ((await runLoud([...argv], cwd)) !== 0) return 1;
+    const code = await runLoud([...argv], cwd);
+    if (code !== 0) return stepFailed(`bun install (${cwd === web ? "web" : "racine"})`, code);
   }
   if (c.env.SKIP_TYPECHECK !== "1") {
-    if ((await runLoud([bun, "run", "typecheck"], c.root)) !== 0) return 1;
-    if ((await runLoud([bun, "run", "typecheck"], web)) !== 0) return 1;
+    let code = await runLoud([bun, "run", "typecheck"], c.root);
+    if (code !== 0) return stepFailed("typecheck (racine)", code);
+    code = await runLoud([bun, "run", "typecheck"], web);
+    if (code !== 0) return stepFailed("typecheck (web)", code);
   }
   // Staged build + swap, so a failed build never empties the web/dist the bridge serves from disk.
   const staging = join(web, "dist-staging");
   rmSync(staging, { recursive: true, force: true });
-  if ((await runLoud([bun, "run", "build", "--", "--outDir", "dist-staging", "--emptyOutDir"], web)) !== 0) return 1;
+  const built = await runLoud([bun, "run", "build", "--", "--outDir", "dist-staging", "--emptyOutDir"], web);
+  if (built !== 0) return stepFailed("vite build (web)", built);
   rmSync(join(web, "dist"), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   renameSync(staging, join(web, "dist"));
   return 0;

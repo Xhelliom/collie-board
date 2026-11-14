@@ -89,25 +89,33 @@ have_systemd() { command -v systemctl >/dev/null && systemctl --user show-enviro
 
 # Build the Vite/React PWA into web/dist. The bridge serves that directory; without it the API
 # still runs but the UI 503s. Safe to call repeatedly (no-op if already built, unless forced).
+# Run one build step; a failure says WHICH step and its code (set -e alone quits without a word).
+step() {
+  local name="$1" rc=0
+  shift
+  "$@" || rc=$?
+  [ "$rc" -eq 0 ] || { echo "error: ${name} a échoué (code ${rc})" >&2; exit "$rc"; }
+}
+
 cmd_build() {
   require_bun
   # Version gate: refuse to build a release whose version files / CHANGELOG disagree.
   # Override (e.g. mid-refactor) with SKIP_VERSION_CHECK=1.
   if [ "${SKIP_VERSION_CHECK:-}" != "1" ]; then
-    bash "${PLUGIN_ROOT}/scripts/check-version.sh"
+    step "check-version.sh" bash "${PLUGIN_ROOT}/scripts/check-version.sh"
   fi
   # Install BOTH dependency trees before typechecking. The root typecheck (tsconfig `types: ["bun"]`)
   # resolves @types/bun from the ROOT node_modules; a fresh Herdr checkout ships neither tree, so
   # without a root install the very first build dies with TS2688 "Cannot find type definition file
   # for 'bun'" and Herdr rolls the install back (issue #9). It works on the dev host only because a
   # manual `bun install` left root node_modules behind.
-  ( cd "${PLUGIN_ROOT}" && "$BUN" install )
-  ( cd "${PLUGIN_ROOT}/web" && "$BUN" install )
+  step "bun install (racine)" bash -c 'cd "$1" && "$2" install' _ "${PLUGIN_ROOT}" "$BUN"
+  step "bun install (web)" bash -c 'cd "$1" && "$2" install' _ "${PLUGIN_ROOT}/web" "$BUN"
   # Typecheck BOTH sides before building — the Vite build itself does not typecheck, so a type
   # error would otherwise ship silently. Skip with SKIP_TYPECHECK=1 (same hatch as the pre-push hook).
   if [ "${SKIP_TYPECHECK:-}" != "1" ]; then
-    ( cd "${PLUGIN_ROOT}" && "$BUN" run typecheck )
-    ( cd "${PLUGIN_ROOT}/web" && "$BUN" run typecheck )
+    step "typecheck (racine)" bash -c 'cd "$1" && "$2" run typecheck' _ "${PLUGIN_ROOT}" "$BUN"
+    step "typecheck (web)" bash -c 'cd "$1" && "$2" run typecheck' _ "${PLUGIN_ROOT}/web" "$BUN"
   fi
   # Staged build + atomic swap. Vite empties its output dir first, so building straight into web/dist
   # would leave it EMPTY with no rollback if the build failed — and the bridge serves web/dist from
@@ -115,7 +123,7 @@ cmd_build() {
   # aborts the function before the swap on any build failure, so a live web/dist survives untouched.
   local staging="${PLUGIN_ROOT}/web/dist-staging"
   rm -rf "$staging"
-  ( cd "${PLUGIN_ROOT}/web" && "$BUN" run build -- --outDir dist-staging --emptyOutDir )
+  step "vite build (web)" bash -c 'cd "$1" && "$2" run build -- --outDir dist-staging --emptyOutDir' _ "${PLUGIN_ROOT}/web" "$BUN"
   # Swap is the LAST step (a near-atomic same-filesystem rename) so the served dir is never half-built.
   rm -rf "${PLUGIN_ROOT}/web/dist"
   mv "$staging" "${PLUGIN_ROOT}/web/dist"

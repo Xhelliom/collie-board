@@ -13,10 +13,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-toml_v="$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/herdr-plugin.toml" | head -1)"
-pkg_v="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/package.json" | head -1)"
-web_v="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/web/package.json" | head -1)"
-log_v="$(sed -n 's/^##[[:space:]]*\[\([0-9][^]]*\)\].*/\1/p' "$ROOT/CHANGELOG.md" 2>/dev/null | head -1)"
+# `sed -n '…{s//\1/p;q;}'` stops itself at the first match: a `| head -1` closes the pipe on a big
+# file, sed takes SIGPIPE and pipefail+set -e kill the script with 141 and no message.
+toml_v="$(sed -n '/^[[:space:]]*version[[:space:]]*=/{s/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p;q;}' "$ROOT/herdr-plugin.toml")"
+pkg_v="$(sed -n '/"version"[[:space:]]*:/{s/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p;q;}' "$ROOT/package.json")"
+web_v="$(sed -n '/"version"[[:space:]]*:/{s/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p;q;}' "$ROOT/web/package.json")"
+log_v="$(sed -n '/^##[[:space:]]*\[[0-9]/{s/^##[[:space:]]*\[\([0-9][^]]*\)\].*/\1/p;q;}' "$ROOT/CHANGELOG.md" 2>/dev/null || true)"
 
 fail=0
 note() { printf '  %-18s %s\n' "$1" "$2"; }
