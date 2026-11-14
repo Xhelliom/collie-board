@@ -581,7 +581,8 @@ export function CardRoute() {
   const recetteSteps = recette?.steps ?? [];
   const toTest = recetteSteps.filter((s) => !s.verdict);
   const hasLinks = !!(detail.parent || detail.originCard || detail.predecessor || detail.children.length > 0);
-  const canLaunch = !live && card.status !== "done" && card.status !== "archived";
+  // A pane left as a bare shell (`agent: "shell"`, a reboot) holds no agent: relaunchable, unless still starting.
+  const canLaunch = (!live || (live.agent === "shell" && card.status !== "starting")) && card.status !== "done" && card.status !== "archived";
 
   const sendToAgent = async (text: string) => {
     await promptCard(card.id, text);
@@ -1600,7 +1601,7 @@ function StartButton({
 }) {
   const t = useT();
   if (card.status === "done" || card.status === "archived") return null;
-  const relaunch = card.sessionCount > 0;
+  const relaunch = card.sessionCount > 0 || !!card.branch;
 
   // The two refusals the bridge would answer with (`container`, `blocked-by`), said here instead.
   // Both are knowable before the tap, and on a phone a 409 you could have foreseen is a round trip

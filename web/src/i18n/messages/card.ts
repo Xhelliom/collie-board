@@ -280,7 +280,7 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "card.start.waiting": { en: "Waiting on “{title}” to finish. It starts on that branch, so it needs the work first.", fr: "En attente de « {title} ». Elle démarre sur cette branche, donc il lui faut ce travail d'abord." },
   "card.start.noRepo": { en: "Set a repo path on this card to start an agent on it.", fr: "Renseigne un dépôt sur cette carte pour y démarrer un agent." },
   "card.start.starting": { en: "Starting…", fr: "Démarrage…" },
-  "card.start.relaunch": { en: "Relaunch on this branch", fr: "Relancer sur cette branche" },
+  "card.start.relaunch": { en: "Relaunch on its branch", fr: "Relancer sur sa branche" },
   "card.start.start": { en: "Start agent", fr: "Démarrer l'agent" },
   "card.claim.taken": { en: "Taken by {who} at {time}", fr: "Prise par {who} à {time}" },
   "card.claim.takeOver": { en: "Take it back", fr: "Reprendre la main" },

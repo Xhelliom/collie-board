@@ -39,6 +39,7 @@ import { boardTab, type BoardTab, type CreatedWorktree, type Mux } from "./mux/m
 import { HC_NO_NOTIFY_HINT, HC_SPACE } from "./mux/hc.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
 import { manualChecksPrompt } from "./recette.ts";
+import { ClaudeTranscriptSource } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { claimForLaunch } from "./claim.ts";
 import { owedStep, resolvePipeline } from "./flows.ts";
@@ -65,6 +66,9 @@ export const cardTab = (card: { id: string; title: string; repoPath?: string | n
   boardTab(card.id, card.repoPath ?? "", card.title.slice(0, 40));
 
 export const NO_AGENT_MS = 10 * 60_000;
+
+/** What a resumed agent is told: it already holds the task, so no spec — just that it was cut off. */
+export const RESUME_PROMPT = "Ta session précédente a été interrompue (l'agent n'est plus là, redémarrage probable). Reprends la tâche de cette carte là où tu t'es arrêté : vérifie l'état du worktree avant de continuer.";
 export const NO_AGENT_REASON = "no agent ever came up in this pane — start the card again";
 
 /** How Herdr's agent status maps onto a board column. `unknown` deliberately maps to nothing. */
@@ -823,12 +827,20 @@ export async function startCard(
       error: { kind: "no-repo", message: "set the card's repo path before starting it" },
     };
   }
-  if (db.openSessionFor(cardId)) {
-    return {
-      ok: false,
-      error: { kind: "already-running", message: "this card already has a session running" },
-    };
+  const open = db.openSessionFor(cardId);
+  if (open) {
+    // After a reboot the card's terminal comes back as a bare shell and its session stays open: that
+    // is a card with no agent, and relaunching it is the way out. One still starting is not.
+    if (card.status === "starting" || (open.paneId && (await agentInPane(herdr, open.paneId)))) {
+      return {
+        ok: false,
+        error: { kind: "already-running", message: "this card already has a session running" },
+      };
+    }
+    db.closeSession(open.id, "lost");
   }
+  // The conversation the last agent held on this branch, resumed rather than restarted (`claude --resume`).
+  const lastAgentSession = db.listSessions(cardId).findLast((s) => s.agentSessionId)?.agentSessionId ?? null;
   // The settings screen's number wins over the env default when it has been set — see
   // `BoardDb.maxAgents`. Read here rather than at boot, so raising it takes effect on the next tap
   // instead of on a bridge restart.
@@ -954,14 +966,20 @@ export async function startCard(
   const depFailures = await installDeps(worktree.checkoutPath).catch((e) => [(e as Error).message]);
   if (depFailures.length) db.recordEvent(cardId, "card.install_failed", { stage: "install", error: depFailures.join("\n") });
 
+  let resumed: string | null = null;
   try {
     const wait = opts.sleep ?? sleep;
-    const args = modelArgs(kind, template?.model, opts.adapters, db.repoModel(card.repoPath, kind));
+    resumed = kind === "claude" && !step && lastAgentSession && (await new ClaudeTranscriptSource(cfg.transcriptRoot).resolve(lastAgentSession)) ? lastAgentSession : null;
+    const args = [...modelArgs(kind, template?.model, opts.adapters, db.repoModel(card.repoPath, kind)), ...(resumed ? ["--resume", resumed] : [])];
     syncAtLaunch((opts.adapters ?? BUILTIN_ADAPTERS)[kind], worktree.checkoutPath, card.repoPath, db.repoModel(card.repoPath, kind));
     if (template && !step) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
     // A repo never opened in Claude Code puts its trust dialog up, cursor on « No, exit ».
     if (kind === "claude") trustFolder(worktree.checkoutPath);
     await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait, args);
+    if (resumed) {
+      db.patchSession(session.id, { agentSessionId: resumed });
+      db.recordEvent(cardId, "session.resumed", { sessionId: session.id, paneId: worktree.paneId, agentSessionId: resumed });
+    }
     if (step && template) {
       // Journaled once up, as `swapRole` does. The previous bilan is spent only when its report is in
       // the prompt — a step journaled without one (#77) falls back to brief + card, so the bilan stays.
@@ -992,7 +1010,7 @@ export async function startCard(
   // The brief goes in front of the card's first prompt — never in front of a special one (a conflict
   // to settle, say), which is a message to an agent that already has its role.
   const hcHint = worktree.workspaceId === HC_SPACE ? `\n\n${HC_NO_NOTIFY_HINT}` : "";
-  const text = opts.promptText ?? step?.prompt ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}${hcHint}\n\n${bilanPrompt()}\n\n${manualChecksPrompt(card.id)}`);
+  const text = opts.promptText ?? step?.prompt ?? (resumed ? RESUME_PROMPT : null) ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}${hcHint}\n\n${bilanPrompt()}\n\n${manualChecksPrompt(card.id)}`);
   try {
     // First prompt after a launch: the draft may sit unsubmitted (the trust dialog is pre-empted above).
     await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep, { firstAfterLaunch: true });

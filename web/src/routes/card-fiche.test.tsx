@@ -301,6 +301,16 @@ describe("the card's page keeps every gesture, on each of its four faces", () =>
     expect(await missing(inv)).toEqual([]);
   });
 
+  it("en cours sur un shell (après un redémarrage): « Relancer sur sa branche » reste là", async () => {
+    await mount(detailOf(cardOf("working", { runtime: { ...runtime, agent: "shell" }, session: session(), sessionCount: 1, branch: "board/x" })));
+    expect(await missing({ "relancer sur sa branche": t("card.start.relaunch") })).toEqual([]);
+  });
+
+  it("en cours avec son agent: pas de relance", async () => {
+    await mount(detailOf(cardOf("working", { runtime, session: session(), sessionCount: 1, branch: "board/x" })));
+    expect(await missing({ "relancer sur sa branche": t("card.start.relaunch") })).not.toEqual([]);
+  });
+
   it("arrêtée, orpheline: the non-nominal panel says so", async () => {
     await mount(detailOf(cardOf("orphaned", { sessionCount: 1 })));
     expect(await screen.findAllByText(t("card.orphan.title"))).not.toHaveLength(0);
