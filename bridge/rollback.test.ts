@@ -108,3 +108,14 @@ describe("parseInvoke / parseLogOutcome", () => {
     expect(parseLogOutcome("not json", "l1")).toBeNull();
   });
 });
+
+describe("parseLogOutcome — long output", () => {
+  it("keeps the END of the output, where the error is, not the start", () => {
+    const stdout = Array.from({ length: 200 }, (_, i) => `line ${i}`).join("\n");
+    const list = JSON.stringify({ result: { logs: [{ log_id: "l1", status: "failed", exit_code: 141, stdout, stderr: "error: check-version.sh a échoué (code 141)" }] } });
+    const { error } = parseLogOutcome(list, "l1")!;
+    expect(error).toContain("check-version.sh a échoué (code 141)");
+    expect(error).toContain("line 199");
+    expect(error).not.toContain("line 0\n");
+  });
+});
