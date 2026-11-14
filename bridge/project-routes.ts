@@ -8,7 +8,7 @@ import { basename } from "node:path";
 import { doneOutsideLot, isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
 import { goalLaunchRefusal, idleRefusal } from "./autonomy.ts";
-import { weekPercent } from "./goal-routes.ts";
+import { recordStartGauge, weekPercent } from "./goal-routes.ts";
 import { usageTracker } from "./usage.ts";
 import { lotView } from "./lot.ts";
 import { resumeRun } from "./run.ts";
@@ -257,6 +257,8 @@ export async function handleProjectRoute(
       if (pane && !byGoal && !db.spendAutonomy(run.repoPath, idle)) return refuse("le lancement armé est déjà dépensé");
       if (!db.launchRun(id)) return ctx.text("already launched", 409);
       if (!pane) db.resetChain(run.repoPath);
+      // Off the request: the CLI read can take seconds. The start is journaled when the fresh reading lands (null if it fails).
+      void recordStartGauge(db, id);
       audit("run.launch", { runId: id, ...(pane ? { autonomous: true } : {}), ...(idle ? { reason: "idle" } : {}), ...(byGoal ? { reason: "goal" } : {}) });
       return ctx.json({ run: db.getRun(id) });
     }

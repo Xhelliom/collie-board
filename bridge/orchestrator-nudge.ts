@@ -13,6 +13,7 @@ import { openGoalOf } from "./goal-mode.ts";
 import type { NotifyLog } from "./notify-log.ts";
 import type { PrStatus } from "./git.ts";
 import { prStatusFor } from "./integrate.ts";
+import { consumedLine } from "./cost.ts";
 import { weekPercent } from "./goal-routes.ts";
 import { usageTracker } from "./usage.ts";
 import { LATE_COMMITS } from "./late-commits.ts";
@@ -21,11 +22,12 @@ const FILED = new Set<string>(["done", "archived"]);
 const line = (c: Card) => `- « ${c.title} » (${c.id}) : ${c.status}`;
 
 /** The message for a lot that ended: its cards, merged ones (journal, or a PR GitHub says is merged) apart from those that were ever blocked. Pure. */
-export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, merged: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null, goal?: GoalWake | null, autonomy?: { enabled: boolean; startWhenIdle: boolean }): string {
+export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, merged: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null, goal?: GoalWake | null, autonomy?: { enabled: boolean; startWhenIdle: boolean }, consumed?: string): string {
   const ok = cards.filter((c) => merged.has(c.id) || (FILED.has(c.status) && !blocked.has(c.id)));
   const ko = cards.filter((c) => !ok.includes(c));
   return [
     `Le lot « ${name ?? "sans nom"} » est terminé.`,
+    ...(consumed ? [consumed] : []),
     ...(ok.length ? ["Mergées :", ...ok.map(line)] : []),
     ...(ko.length ? ["Bloquées ou non mergées :", ...ko.map(line)] : []),
     `Fais à l'opérateur un bilan COURT : ce qui est mergé, ce qui est bloqué et POURQUOI (une raison par carte non mergée, lue dans /api/project/facts?repo=${repoPath ?? "<repo>"} — verdict du lead, gate, review — et dans le journal de la carte), puis la suite que tu proposes.`,
@@ -189,7 +191,7 @@ export class OrchestratorNudger {
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
       // Under an objective the phases are not validated one by one: the end of a phase is not proposed.
       const endPhase = ends && phase && !goal ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null;
-      const text = lotMessage(run.name, cards, blocked, merged, endPhase, run.repoPath, auto, goal, this.db.autonomyOf(run.repoPath));
+      const text = lotMessage(run.name, cards, blocked, merged, endPhase, run.repoPath, auto, goal, this.db.autonomyOf(run.repoPath), consumedLine(this.db.runQuota(run.id)));
       return { repoPath: run.repoPath, text: openGoalOf(this.db, run.repoPath) ? `${text}\n${GOAL_LOT_LINE}` : text };
     }
     if (e.type === "goal.created" || e.type === "goal.resumed") {

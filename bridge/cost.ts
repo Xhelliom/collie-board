@@ -118,6 +118,16 @@ export function sumCards(costs: CardCost[]): CostSum {
   return { tokens: f.tokens, byModel: f.byModel, cards: started.length, unknownCards: started.length - known.length, known: known.length > 0 };
 }
 
+/** The lot's tokens as ONE figure, or null when any started card is unknown — never a doubtful sum. */
+export const lotTokens = (s: CostSum): number | null => (s.known && s.unknownCards === 0 ? s.tokens.input + s.tokens.output + s.tokens.cacheWrite + s.tokens.cacheRead : null);
+
+/** « Consommé : … » for the end-of-lot message and the exported bilan. The gauge is the whole account's: said so, never imputed to the lot. */
+export function consumedLine(q: { start: number | null; end: number | null; tokens: number | null }): string {
+  const pct = (n: number | null) => (n === null ? "inconnu" : `${n} %`);
+  const tok = q.tokens === null ? "tokens inconnus" : `${q.tokens.toLocaleString("fr-FR")} tokens`;
+  return `Consommé : ${tok} ; jauge de la semaine ${pct(q.start)} → ${pct(q.end)} (tout le compte, d'autres sessions comprises, pendant le lot)`;
+}
+
 /** A conversation no card owns: the repo's orchestrator, or the board's own (lead, copilot). */
 export type PaneRole = { kind: "orchestrator"; repo: string } | { kind: "board" };
 

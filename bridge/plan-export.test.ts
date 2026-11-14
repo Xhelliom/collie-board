@@ -4,8 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { BoardDb, type Run } from "./db.ts";
+import { consumedLine } from "./cost.ts";
+import { freshWeekPercent } from "./goal-routes.ts";
+import { USAGE_TTL_MS, type ClaudeUsage } from "./usage.ts";
 import { runGit, type GitRunner } from "./git.ts";
-import { exportPlanAtLotEnd, lotBilanMarkdown, lotSlugOf, openPlanPr, planBody, planTitle, rollingPlanPr } from "./plan-export.ts";
+import { exportPlanAtLotEnd, lotBilanMarkdown, lotSlugOf, openPlanPr, planFiles, planBody, planTitle, rollingPlanPr } from "./plan-export.ts";
 import { RunCoordinator, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -87,7 +90,7 @@ describe("plan export at the end of a lot", () => {
     expect(lotSlugOf({ id: "abcdef99", name: "Été 2026" })).toBe("lot-ete-2026-abcdef");
   });
 
-  it("the coordinator hands the finished lot over once, on the tick that journals run.finished", () => {
+  it("the coordinator hands the finished lot over once, whatever the ticks during the gauge read", async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r", status: "done" });
     db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
@@ -97,7 +100,41 @@ describe("plan export at the end of a lot", () => {
     const snap = { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" } as unknown as EngineSnapshot;
     coord.update(snap);
     coord.update(snap);
+    await new Promise((r) => setTimeout(r, 0));
+    coord.update(snap);
     expect(finished).toEqual([a.runId ?? db.getCard(a.id)!.runId!]);
+  });
+});
+
+describe("what the lot consumed", () => {
+  it("the bilan carries the same line, with « inconnu » for a missing reading", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "done" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.recordRunEvent(null, "run.quota", { runId: run.id, at: "start", percent: 12 });
+    db.recordRunEvent(null, "run.quota", { runId: run.id, at: "end", percent: 15, tokens: 500 });
+    expect(planFiles(db, run, 0)[`docs/plan/lots/${lotSlugOf(run)}.md`]).toContain("Consommé : 500 tokens ; jauge de la semaine 12 % → 15 %");
+    const none = db.createRun({ repoPath: "/r", cardIds: [], foldInCap: 0 });
+    expect(planFiles(db, none, 0)[`docs/plan/lots/${lotSlugOf(none)}.md`]).toContain("Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu");
+  });
+
+  it("a gauge older than the TTL reads as « inconnu » in the line", () => {
+    const u = { limits: [{ label: "Current week (all models)", percent: 12 }], checkedAt: 1_000 } as unknown as ClaudeUsage;
+    expect(freshWeekPercent(u, 1_000 + USAGE_TTL_MS - 1)).toBe(12);
+    const stale = freshWeekPercent(u, 1_000 + USAGE_TTL_MS);
+    expect(stale).toBeNull();
+    expect(consumedLine({ start: 12, end: stale, tokens: 5 })).toContain("12 % → inconnu");
+  });
+
+  it("the coordinator reads the gauge afresh at the end (a stale cache still gets a value), before run.finished", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "done" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const ports = { reviewing: () => false, direct: () => false, freeSlots: () => 1, lotTokens: () => 42, weekGauge: async () => 33 } as unknown as RunPorts;
+    new RunCoordinator(db, ports).update({ agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" } as unknown as EngineSnapshot);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(db.runQuota(run.id)).toMatchObject({ end: 33, tokens: 42 });
+    expect(db.runFinished(run.id)).toBe(true);
   });
 });
 
