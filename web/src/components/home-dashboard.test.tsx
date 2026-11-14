@@ -113,6 +113,22 @@ describe("ProjectRows", () => {
   });
 });
 
+describe("ProjectRow signal", () => {
+  it("bars a running lot's project in blue with the lot's name, rests the idle one, keeps the waiting one orange", () => {
+    const running = { name: "Siege", done: 1, total: 3, blocked: 0, finishedAt: null };
+    render(
+      <MemoryRouter>
+        <ProjectRows repos={[repo(0), repo(1), repo(2, { waiting: 1 })]} lots={{ "/r/0": running, "/r/2": running }} />
+      </MemoryRouter>,
+    );
+    const row = (n: number) => screen.getByText(`repo${n}`).closest("a")!;
+    expect(row(0).querySelector("[data-signal]")).toHaveAttribute("data-signal", "working");
+    expect(row(0)).toHaveTextContent("Lot: Siege");
+    expect(row(1).querySelector("[data-signal]")).toBeNull();
+    expect(row(2).querySelector("[data-signal]")).toHaveAttribute("data-signal", "blocked");
+  });
+});
+
 describe("Machines", () => {
   it("lists this machine and every peer, an unreachable one in words", () => {
     const peers = [
