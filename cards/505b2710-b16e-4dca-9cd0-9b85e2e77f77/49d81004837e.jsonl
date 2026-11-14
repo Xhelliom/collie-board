@@ -2,3 +2,6 @@
 {"v":1,"hlc":"1794662469417.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Page Projet : une page du projet en vitrine","status":"backlog"},"ts":1794662458752}}
 {"v":1,"hlc":"1794662469424.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"855c55fd-3b9f-4c56-9b46-6a3ca6a75020"}}
 {"v":1,"hlc":"1794665396698.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794665399692.0009.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/page-projet-une-page-du-projet-en-vitrine"}}
+{"v":1,"hlc":"1794665399692.0010.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794665399692.0011.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794665399534}}
