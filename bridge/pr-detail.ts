@@ -41,7 +41,7 @@ export interface PrDetail {
   conflicting: boolean;
   isDraft: boolean;
   url: string;
-  card: { id: string; title: string } | null;
+  card: { id: string; title: string; status: string } | null;
   /** What the repo allows, the preselected one first; empty when GitHub could not say. */
   modes: MergeMode[];
   /** Behind its base without a conflict (GitHub's BEHIND): « Update the branch » can fix it. */
@@ -144,7 +144,7 @@ export async function prDetail(
   const card = (journaled && db.getCard(journaled)) || db.listCards({ includeArchived: true }).find((c) => c.repoPath === repoPath && c.branch === d.head);
   return {
     ok: true,
-    detail: { ...d, modes, card: card ? { id: card.id, title: card.title } : null, diff: diff?.diff ?? "", diffTruncated: diff?.truncated ?? false },
+    detail: { ...d, modes, card: card ? { id: card.id, title: card.title, status: card.status } : null, diff: diff?.diff ?? "", diffTruncated: diff?.truncated ?? false },
   };
 }
 

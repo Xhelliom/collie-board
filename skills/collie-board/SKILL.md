@@ -450,6 +450,7 @@ curl -s "$B/api/board/prs"                    # the cards whose PR is still open
 curl -s "$B/api/board/prs/<number>?repo=<path>"  # one open PR's sheet: title, body, author, base/head, linked card, files, capped diff (read-only; repo must be known)
 #   The sheet's `checks`: [{name, state success|failure|pending|skipped|cancelled, startedAt, completedAt, url, runId}].
 #   `behind` (true = behind its base without a conflict) — POST /api/board/prs/<number>/update-branch {"repo","mode"?:"rebase"} runs `gh pr update-branch` (by merge; rebase only if the repo allows it) — the operator's tap, 403 to any pane.
+#   `card.status` — the carrying card's column. POST /api/board/prs/<number>/resolve {"repo"} hands a conflicted PR to an agent: the PR's card (its live agent, else relaunched on its branch), or a new card "Résoudre le conflit de la PR #n" filed ON the PR's own branch and started — the agent merges the base and pushes that same branch. The operator's tap, 403 to any pane; 409 if the PR is not open or not conflicting.
 #   POST /api/board/prs/<number>/rerun {"repo","runId"} re-runs a run's failed jobs — the operator's tap, 403 to any pane.
 curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable, conflicting (asks GitHub)
 #   GET /api/cards/<id> carries `card.prUrl` (its PR, from the journal; null = none). With one, finish_card
