@@ -35,3 +35,4 @@
 {"v":1,"hlc":"1794676719318.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/433"},"ts":1794676718675}}
 {"v":1,"hlc":"1794676719318.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794676719318.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794676718707}}
+{"v":1,"hlc":"1794676734678.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"usage_group":"Relire et fusionner les PR"}}
