@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { appendFileSync, mkdirSync, mkdtempSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,12 +11,14 @@ import {
   isOrchestratorAgent,
   orchestratorLabel,
   orchestratorName,
+  orchestratorMarker,
   orchestratorPrompt,
   askOrchestratorNote,
   restartOrchestrator,
   startOrchestrator,
 } from "./orchestrator.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { ClaudeTranscriptSource, mangleProjectDir } from "./transcript.ts";
 
 const agent = (paneId: string, workspaceLabel: string, cwd: string) => ({ paneId, workspaceLabel, cwd, status: "idle" });
 const snap = (agents: ReturnType<typeof agent>[] = [], shellPanes: ReturnType<typeof agent>[] = []) =>
@@ -29,7 +31,7 @@ function fakeHerdr() {
     calls,
     herdr: {
       createWorkspace: async (o: { cwd: string; label?: string }) => (calls.push(`workspace ${o.label}`), { paneId: "w9:p1" }),
-      startAgent: async (o: { paneId: string; kind: string; name: string }) => void calls.push(`start ${o.kind} ${o.name}`),
+      startAgent: async (o: { paneId: string; kind: string; name: string; args?: string[] }) => void calls.push(`start ${o.kind} ${o.name}${o.args ? ` ${o.args.join(" ")}` : ""}`),
       getAgent: async () => ({ interactive_ready: true, agent_status: "working" }),
       promptAgent: async (o: { target: string; text: string }) => void calls.push(`prompt ${o.target}`),
       sendPaneKeys: async () => {},
@@ -100,6 +102,36 @@ describe("startOrchestrator", () => {
     await startOrchestrator({ herdr: f.herdr, cfg, snapshot: () => snap([], [agent("s1", "orchestrator-app", "/g/app")]), wait: noWait }, "/g/app");
     expect(f.calls.some((c) => c.startsWith("workspace"))).toBe(false);
     expect(f.calls[0]).toMatch(/^start /);
+  });
+
+  it("picks the repo's last orchestrator conversation back up (a reboot), never the operator's own, never an /exit-ed one", async () => {
+    const root = mkdtempSync(join(tmpdir(), "collie-orch-tr-"));
+    const dir = join(root, mangleProjectDir("/g/app"));
+    mkdirSync(dir);
+    const at = new Date(Date.now() - 14 * 3_600_000).toISOString(); // a night off is not sleep
+    const line = (type: string, content: string, extra = {}) => JSON.stringify({ type, timestamp: at, message: { content, ...extra } });
+    const orch = "11111111-0000-4000-8000-000000000001";
+    writeFileSync(join(dir, `${orch}.jsonl`), [line("user", `${orchestratorMarker("/g/app")} dans Collie Board.`), line("assistant", "ok", { stop_reason: "end_turn" })].join("\n"));
+    // The operator's own session in the same checkout, newer: not the orchestrator's.
+    const mine = join(dir, "22222222-0000-4000-8000-000000000002.jsonl");
+    writeFileSync(mine, line("user", "une question à moi"));
+    utimesSync(mine, new Date(), new Date(Date.now() + 1000));
+    const deps = { cfg, snapshot: () => snap(), wait: noWait, transcripts: new ClaudeTranscriptSource(root) };
+
+    const f = fakeHerdr();
+    await startOrchestrator({ ...deps, herdr: f.herdr }, "/g/app");
+    expect(f.calls[1]).toMatch(new RegExp(`^start claude orch-app-\\S+ --resume ${orch}$`));
+    expect(f.calls.filter((c) => c.startsWith("prompt"))).toEqual([]); // the conversation already holds it
+
+    // A renewal wants a fresh one.
+    const g = fakeHerdr();
+    await startOrchestrator({ ...deps, herdr: g.herdr }, "/g/app", "old");
+    expect(g.calls.some((c) => c.includes("--resume"))).toBe(false);
+
+    appendFileSync(join(dir, `${orch}.jsonl`), "\n" + line("user", "<command-name>/exit</command-name>"));
+    const h = fakeHerdr();
+    await startOrchestrator({ ...deps, herdr: h.herdr }, "/g/app");
+    expect(h.calls.some((c) => c.includes("--resume"))).toBe(false);
   });
 
   it("two taps at once make one agent", async () => {

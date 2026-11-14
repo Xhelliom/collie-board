@@ -9,6 +9,9 @@
 //              agent was `/exit`ed by hand: left alone.
 //   asleep   — no message for {@link ASLEEP_MS}: left alone.
 //
+// Each lost terminal gets one line in the bridge's journal (`[resume-lost] …`): what it was, the
+// verdict and why — or why nothing could be decided (no conversation found).
+//
 // Who: a card's open session whose pane is a shell, and a repo's orchestrator (found by its label). The
 // lead and the copilot relaunch themselves (copilot.ts `observe`). A free agent has nothing readable
 // under hc that says it held a conversation (its terminal keeps only the shell's argv), and a guess by
@@ -26,13 +29,14 @@ import type { BoardDb, Card, CardSession } from "./db.ts";
 import { BILAN_REL_PATH } from "./lead.ts";
 import { ownerOf } from "./mux/composite.ts";
 import type { Mux } from "./mux/mux.ts";
-import { isOrchestratorAgent, orchestratorName } from "./orchestrator.ts";
+import { isOrchestratorAgent, orchestratorMarker, orchestratorName } from "./orchestrator.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { TranscriptSource } from "./transcript.ts";
 import type { AgentView } from "./types.ts";
 
-/** No message for this long and the agent is left asleep. ponytail: calibration knob. */
-export const ASLEEP_MS = 12 * 60 * 60_000;
+/** No message for this long and the agent is left asleep. A night or a weekend off is not sleep (14/11: a
+ * reboot after 14 h left the orchestrator asleep). shortcut: calibration knob. */
+export const ASLEEP_MS = 72 * 60 * 60_000;
 /** A pass at most this often — each one may read a few transcripts. */
 export const SCAN_EVERY_MS = 30_000;
 /** A card whose session opened this recently may be a shell still waiting for its first agent. */
@@ -99,6 +103,25 @@ export function classify(input: { turn: LastTurn; cardStatus: string | null; bil
   return "resume";
 }
 
+/** Why {@link classify} said what it said, for the journal. */
+export function verdictWhy(v: ResumeVerdict, input: { turn: LastTurn; cardStatus: string | null; bilan: boolean; now: number }): string {
+  const { turn, cardStatus, bilan, now } = input;
+  if (v === "finished") return turn.exited ? "/exit tapé" : bilan ? "bilan écrit" : `tour clos, carte en ${cardStatus}`;
+  if (v === "asleep") return `muet depuis ${Math.round((now - (turn.at ?? now)) / 3_600_000)} h`;
+  return turn.open ? "tour ouvert" : "tour clos, travail pas fini";
+}
+
+/**
+ * The repo's last orchestrator conversation, when it should be picked up again: found by its start
+ * prompt, and neither `/exit`ed nor asleep. Null otherwise. For a plain start (orchestrator.ts).
+ */
+export async function priorOrchestrator(source: TranscriptSource, repoPath: string, now = Date.now()): Promise<string | null> {
+  const path = await source.resolveByCwd(repoPath, orchestratorMarker(repoPath));
+  if (!path) return null;
+  const turn = lastTurn((await source.load(path)).text);
+  return turn && classify({ turn, cardStatus: null, bilan: false, now }) === "resume" ? basename(path, ".jsonl") : null;
+}
+
 /** The recap's one line: « 3 agents repris, 2 terminés laissés, 1 endormi laissé ». */
 export function recapLine(n: Record<ResumeVerdict, number>): string {
   const s = (k: number) => (k > 1 ? "s" : "");
@@ -152,13 +175,19 @@ export class LostAgentResumer {
       const lost = this.identify(pane);
       if (!lost) continue;
       const found = await this.conversation(lost);
-      if (!found) continue;
+      if (!found) {
+        if (!this.seen.has(pane.paneId)) console.log(`[resume-lost] ${pane.paneId} (${lost.name}) : laissé, aucune conversation retrouvée`);
+        this.seen.add(pane.paneId);
+        continue;
+      }
       const key = `${pane.paneId}|${found.sessionId}`;
       if (this.seen.has(key)) continue;
       this.seen.add(key);
-      const bilan = this.bilanSince(pane.cwd, lost.session?.startedAt ?? 0);
-      const verdict = classify({ turn: found.turn, cardStatus: lost.card?.status ?? null, bilan, now: this.now() });
+      const input = { turn: found.turn, cardStatus: lost.card?.status ?? null, bilan: this.bilanSince(pane.cwd, lost.session?.startedAt ?? 0), now: this.now() };
+      const verdict = classify(input);
       if (verdict === "resume" && !(await this.relaunch(lost, found.sessionId))) continue;
+      const said = { resume: "repris", finished: "fini, laissé", asleep: "endormi, laissé" }[verdict];
+      console.log(`[resume-lost] ${pane.paneId} (${lost.name}) : ${said} — ${verdictWhy(verdict, input)} [${found.sessionId}]`);
       out[verdict].push(lost.name);
     }
     const total = out.resume.length + out.finished.length + out.asleep.length;
@@ -185,10 +214,9 @@ export class LostAgentResumer {
   /** The conversation the pane held and its last turn. */
   private async conversation(lost: Lost): Promise<{ sessionId: string; turn: LastTurn } | null> {
     const known = lost.session?.agentSessionId;
-    // shortcut: without a recorded id, the newest log started in the pane's directory — exact for a
-    // card (its own worktree), a guess for an orchestrator sharing the repo with the operator's own
-    // sessions. Upgrade if hc ever carries the agent's session id.
-    const path = known ? await this.source.resolve(known) : await this.source.resolveByCwd(lost.pane.cwd);
+    // Without a recorded id, the newest log started in the pane's directory — a card's own worktree;
+    // for an orchestrator, sharing the repo with the operator's sessions, the newest opened by its start prompt.
+    const path = known ? await this.source.resolve(known) : await this.source.resolveByCwd(lost.pane.cwd, lost.card ? undefined : orchestratorMarker(lost.pane.cwd));
     if (!path) return null;
     const turn = lastTurn((await this.source.load(path)).text);
     if (!turn) return null;

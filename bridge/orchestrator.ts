@@ -14,13 +14,17 @@ import type { Config } from "./config.ts";
 import { HC_SPACE } from "./mux/hc.ts";
 import { boardTab, type Mux } from "./mux/mux.ts";
 import { samePath } from "./paths.ts";
+import { priorOrchestrator } from "./resume-lost.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import type { TranscriptSource } from "./transcript.ts";
 
 /** The workspace label's prefix — what the notification hook and the adoption both recognise. */
 export const ORCH_PREFIX = "orchestrator-";
 
 /** Its tab in herdr-app (hc): one per repo, in the board's space. */
 export const orchestratorTab = (repoPath: string) => boardTab(`orch-${basename(repoPath)}`, repoPath, "orchestrateur");
+/** The start prompt's opening words: what tells this repo's orchestrator conversation from the operator's own (resume-lost.ts). */
+export const orchestratorMarker = (repoPath: string): string => `Tu es l'orchestrateur du projet « ${basename(repoPath)} » (${repoPath})`;
 export const orchestratorLabel = (repoPath: string): string => `${ORCH_PREFIX}${basename(repoPath)}`;
 
 /** Herdr agent names are globally unique: the basename alone would collide across two `app` repos. */
@@ -61,7 +65,7 @@ export function orchestratorPrompt(
 ): string {
   const base = (webBase ?? "").replace(/\/+$/, "");
   const lines = [
-    `Tu es l'orchestrateur du projet « ${basename(repoPath)} » (${repoPath}) dans Collie Board.`,
+    `${orchestratorMarker(repoPath)} dans Collie Board.`,
     "",
     "Ton rôle : planifier le travail de CE dépôt avec l'opérateur, en discutant avec lui. Tu prépares la roadmap, les",
     "phases, les lots (runs planifiés, avec leur plafond `maxParallel`) et les cartes, avec le skill `collie-board`",
@@ -161,6 +165,8 @@ export interface OrchestratorDeps {
   memory?: (repoPath: string) => { note: string; updatedAt: number } | null;
   /** The repo's default model flags for this kind (repo_pref) — none when absent. */
   modelArgs?: (repoPath: string, kind: string) => string[];
+  /** Where the repo's last orchestrator conversation is looked for, so a plain start resumes it (a reboot, herdr 0.9 gone). */
+  transcripts?: TranscriptSource;
 }
 
 /** Starts in flight, so two taps on "Démarrer" make one agent, not a name clash. */
@@ -178,7 +184,7 @@ export function startOrchestrator(deps: OrchestratorDeps, repoPath: string, igno
   return p;
 }
 
-async function doStart({ herdr, cfg, snapshot, wait, memory, modelArgs }: OrchestratorDeps, repoPath: string, ignore?: string, shellPane?: string) {
+async function doStart({ herdr, cfg, snapshot, wait, memory, modelArgs, transcripts }: OrchestratorDeps, repoPath: string, ignore?: string, shellPane?: string) {
   const snap = snapshot();
   const live = findOrchestrator(snap, repoPath, ignore);
   if (live) return { paneId: live, started: false };
@@ -187,7 +193,15 @@ async function doStart({ herdr, cfg, snapshot, wait, memory, modelArgs }: Orches
   const shell = shellPane ?? snap.shellPanes.find((p) => spaceLabel(p) === label && samePath(p.cwd, repoPath))?.paneId;
   const paneId = shell ?? (await herdr.createWorkspace({ cwd: repoPath, label, show: orchestratorTab(repoPath) })).paneId;
   const kind = cfg.boardCopilotKind || cfg.boardAgentKind;
-  await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait, modelArgs?.(repoPath, kind));
+  // A renewal (`ignore`) wants a fresh one; a plain start picks the last conversation back up.
+  const prior = ignore === undefined && kind === "claude" && transcripts ? await priorOrchestrator(transcripts, repoPath) : null;
+  const args = modelArgs?.(repoPath, kind) ?? [];
+  if (prior) {
+    await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait, [...args, "--resume", prior]);
+    console.log(`[orchestrator] resumed ${prior} in ${paneId} (${repoPath})`);
+    return { paneId, started: true };
+  }
+  await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait, args);
   await promptAndConfirm(herdr, paneId, orchestratorPrompt(repoPath, memory?.(repoPath) ?? null, cfg.allowedOrigins?.[0] ?? null), wait, { firstAfterLaunch: true });
   console.log(`[orchestrator] agent ready in ${paneId} (${repoPath})`);
   return { paneId, started: true };
