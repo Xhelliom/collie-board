@@ -580,3 +580,6 @@
 {"v":1,"hlc":"1794664763030.0013.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"b6765f47-e884-4dbb-857b-ba375c03b603"},"ts":1794664757271}}
 {"v":1,"hlc":"1794664763030.0021.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"b6765f47-e884-4dbb-857b-ba375c03b603"},"ts":1794664758476}}
 {"v":1,"hlc":"1794664763030.0029.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"b6765f47-e884-4dbb-857b-ba375c03b603"},"ts":1794664762652}}
+{"v":1,"hlc":"1794664779525.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"b6765f47-e884-4dbb-857b-ba375c03b603"},"ts":1794664763633}}
+{"v":1,"hlc":"1794664779525.0013.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"b6765f47-e884-4dbb-857b-ba375c03b603"},"ts":1794664767553}}
+{"v":1,"hlc":"1794664779525.0021.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"copilot.review_failed","payload":{"sessionId":"b6765f47-e884-4dbb-857b-ba375c03b603"},"ts":1794664767636}}
