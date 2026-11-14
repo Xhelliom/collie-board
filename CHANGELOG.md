@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.327.2] - 2026-11-14
+
+### Changed
+
+- Le journal du bridge dit, pour chaque terminal perdu : repris, fini ou endormi, et pourquoi (126d1e7)
+
+### Fixed
+
+- Après un redémarrage, l'orchestrateur reprend sa conversation (`claude --resume`), même muet toute la nuit (126d1e7)
+- « Démarrer l'orchestrateur » reprend sa dernière conversation au lieu d'en ouvrir une neuve (sauf `/exit`) (126d1e7)
+- Un agent n'est plus laissé « endormi » qu'après 72 h sans message (12 h écartait une nuit) (126d1e7)
+
 ## [0.327.1] - 2026-11-14
 
 ### Fixed
