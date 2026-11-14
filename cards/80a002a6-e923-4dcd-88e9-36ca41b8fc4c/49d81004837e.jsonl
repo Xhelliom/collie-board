@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794686615992.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Le bilan d un lot dit ce qu il a consommé","status":"backlog"},"ts":1794686605841}}
 {"v":1,"hlc":"1794686615992.0008.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"2ec9a590-c700-463a-aac6-7a5cd8d10922"}}
 {"v":1,"hlc":"1794686617604.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"6989f359-2090-4fa8-9a8b-740c95c6c1be"}}
+{"v":1,"hlc":"1794689965103.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
