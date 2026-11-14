@@ -1,6 +1,6 @@
 # Après un redémarrage, qui démarre herdr-core ?
 
-**Statut :** ❓ ouvert — exploration du 14/11/2026, une décision attend l'opérateur.
+**Statut :** ✅ tranché le 14/11/2026 — option 4 : Collie ne démarre pas herdr-core, on documente.
 
 ## La question
 
@@ -48,7 +48,19 @@ revient-il à herdr (rapport en amont) ou à notre installation (`scripts/`) ?
    une fonctionnalité qui manque.
 4. **Ne rien faire, documenter** : « après un redémarrage, ouvrez l'app herdr ou lancez `hc ls` ».
 
-## Recommandation
+## Décision (14/11/2026)
+
+**Option 4, décision de l'opérateur.** Collie ne démarre pas herdr-core lui-même : il continue de se
+connecter au socket et d'attendre. La marche à suivre après un redémarrage est documentée dans le
+[README](../../README.md#troubleshooting) et dans
+[`12-troubleshooting.md`](../usage/12-troubleshooting.md) : ouvrir l'app herdr, ou lancer
+`hc server start` (ou `hc ls`) depuis un terminal du bureau. Les options 1 et 2 sont écartées ; la
+recommandation ci-dessous est gardée pour mémoire.
+
+Le constat annexe (message de démarrage qui citait l'ancien socket) est corrigé par #425 : le bridge
+cite désormais le socket herdr-core sondé et `hc server start`.
+
+## Recommandation (avant décision)
 
 **Le correctif est chez nous (option 1), et un rapport à herdr est facultatif (option 3).** herdr-core
 fait ce pour quoi il est conçu. C'est **notre** installation qui promet un bridge joignable dès le
