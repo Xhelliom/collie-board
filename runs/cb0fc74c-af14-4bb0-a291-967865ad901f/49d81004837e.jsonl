@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1794692303574.0006.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"fold_in_cap":1,"lead_agent":null,"phase_id":"04f1bfba-3447-4964-806a-9de7f43c60ee","name":"Faire le tri","position":2,"launched_at":null,"max_parallel":1,"integration":"card","lot_branch":null,"lot_base":null,"created_at":1794692302102,"created_by":"stephane.wetterwald@gmail.com","created_pair":"49d81004837e","finished_at":null}}
+{"v":1,"hlc":"1794697207112.0001.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"position":3}}
