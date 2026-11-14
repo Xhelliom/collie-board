@@ -72,6 +72,15 @@ describe("plan export at the end of a lot", () => {
     expect(ghCalls).toHaveLength(1);
   });
 
+  it("pushes the export with --no-verify: the pre-push hook has nothing to judge in a bridge-built docs/plan commit", async () => {
+    const { repo } = await repoWithOrigin();
+    const gh: GitRunner = async () => ({ ok: true, stdout: "https://github.com/o/r/pull/9\n", stderr: "" });
+    const calls: string[][] = [];
+    const spy: GitRunner = (args, cwd) => (calls.push(args), runGit(args, cwd));
+    await openPlanPr(repo, { base: "main", branch: "board/plan-nv", title: "t", body: "b", files: { "docs/plan/x.md": "x\n" } }, spy, gh);
+    expect(calls.find((a) => a[0] === "push")).toContain("--no-verify");
+  });
+
   it("is on by default and the repo's switch cuts it", async () => {
     const db = new BoardDb(":memory:");
     expect(db.planExportOf("/r")).toBe(true);
