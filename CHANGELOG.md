@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.340.1] - 2026-11-14
+
+### Fixed
+
+- `GET /api/cost` répond du JSON : le préfixe manquait à `BOARD_PREFIXES`, la page web répondait à sa place. (989a0c9)
+- Test : toute route documentée dans le skill est routée par `isBoardPath` ou un garde de `server.ts`. (989a0c9)
+- Les sessions finies avant le déploiement sont mesurées une fois au démarrage, si leur `agentSessionId` est connu. (989a0c9)
+- Sous herdr-core, l'id de conversation d'une session vivante est retrouvé (process puis dossier) et enregistré sur la session. (989a0c9)
+- Jauge de fin de lot : une lecture fraîche attendue jusqu'au délai du CLI (plus de coupure à 10 s) ; l'échec dit sa raison dans le journal. (989a0c9)
+
 ## [0.340.0] - 2026-11-14
 
 ### Added
