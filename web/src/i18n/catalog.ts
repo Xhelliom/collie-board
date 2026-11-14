@@ -20,7 +20,8 @@ import { shell } from "./messages/shell";
 import { peers } from "./messages/peers";
 import { people } from "./messages/people";
 import { goal } from "./messages/goal";
+import { about } from "./messages/about";
 
 // One file per area, so two people (or agents) never edit the same one. Adding an area is one line here.
-export const CATALOG = { ...common, ...board, ...card, ...project, ...prs, ...recette, ...docs, ...sheets, ...orchestrator, ...languageMessages, ...templates, ...flows, ...home, ...settings, ...gallery, ...history, ...spaces, ...pane, ...shell, ...peers, ...people, ...goal };
+export const CATALOG = { ...common, ...board, ...card, ...project, ...prs, ...recette, ...docs, ...sheets, ...orchestrator, ...languageMessages, ...templates, ...flows, ...home, ...settings, ...gallery, ...history, ...spaces, ...pane, ...shell, ...peers, ...people, ...goal, ...about };
 export type MessageKey = keyof typeof CATALOG;

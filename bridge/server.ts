@@ -13,10 +13,11 @@ import { withCardFields } from "./cards.ts";
 import type { ContextTracker } from "./context.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
-import type { Config } from "./config.ts";
+import { hcSocketPath, type Config } from "./config.ts";
 import { MuxUnsupported, type MachineEngine, type Mux, type PaneRead } from "./mux/mux.ts";
 import { CompositeMux } from "./mux/composite.ts";
 import { handleExitRoute, protocolWatch } from "./exit-criteria.ts";
+import { handleAboutRoute, readService } from "./about.ts";
 import { precompressed } from "./precompressed.ts";
 import { computeEtag, conditionalJson, gzipJsonResponse, notModified } from "./http-cache.ts";
 import type { NotifyLog } from "./notify-log.ts";
@@ -268,6 +269,30 @@ export function startServer(opts: {
         text,
       });
       if (exitRes) return exitRes;
+      const aboutRes = await handleAboutRoute(pathname, req, {
+        facts: async () => {
+          const snap = primarySnap();
+          const h = registry.get()?.herdr;
+          const live = new Set(snap.bridge === "disconnected" ? [] : [...snap.agents, ...snap.shellPanes].map((p) => p.paneId));
+          const up = updateMonitor.status();
+          const lead = leadPaneId();
+          return {
+            version: { current: up.current, build: await buildId(), latest: up.latest, releaseAvailable: up.releaseAvailable, bridgeStale: up.bridgeStale },
+            engine: localEngine(),
+            hc: { reachable: h instanceof CompositeMux && h.hcReachable, socket: hcSocketPath() },
+            service: readService(),
+            skipServe: cfg.skipServe,
+            push: { enabled: push.enabled, devices: push.devices },
+            copilot: { enabled: cfg.boardCopilot, alive: Boolean(copilot.paneId && live.has(copilot.paneId)) },
+            lead: { paneId: lead, alive: Boolean(lead && live.has(lead)) },
+            peers: peerHerd.view().map((p) => ({ name: p.peer, state: p.state })),
+          };
+        },
+        guard: (level) => guard(req, cfg, level),
+        json: (data) => json(data, req.headers.get("accept-encoding")),
+        text,
+      });
+      if (aboutRes) return aboutRes;
 
       // ── Live state (polled by the client) ────────────────────────────────
       if (pathname === "/api/snapshot") {
