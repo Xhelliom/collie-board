@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
-import { ArrowLeft, ChevronRight, FilePlus2, Square, SquareCheck, FileText, Folder, FolderOpen, Globe, ListChecks, PencilLine, Search, Wand2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, FilePlus2, Square, SquareCheck, FileText, Folder, FolderOpen, Globe, ListChecks, PencilLine, Search, Star, Wand2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
@@ -25,6 +25,7 @@ import {
   pagePath,
   pageTab,
   setPageTab,
+  setShowcase,
   resolveDocLink,
   searchDocs,
   type DecisionStatus,
@@ -235,11 +236,13 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
 /**
  * Documents › Pages: every HTML page the board can show for this project — its docs/pages on the
  * default branch, then the HTML its cards published — each with « En onglet ». A tick puts it in the
- * tab row for this repo (the bridge keeps it); nothing is a tab until it is ticked.
+ * tab row for this repo (the bridge keeps it); nothing is a tab until it is ticked. A ticked one can also be
+ * « En vitrine »: shown at the head of the Project page, one per project.
  */
 function PagesSection({ repo, pages, needle, hrefOf }: { repo: string; pages: PageTabs; needle: string; hrefOf: (path: string) => string }) {
   const t = useT();
   const [tabs, setTabs] = useState<ReadonlySet<string>>(() => new Set(pages.tabs));
+  const [showcase, setShown] = useState(pages.showcase);
   const rows = [
     ...pages.pages.map((p) => ({ key: pageKey(p), label: p.name, from: t("docs.pages.fromDocs"), to: hrefOf(pagePath(p.name)) })),
     ...pages.deliverables.map((d) => ({ key: pageKey(d), label: pageTab(repo, pageKey(d)).label, from: t("docs.pages.fromCard", { title: d.cardTitle }), to: pageTab(repo, pageKey(d)).to })),
@@ -252,9 +255,22 @@ function PagesSection({ repo, pages, needle, hrefOf }: { repo: string; pages: Pa
     else next.delete(key);
     setTabs(next);
     try {
-      setTabs(new Set((await setPageTab(repo, key, on)).tabs));
+      const r = await setPageTab(repo, key, on);
+      setTabs(new Set(r.tabs));
+      setShown(r.showcase);
     } catch (e) {
       setTabs(tabs);
+      setStatus(t("docs.pages.tabFailed", { why: e instanceof Error ? e.message : String(e) }), "error");
+    }
+  };
+  // One showcase per project: picking one replaces the last, picking it again takes it down.
+  const pin = async (key: string) => {
+    const before = showcase;
+    setShown(showcase === key ? null : key);
+    try {
+      setShown((await setShowcase(repo, showcase === key ? null : key)).showcase);
+    } catch (e) {
+      setShown(before);
       setStatus(t("docs.pages.tabFailed", { why: e instanceof Error ? e.message : String(e) }), "error");
     }
   };
@@ -298,6 +314,22 @@ function PagesSection({ repo, pages, needle, hrefOf }: { repo: string; pages: Pa
                   <Box className={cn("size-4", on && "text-primary")} aria-hidden="true" />
                   {t("docs.pages.tab")}
                 </button>
+                {on && (
+                  <button
+                    type="button"
+                    aria-pressed={showcase === r.key}
+                    aria-label={t("docs.pages.showcaseAria", { name: r.label })}
+                    onClick={() => void pin(r.key)}
+                    className={cn(
+                      "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors",
+                      showcase === r.key ? "border-primary/40 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                      FOCUS,
+                    )}
+                  >
+                    <Star className={cn("size-4", showcase === r.key && "fill-primary text-primary")} aria-hidden="true" />
+                    {t("docs.pages.showcase")}
+                  </button>
+                )}
               </li>
             );
           })}

@@ -25,6 +25,7 @@ import { Ring } from "@/components/ring";
 import { liveLots } from "@/lib/lot-live";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { RepoFlow } from "@/components/repo-flow";
+import { ProjectShowcase } from "@/components/project-showcase";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
 import { boardErrorMessage, CARD_STATUS_LABEL, cardPath, deletePhase, loadRepoScope, orchestratorPath, repoName, reposOf, type CardView } from "@/lib/board";
 import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
@@ -527,6 +528,7 @@ export function ProjectRoute() {
       <div className="flex min-h-0 flex-1">
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 pb-24 pt-5 lg:px-6 lg:pt-6">
+            {repo && <ProjectShowcase repo={repo} />}
             {v.closedCount > 0 && <p className="-mb-2 -mt-2 px-1 text-[13px] text-muted-foreground sm:hidden">{doneLine}</p>}
             {closedOpen && (
               <section aria-label={t("project.closed.title")} className={PANEL}>

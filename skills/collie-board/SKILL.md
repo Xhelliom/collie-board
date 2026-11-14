@@ -308,17 +308,21 @@ files a card (the file + what to change) and the agent that takes it opens the P
 - `GET /api/docs/search?repo=<path>&q=<text>` — `{ paths }` whose text contains `q` (case-insensitive).
 - `GET /api/docs/pages?repo=<path>` — `{ ref, pages:[{name,size}] }`: the custom pages (below).
 - `GET /api/docs/page?repo=<path>&name=<name>` — that page's HTML, scrubbed, under its own sandbox CSP.
-- `GET /api/docs/page-tabs?repo=<path>` — `{ ref, pages:[{name,size}], deliverables:[{cardId,cardTitle,name,size}], tabs }`:
+- `GET /api/docs/page-tabs?repo=<path>` — `{ ref, pages:[{name,size}], deliverables:[{cardId,cardTitle,name,size}], tabs, showcase }`:
   every HTML page of the project — its custom pages and the `.html` deliverables of its cards — and
   `tabs`, the keys of the ones the operator shows as tabs (a page's `name`, or `<cardId>/<file>`).
   `PUT` with `{repo, key, on}` ticks or unticks one; it is the **operator's** setting, refused (403) to an
-  agent pane. Nothing is a tab until it is ticked.
+  agent pane. Nothing is a tab until it is ticked. `showcase` is the one tab shown **at the head of the
+  Project page** (same inert frame, a link opens its tab full screen), or `null`; `PUT` with
+  `{repo, showcase: <key>|null}` sets or removes it — one per project, only a ticked tab, operator only.
+  Unticking that tab removes the showcase too.
 
 ### A custom project page
 
 When a project needs a page nothing generic covers (a marketing plan, an art direction), write
 **`docs/pages/<name>.html`** and merge it to the default branch: it is then listed in Documents › Pages, where
-the operator can tick « En onglet » to show it as a tab `<name>`. `<name>` is letters, digits, `-` and `_` only (no dot, no sub-folder). The page is shown
+the operator can tick « En onglet » to show it as a tab `<name>`, then « En vitrine » to show it at the head of the
+Project page — the way to make a non-code project (a plan, an offer) open on its page. `<name>` is letters, digits, `-` and `_` only (no dot, no sub-folder). The page is shown
 **inert** in a sandboxed iframe (ADR 0053): **no script** (stripped, and would not run), no form, no
 network — no external stylesheet, font or image, no fetch. So it must be self-contained: CSS in a
 `<style>`, images as `data:` URIs or inline `<svg>`. Minimal template:

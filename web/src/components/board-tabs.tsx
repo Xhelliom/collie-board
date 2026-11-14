@@ -5,7 +5,7 @@ import { BookOpen, ChevronDown, FileCode, ClipboardCheck, Columns3, GitPullReque
 import { useT, type MessageKey } from "@/i18n";
 import { AddProjectSheet } from "@/components/add-project-sheet";
 import { loadRepoScope, repoName, saveRepoScope, withListedRepos } from "@/lib/board";
-import { fetchPageTabs, PAGE_TABS_EVENT, pageTab } from "@/lib/docs";
+import { pageTab, usePageTabs } from "@/lib/docs";
 import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
 import { cn } from "@/lib/utils";
 
@@ -72,24 +72,8 @@ export function BoardTabs({ counts = {} }: { counts?: Partial<Record<(typeof TAB
   const active = boardTabFor(pathname);
   const repo = params.get("repo") ?? loadRepoScope();
   const q = repo ? `?repo=${encodeURIComponent(repo)}` : "";
-  // The pages the operator ticked « En onglet » in Documents — read when the row mounts and when a tick
-  // changes them, never polled. Nothing is a tab until it is ticked.
-  const [tabs, setTabs] = useState<string[]>([]);
-  useEffect(() => {
-    setTabs([]);
-    if (!repo) return;
-    const ctl = new AbortController();
-    const read = () =>
-      fetchPageTabs(repo, ctl.signal)
-        .then((r) => setTabs(r.tabs))
-        .catch(() => {});
-    void read();
-    window.addEventListener(PAGE_TABS_EVENT, read);
-    return () => {
-      ctl.abort();
-      window.removeEventListener(PAGE_TABS_EVENT, read);
-    };
-  }, [repo]);
+  // The pages the operator ticked « En onglet » in Documents. Nothing is a tab until it is ticked.
+  const tabs = usePageTabs(repo)?.tabs ?? [];
   const pageOpen = pathname === "/board/page" ? `${params.get("card") ? `${params.get("card")}/` : ""}${params.get("name") ?? ""}` : null;
 
   const items: TabItem[] = [

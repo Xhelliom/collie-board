@@ -20,7 +20,12 @@ describe("page tabs", () => {
     db.setRepoPageTabs("/r", ["roadmap", "c1/offre.html"]);
     expect(db.repoPageTabs("/r")).toEqual(["roadmap", "c1/offre.html"]);
     expect(db.repoPageTabs("/other")).toEqual([]);
+    db.setRepoShowcase("/r", "roadmap");
+    expect(db.repoShowcase("/r")).toBe("roadmap");
     db.setRepoPageTabs("/r", []);
+    expect(db.dump().repo_pref).toHaveLength(1);
+    db.setRepoShowcase("/r", null);
+    expect(db.repoShowcase("/r")).toBeNull();
     expect(db.dump().repo_pref).toHaveLength(0);
   });
 });

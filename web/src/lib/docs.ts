@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 
 import { t } from "@/i18n";
@@ -164,6 +165,8 @@ export interface PageTabs {
   pages: { name: string; size: number }[];
   deliverables: CardPage[];
   tabs: string[];
+  /** The tab shown at the head of the Project page, or null. */
+  showcase: string | null;
 }
 
 /** A page's key in `tabs`: its name, or `<cardId>/<file>` for a card's deliverable. Pure. */
@@ -185,6 +188,34 @@ export const fetchPageTabs = (repo: string, signal?: AbortSignal): Promise<PageT
 
 export async function setPageTab(repo: string, key: string, on: boolean): Promise<PageTabs> {
   const r = await apiRequest<PageTabs>("/api/docs/page-tabs", { method: "PUT", body: JSON.stringify({ repo, key, on }) });
+  window.dispatchEvent(new Event(PAGE_TABS_EVENT));
+  return r;
+}
+
+/** The repo's pages and tabs, read on mount and re-read when a tick changes them — never polled. */
+export function usePageTabs(repo: string | null): PageTabs | null {
+  const [data, setData] = useState<PageTabs | null>(null);
+  useEffect(() => {
+    setData(null);
+    if (!repo) return;
+    const ctl = new AbortController();
+    const read = () =>
+      fetchPageTabs(repo, ctl.signal)
+        .then(setData)
+        .catch(() => {});
+    void read();
+    window.addEventListener(PAGE_TABS_EVENT, read);
+    return () => {
+      ctl.abort();
+      window.removeEventListener(PAGE_TABS_EVENT, read);
+    };
+  }, [repo]);
+  return data;
+}
+
+/** Puts one ticked tab at the head of the Project page, or none (`null`). */
+export async function setShowcase(repo: string, key: string | null): Promise<PageTabs> {
+  const r = await apiRequest<PageTabs>("/api/docs/page-tabs", { method: "PUT", body: JSON.stringify({ repo, showcase: key }) });
   window.dispatchEvent(new Event(PAGE_TABS_EVENT));
   return r;
 }
