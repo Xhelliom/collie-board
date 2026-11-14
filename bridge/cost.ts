@@ -11,6 +11,7 @@ import type { BoardContext } from "./board-routes.ts";
 import type { BoardDb } from "./db.ts";
 import { modelLabel } from "./model-label.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { samePath } from "./paths.ts";
 import type { TranscriptSource } from "./transcript.ts";
 
 const REFRESH_MS = 60_000;
@@ -101,7 +102,29 @@ export function foldCost(parts: (ModelTokens[] | null)[], verified: boolean): Ca
   };
 }
 
+/** Many cards at once: the known ones add up; a card with sessions but no figure is counted apart, never as 0. */
+export interface CostSum {
+  tokens: Tokens;
+  byModel: CardCost["byModel"];
+  /** Cards that have at least one session. */
+  cards: number;
+  unknownCards: number;
+  known: boolean;
+}
+export function sumCards(costs: CardCost[]): CostSum {
+  const started = costs.filter((c) => c.sessions > 0);
+  const known = started.filter((c) => c.known);
+  const f = foldCost(known.map((c) => c.byModel), true);
+  return { tokens: f.tokens, byModel: f.byModel, cards: started.length, unknownCards: started.length - known.length, known: known.length > 0 };
+}
+
+/** A conversation no card owns: the repo's orchestrator, or the board's own (lead, copilot). */
+export type PaneRole = { kind: "orchestrator"; repo: string } | { kind: "board" };
+
 export class CostTracker {
+  /** agentSessionId → a card-less pane's figure. Memory only, never journaled: it dies with the bridge. */
+  private readonly panes = new Map<string, { role: PaneRole; at: number; path: string; usage: ModelTokens[]; complete: boolean }>();
+
   /** sessionId → what its transcript summed to the last time it was read. Memory only. */
   private readonly live = new Map<string, { at: number; sessionId: string; path: string; usage: ModelTokens[]; complete: boolean }>();
 
@@ -110,6 +133,7 @@ export class CostTracker {
     private readonly source: TranscriptSource,
     private readonly adapters: Record<string, AgentAdapter> = {},
     private readonly now: () => number = Date.now,
+    private readonly roleOf: (a: EngineSnapshot["agents"][number]) => PaneRole | null = () => null,
   ) {}
 
   async update(snap: EngineSnapshot): Promise<void> {
@@ -130,6 +154,7 @@ export class CostTracker {
         this.db.recordEvent(session.cardId, COST_EVENT, { sessionId: id, byModel: entry.usage, complete: entry.complete });
       }
     }
+    await this.updatePanes(snap);
     await Promise.all(
       open.map(async (s) => {
         if (!adapterFor(this.adapters, s.agentKind ?? "").context) return;
@@ -153,15 +178,56 @@ export class CostTracker {
     );
   }
 
+  /** Throttled like the cards': one transcript read per pane per REFRESH_MS, off the engine's own update. */
+  private async updatePanes(snap: EngineSnapshot): Promise<void> {
+    const now = this.now();
+    await Promise.all(
+      snap.agents.map(async (a) => {
+        const role = this.roleOf(a);
+        const sid = a.agentSessionId;
+        if (!role || !sid || a.cardId || !adapterFor(this.adapters, a.agent).context) return;
+        const last = this.panes.get(sid);
+        if (last && now - last.at < REFRESH_MS) return;
+        this.panes.set(sid, { role, at: now, path: last?.path ?? "", usage: last?.usage ?? [], complete: last?.complete ?? false });
+        try {
+          const path = last?.path || (await this.source.resolve(sid));
+          if (!path) return;
+          const { text, complete } = await this.source.load(path);
+          this.panes.set(sid, { role, at: now, path, usage: sumTranscript(text), complete });
+        } catch {
+          // keep the last figure
+        }
+      }),
+    );
+  }
+
+  private fromPanes(want: (r: PaneRole) => boolean): CardCost {
+    const mine = [...this.panes.values()].filter((p) => want(p.role));
+    return foldCost(mine.map((p) => (p.complete ? p.usage : null)), true);
+  }
+  /** The repo's orchestrator, this bridge's run only: unknown until it has been read once. */
+  forOrchestrator(repo: string): CardCost {
+    return this.fromPanes((r) => r.kind === "orchestrator" && samePath(r.repo, repo));
+  }
+  /** Lead and copilot serve every repo: counted once, apart from any project. */
+  forBoard(): CardCost {
+    return this.fromPanes((r) => r.kind === "board");
+  }
+
+  /** Cards' summed cost over the sessions started since `since` (ms), all time when omitted. */
+  forCards(ids: string[], since = 0): CostSum {
+    return sumCards(ids.map((id) => this.forCard(id, since)));
+  }
+
   /** A card's cost from what the journal remembers plus what is live. Sync: the route is cheap. */
-  forCard(cardId: string): CardCost {
+  forCard(cardId: string, since = 0): CardCost {
     // A head-clipped transcript (complete:false) is a floor, not the session's total: not counted.
     const recorded = new Map<string, ModelTokens[] | null>();
     for (const e of this.db.listEventsOf(cardId, [COST_EVENT])) {
       const p = e.payload as { sessionId?: string; byModel?: ModelTokens[]; complete?: boolean } | null;
       if (p?.sessionId && Array.isArray(p.byModel)) recorded.set(p.sessionId, p.complete === false ? null : p.byModel);
     }
-    const sessions = this.db.listSessions(cardId);
+    const sessions = this.db.listSessions(cardId).filter((s) => s.startedAt >= since);
     const parts = sessions.map((s) => {
       if (recorded.has(s.id)) return recorded.get(s.id)!;
       const l = this.live.get(s.id);

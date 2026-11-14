@@ -69,7 +69,8 @@ import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleOpenRoute } from "./open-routes.ts";
 import { handleTidyRoute } from "./tidy.ts";
 import { handleFlowRoute } from "./flow-routes.ts";
-import { handleCostRoute } from "./cost.ts";
+import { handleCostRoute, type CostTracker } from "./cost.ts";
+import { handleCostSumRoute } from "./cost-routes.ts";
 import { handleDeliverablesRoute, removeCardDeliverables } from "./deliverables.ts";
 import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./pipeline.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
@@ -218,6 +219,8 @@ export interface BoardContext {
   paneModel?: (paneId: string) => { model?: string; effort?: string };
   /** What a card has consumed in tokens (cost.ts); absent: unknown. */
   cardCost?: (cardId: string) => import("./cost.ts").CardCost;
+  /** The tracker behind `GET /api/cost` (cost-routes.ts). */
+  cost?: CostTracker;
   /** The agent table (adapters/agents.toml), for the one thing a start reads from it: a kind's model flag (ADR 0026). */
   adapters?: Record<string, AgentAdapter>;
   /** JSON response; pass a status for the non-200 board errors (409 busy, 502 herdr). */
@@ -481,6 +484,8 @@ async function route(
   if (mcp) return mcp;
   const cost = handleCostRoute(pathname, req, ctx);
   if (cost) return cost;
+  const costSum = handleCostSumRoute(pathname, req, ctx);
+  if (costSum) return costSum;
   const deliverables = await handleDeliverablesRoute(pathname, req, ctx);
   if (deliverables) return deliverables;
   const share = await handleShareRoute(pathname, req, ctx);

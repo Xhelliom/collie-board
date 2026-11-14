@@ -288,6 +288,10 @@ export function startServer(opts: {
             push: { enabled: push.enabled, devices: push.devices },
             copilot: { enabled: cfg.boardCopilot, alive: Boolean(copilot.paneId && live.has(copilot.paneId)) },
             lead: { paneId: lead, alive: Boolean(lead && live.has(lead)) },
+            board: (() => {
+              const c = opts.cost?.forBoard();
+              return { known: Boolean(c?.known), tokens: c ? c.tokens.input + c.tokens.output + c.tokens.cacheWrite + c.tokens.cacheRead : 0 };
+            })(),
             peers: peerHerd.view().map((p) => ({ name: p.peer, state: p.state })),
           };
         },
@@ -361,7 +365,7 @@ export function startServer(opts: {
           device: deviceAuth(req, cfg).device,
           adapters,
           peers,
-          ...(opts.cost && { cardCost: (id: string) => opts.cost!.forCard(id) }),
+          ...(opts.cost && { cardCost: (id: string) => opts.cost!.forCard(id), cost: opts.cost }),
           paneContext: (id) =>
             context?.enrich(rt.engine.current().agents.filter((a) => a.paneId === id) as never)[0]?.ctxPct ?? null,
           paneModel: (id) => {

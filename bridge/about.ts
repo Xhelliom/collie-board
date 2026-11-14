@@ -14,7 +14,7 @@ import type { MachineEngine } from "./mux/mux.ts";
 export type AboutState = "ok" | "todo" | "down" | "off";
 
 export interface AboutRow {
-  id: "version" | "engine" | "hc" | "service" | "frontDoor" | "push" | "copilot" | "lead" | "peers";
+  id: "version" | "engine" | "hc" | "service" | "frontDoor" | "push" | "copilot" | "lead" | "cost" | "peers";
   state: AboutState;
   key: string;
   vars?: Record<string, string | number>;
@@ -31,6 +31,8 @@ export interface AboutFacts {
   copilot: { enabled: boolean; alive: boolean };
   /** The lot lead's pane: null while no lot runs. */
   lead: { paneId: string | null; alive: boolean };
+  /** What the lead and the copilot consumed since the bridge started — they serve every repo, so no project owns it. */
+  board: { known: boolean; tokens: number };
   peers: { name: string; state: "pending" | "connected" | "disconnected" }[];
 }
 
@@ -75,6 +77,7 @@ export function aboutRows(f: AboutFacts): AboutRow[] {
       : f.lead.alive
         ? { id: "lead", state: "ok", key: "live" }
         : { id: "lead", state: "down", key: "dead" },
+    f.board.known ? { id: "cost", state: "ok", key: "total", vars: { n: f.board.tokens } } : { id: "cost", state: "off", key: "unknown" },
     f.peers.length === 0
       ? { id: "peers", state: "off", key: "none" }
       : peersDown.length

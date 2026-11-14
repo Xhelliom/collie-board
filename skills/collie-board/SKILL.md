@@ -230,6 +230,15 @@ A retried start reuses the card's checkout on the peer (and keeps an agent alrea
 curl -s http://127.0.0.1:8788/api/cards/<id>/cost
 # → {tokens:{input,output,cacheWrite,cacheRead}, byModel:[{model,label,tokens}], sessions, counted, known, partial}
 ```
+
+Per lot, phase or project — `GET /api/cost?repo=<path>[&runId=<lot>|&phaseId=<phase>][&period=week|all]` (`all` by default):
+
+```bash
+curl -s "http://127.0.0.1:8788/api/cost?repo=/path/to/repo&period=week"
+# → {known, tokens, byModel, cards, unknownCards, orchestrator, period}
+```
+
+`unknownCards` = cards with a session but no figure (a non-Claude agent): counted apart, never as 0; `known:false` = nothing known at all. The project figure also holds its orchestrator (live-only since the bridge started, so `period=all` only; `orchestrator` shows its share). The lead and the copilot serve every repo: they are counted once, as « Consommation du board », on Settings → About (`GET /api/about`, row `cost`).
 Sum over **all** the card's sessions (rounds, flow roles, relances). `known:false` means unknown — an
 agent whose transcript is not verified (`context = true` in `adapters/agents.toml`), or nothing read
 yet — never 0. `partial:true` (`counted` < `sessions`): some sessions have no figure, the total is a floor. A monitor only; nothing is capped.
