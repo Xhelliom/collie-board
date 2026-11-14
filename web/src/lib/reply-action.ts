@@ -41,6 +41,12 @@ function collapse(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
+// Claude Code turns a pasted image path into "[Image #N]" in its input box, so a send carrying a
+// screenshot never matched and the guard withheld Enter. Both shapes compare as one marker.
+const IMAGE_MARK = "\u0001";
+const SENT_IMAGE = /(?:^|(?<=\s))\/\S+\.(?:png|jpe?g|gif|webp)(?=\s|$)/gi;
+const DRAFT_IMAGE = /\[Image #\d+\]/g;
+
 /**
  * Whether the input box's visible draft is evidence that `sent` landed there. The box WINDOWS a long
  * draft and folds its wrapped lines with spaces, so exact equality is too strict — requiring the
@@ -50,8 +56,8 @@ function collapse(s: string): string {
  */
 export function draftCarriesSend(sent: string, draft: string | null): boolean {
   if (draft === null) return false;
-  const s = collapse(sent);
-  const d = collapse(draft);
+  const s = collapse(sent).replace(SENT_IMAGE, IMAGE_MARK);
+  const d = collapse(draft).replace(DRAFT_IMAGE, IMAGE_MARK);
   if (d.length === 0) return false;
   return s.includes(d) && d.length >= Math.min(s.length, MIN_MATCH_CHARS);
 }

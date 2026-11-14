@@ -54,6 +54,13 @@ describe("draftCarriesSend", () => {
     expect(draftCarriesSend("ok", "o")).toBe(false);
   });
 
+  it("reads Claude's [Image #N] as the image path it replaced", () => {
+    const sent = "/home/me/.local/state/collie-board/uploads/w1_p1-abc.png bah c'est fou";
+    expect(draftCarriesSend(sent, "[Image #1] bah c'est fou")).toBe(true);
+    expect(draftCarriesSend("regarde /tmp/a.jpg ici", "regarde [Image #2] ici")).toBe(true);
+    expect(draftCarriesSend("bah c'est fou", "[Image #1] bah c'est fou")).toBe(false);
+  });
+
   it("rejects an unrelated draft", () => {
     expect(draftCarriesSend("deploy to prod", "someone else's leftover")).toBe(false);
   });
@@ -82,6 +89,19 @@ describe("sendGuardedReply", () => {
     // sends nothing but its configured submitKeys.
     expect(calls).toEqual([
       { text: "ship it please", submit: false },
+      { text: "", submit: true },
+    ]);
+  });
+
+  it("submits an image + text send, whose path Claude shows as [Image #1]", async () => {
+    const text = "/home/me/.local/state/collie-board/uploads/w1_p1-abc.png bah c'est fou";
+    const calls = harness(() => paneWithDraft("[Image #1] bah c'est fou"));
+
+    const out = await sendGuardedReply({ paneId: "w1:p1", text, agent: "claude", ...instant });
+
+    expect(out).toEqual({ status: "sent" });
+    expect(calls).toEqual([
+      { text, submit: false },
       { text: "", submit: true },
     ]);
   });
