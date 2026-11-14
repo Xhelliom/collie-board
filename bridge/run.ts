@@ -17,7 +17,6 @@ import { usageTracker } from "./usage.ts";
 import { join } from "node:path";
 
 /** Longest the end of a lot waits for the gauge CLI. */
-const GAUGE_WAIT_MS = 10_000;
 
 import type { AgentAdapter } from "./adapters.ts";
 import { COPILOT_DOWN_AFTER, copilotDown, REVIEW_OUTCOMES } from "./board-notify.ts";
@@ -846,6 +845,17 @@ export const isLeadPane = (paneId: string): boolean => paneId === leadPane();
 export const leadPaneId = (): string | null => leadPane();
 
 /**
+ * The week gauge at a lot's end: a FRESH CLI reading, waited for as long as the CLI itself may take (usage.ts
+ * kills it at 30 s — a 10 s race here cut it short and the bilan said « inconnu »). Null says why in the bridge's journal.
+ */
+async function endGauge(): Promise<number | null> {
+  const u = await usageTracker.get(true).catch(() => null);
+  const percent = freshWeekPercent(u);
+  if (percent === null) console.warn(`[run] jauge de fin illisible : ${u === null ? "aucune lecture (CLI claude absent, en échec ou muet)" : u.limits.some((l) => /week/i.test(l.label)) ? "lecture périmée (le CLI n'a rien rendu de lisible, l'ancienne est gardée)" : "pas de ligne « week » dans la lecture"}`);
+  return percent;
+}
+
+/**
  * The coordinator over the real routes — the one `engine.onUpdate` hook index.ts registers. Primary
  * session only, like every board hook.
  */
@@ -891,7 +901,7 @@ export function runHook(
     },
     openPr: (card, gate) => prForCard(db, prView(card), { autoMerge: true, gate }),
     direct: (repoPath) => db.repoIntegration(repoPath) === "direct",
-    weekGauge: () => Promise.race([usageTracker.get(true).then((u) => freshWeekPercent(u)), new Promise<null>((r) => setTimeout(() => r(null), GAUGE_WAIT_MS))]),
+    weekGauge: endGauge,
     lotTokens: (run) => (cost ? lotTokens(cost.forCards(db.runMembers(run.id).map((c) => c.id))) : null),
     lotFinished: (run) =>
       void exportPlanAtLotEnd(db, run).then((r) => {

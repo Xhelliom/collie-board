@@ -193,7 +193,7 @@ const CARD_ROUTE =
  * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
  * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
  */
-const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy", "/api/recette", "/api/docs", "/api/goals", "/api/panes/migrate-hc", "/api/update/repair"];
+const BOARD_PREFIXES = ["/api/cards", "/api/cost", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy", "/api/recette", "/api/docs", "/api/goals", "/api/panes/migrate-hc", "/api/update/repair"];
 // ^ MIGRATE_HC_ROUTE and UPDATE_REPAIR_ROUTE, spelled out: importing it here would read it before their files (which import us) has set it.
 export const isBoardPath = (pathname: string): boolean =>
   BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

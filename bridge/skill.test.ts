@@ -92,6 +92,17 @@ describe("the collie-board skill and the bridge's routes", () => {
     expect(missing).toEqual([]);
   });
 
+  // The first test accepts a route as "served" when ANY bridge file spells it — which is how /api/cost, wired in
+  // board-routes.ts but missing from BOARD_PREFIXES, answered the SPA's HTML. What counts here is what server.ts
+  // actually lets through to a handler: the board's prefixes, or a path it tests itself.
+  it("routes every documented route: isBoardPath, or a guard of server.ts", () => {
+    const server = readFileSync(join(import.meta.dir, "server.ts"), "utf8");
+    // Families server.ts hands to a handler itself, before the board's (handleAboutRoute, handleHerdRoute).
+    const guards = ["/api/about", "/api/herd", ...[...server.matchAll(/pathname(?:\s*===\s*|\.startsWith\(\s*)"(\/api\/[^"]+)"/g)].map((m) => m[1]!)];
+    const unrouted = [...documented].filter((d) => !isBoardPath(d) && !guards.some((g) => d === g || d.startsWith(g)));
+    expect(unrouted).toEqual([]);
+  });
+
   it("knows every route the bridge declares: documented, or listed as the operator's", () => {
     const unknown = [...declared]
       .filter((l) => ![...documented].some((d) => d === l || d.startsWith(`${l}/`)))

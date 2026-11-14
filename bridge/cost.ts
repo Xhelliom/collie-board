@@ -6,13 +6,15 @@
 // and the in-memory figure is dropped. Only for an agent whose adapter says `context = true`
 // (a transcript format `latestUsage()` was verified against): any other is "unknown", never 0.
 
+import { basename } from "node:path";
+
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { BoardContext } from "./board-routes.ts";
 import type { BoardDb } from "./db.ts";
 import { modelLabel } from "./model-label.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { samePath } from "./paths.ts";
-import type { TranscriptSource } from "./transcript.ts";
+import { isSessionId, type TranscriptSource } from "./transcript.ts";
 
 const REFRESH_MS = 60_000;
 export const COST_EVENT = "session.cost";
@@ -144,10 +146,41 @@ export class CostTracker {
     private readonly adapters: Record<string, AgentAdapter> = {},
     private readonly now: () => number = Date.now,
     private readonly roleOf: (a: EngineSnapshot["agents"][number]) => PaneRole | null = () => null,
+    /** The log a LIVE pane is conversing in when no one reported its id (herdr-core: resume-lost.ts's rule). */
+    private readonly findLog?: (paneId: string, cwd: string) => Promise<string | null>,
   ) {}
+
+  private caughtUp = false;
+
+  /**
+   * Once per bridge run: a session that ended before it measured anything (the deploy, a restart) gets its
+   * total written from the transcript its recorded `agentSessionId` names. No id, no figure — never a guess by directory.
+   */
+  async catchUp(): Promise<number> {
+    let n = 0;
+    for (const s of this.db.listEndedSessions()) {
+      if (!s.agentSessionId || !adapterFor(this.adapters, s.agentKind ?? "").context) continue;
+      if (this.db.listEventsOf(s.cardId, [COST_EVENT]).some((e) => (e.payload as { sessionId?: string } | null)?.sessionId === s.id)) continue;
+      try {
+        const path = await this.source.resolve(s.agentSessionId);
+        if (!path) continue;
+        const { text, complete } = await this.source.load(path);
+        this.db.recordEvent(s.cardId, COST_EVENT, { sessionId: s.id, byModel: sumTranscript(text), complete });
+        n++;
+      } catch {
+        // the next restart tries again
+      }
+    }
+    if (n) console.log(`[cost] rattrapage : ${n} session(s) finie(s) mesurée(s)`);
+    return n;
+  }
 
   async update(snap: EngineSnapshot): Promise<void> {
     if (snap.bridge === "disconnected") return;
+    if (!this.caughtUp) {
+      this.caughtUp = true;
+      void this.catchUp().catch((err) => console.warn(`[cost] rattrapage : ${(err as Error).message}`));
+    }
     const open = this.db.listOpenSessions();
     const openIds = new Set(open.map((s) => s.id));
     const now = this.now();
@@ -170,8 +203,20 @@ export class CostTracker {
         if (!adapterFor(this.adapters, s.agentKind ?? "").context) return;
         const last = this.live.get(s.id);
         if (last && now - last.at < REFRESH_MS) return;
-        const sessionId = s.agentSessionId ?? snap.agents.find((p) => p.paneId === s.paneId)?.agentSessionId ?? null;
-        if (!sessionId) return; // never guess a log by directory: a wrong total is worse than none
+        const pane = snap.agents.find((p) => p.paneId === s.paneId);
+        let sessionId = s.agentSessionId ?? pane?.agentSessionId ?? null;
+        if (!sessionId && this.findLog && s.paneId && pane?.cwd) {
+          // herdr-core reports no conversation id: read it off the log this very pane is writing (process start, then
+          // directory) and record it on the session. Only a live pane — a finished one is never guessed.
+          this.live.set(s.id, { at: now, sessionId: "", path: "", usage: [], complete: false });
+          const found = await this.findLog(s.paneId, pane.cwd).catch(() => null);
+          const id = found ? basename(found, ".jsonl") : null;
+          if (id && isSessionId(id)) {
+            sessionId = id;
+            this.db.patchSession(s.id, { agentSessionId: id });
+          }
+        }
+        if (!sessionId) return; // never guess a log for a finished session: a wrong total is worse than none
         // Marked BEFORE the await (like ContextTracker): a failure, a missing path or a slow read
         // in flight all wait REFRESH_MS instead of being retried and overlapped at every tick.
         this.live.set(s.id, { at: now, sessionId, path: last?.path ?? "", usage: last?.usage ?? [], complete: last?.complete ?? false });
