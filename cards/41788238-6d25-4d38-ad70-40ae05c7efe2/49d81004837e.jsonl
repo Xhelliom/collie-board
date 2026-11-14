@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794661892902.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Explorer : après un redémarrage du PC, herdr-core ne démarre qu avec l app herdr 0.9","status":"backlog"},"ts":1794661883597}}
 {"v":1,"hlc":"1794661904899.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"template_id":"43a1dc45-6efa-4107-8f6a-68269e51d1fd"}}
 {"v":1,"hlc":"1794661904899.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"579256f9-bd57-42da-8d6c-5caf48f9440a"}}
+{"v":1,"hlc":"1794663506730.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
