@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { BoardDb, type Run } from "./db.ts";
 import { runGit, type GitRunner } from "./git.ts";
-import { exportPlanAtLotEnd, lotBilanMarkdown, lotSlugOf, openPlanPr, planBody, planTitle, rollingPlanPr } from "./plan-export.ts";
+import { exportPlanAtLotEnd, lotBilanMarkdown, lotSlugOf, openPlanPr, planFiles, planBody, planTitle, rollingPlanPr } from "./plan-export.ts";
 import { RunCoordinator, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -98,6 +98,29 @@ describe("plan export at the end of a lot", () => {
     coord.update(snap);
     coord.update(snap);
     expect(finished).toEqual([a.runId ?? db.getCard(a.id)!.runId!]);
+  });
+});
+
+describe("what the lot consumed", () => {
+  it("the bilan carries the same line, with « inconnu » for a missing reading", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "done" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.recordRunEvent(null, "run.quota", { runId: run.id, at: "start", percent: 12 });
+    db.recordRunEvent(null, "run.quota", { runId: run.id, at: "end", percent: 15, tokens: 500 });
+    expect(planFiles(db, run, 0)[`docs/plan/lots/${lotSlugOf(run)}.md`]).toContain("Consommé : 500 tokens ; jauge de la semaine 12 % → 15 %");
+    const none = db.createRun({ repoPath: "/r", cardIds: [], foldInCap: 0 });
+    expect(planFiles(db, none, 0)[`docs/plan/lots/${lotSlugOf(none)}.md`]).toContain("Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu");
+  });
+
+  it("the coordinator journals the end gauge and the lot's tokens before run.finished", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "done" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const ports = { reviewing: () => false, direct: () => false, freeSlots: () => 1, lotTokens: () => 42 } as unknown as RunPorts;
+    new RunCoordinator(db, ports).update({ agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" } as unknown as EngineSnapshot);
+    expect(db.runQuota(run.id).tokens).toBe(42);
+    expect(db.runFinished(run.id)).toBe(true);
   });
 });
 

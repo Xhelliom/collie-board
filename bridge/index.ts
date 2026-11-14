@@ -397,7 +397,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     engine.onUpdate((snap) => boardNotifier.update(snap), "boardNotifier");
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
     // silenced like the copilot, above.
-    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters, () => peers.outbound()), "run");
+    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters, () => peers.outbound(), cost), "run");
     // "PR & done" (ADR 0035): its PR followed to the merge, the card filed then. Journal-driven, so a restart resumes it.
     engine.onUpdate(prFollowHook(board, herdr), "prFollow");
     // Filed cards' leftover checkouts and panes, once, on the first snapshot that has a herd to read.

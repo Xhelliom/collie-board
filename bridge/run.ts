@@ -11,6 +11,9 @@
 // the operator's, as it is today), or move on a disconnected snapshot. It has no timer; it moves
 // when `engine.onUpdate` does.
 
+import { lotTokens, type CostTracker } from "./cost.ts";
+import { weekPercent } from "./goal-routes.ts";
+import { usageTracker } from "./usage.ts";
 import { join } from "node:path";
 
 import type { AgentAdapter } from "./adapters.ts";
@@ -96,6 +99,8 @@ export interface RunPorts {
   sendBack(card: Card, failure: string, index: number): Promise<void>;
   /** Once, right after `run.finished` is journaled: the « docs(plan) » PR (plan-export.ts). Fire and forget. */
   lotFinished?(run: Run): void;
+  /** The lot's tokens, summed from its cards (cost.ts `lotTokens`), journaled with the end gauge. */
+  lotTokens?(run: Run): number | null;
 }
 
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
@@ -424,6 +429,8 @@ export class RunCoordinator {
       const members = this.db.runMembers(run.id).map((card) => ({ card, events: this.db.listEvents(card.id, 200) }));
       if (members.length === 0) continue;
       if (runState(run, members) === "finished") {
+        // Before run.finished: the nudger and the export read it when they hear it.
+        this.db.recordRunEvent(null, "run.quota", { runId: run.id, at: "end", percent: weekPercent(usageTracker.peek()), tokens: this.ports.lotTokens?.(run) ?? null });
         this.db.recordRunEvent(null, "run.finished", { runId: run.id });
         this.ports.lotFinished?.(open);
         continue;
@@ -837,6 +844,7 @@ export function runHook(
   adapters: Record<string, AgentAdapter>,
   /** The paired peers, for a card set to run in a peer's environment (remote-launch.ts). */
   outbound: () => readonly OutboundPeer[] = () => [],
+  cost: CostTracker | null = null,
 ): (snap: EngineSnapshot) => void {
   // ponytail: the lead runs cfg.boardCopilotKind, not `run.leadAgent` — one lead pane for every run.
   const lead = new Lead(herdr, cfg, join(cfg.stateDir, "lead"), snapshot, adapters);
@@ -870,6 +878,7 @@ export function runHook(
     },
     openPr: (card, gate) => prForCard(db, prView(card), { autoMerge: true, gate }),
     direct: (repoPath) => db.repoIntegration(repoPath) === "direct",
+    lotTokens: (run) => (cost ? lotTokens(cost.forCards(db.runMembers(run.id).map((c) => c.id))) : null),
     lotFinished: (run) =>
       void exportPlanAtLotEnd(db, run).then((r) => {
         console[r.ok ? "info" : "warn"](`[plan] lot ${run.id}: ${!r.ok ? `export failed — ${r.error}` : "skipped" in r ? `not exported — ${r.skipped}` : `PR ${r.url ?? "opened"}`}`);

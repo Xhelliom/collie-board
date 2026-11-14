@@ -257,6 +257,8 @@ export async function handleProjectRoute(
       if (pane && !byGoal && !db.spendAutonomy(run.repoPath, idle)) return refuse("le lancement armé est déjà dépensé");
       if (!db.launchRun(id)) return ctx.text("already launched", 409);
       if (!pane) db.resetChain(run.repoPath);
+      db.recordRunEvent(null, "run.quota", { runId: id, at: "start", percent: weekPercent(usageTracker.peek()) });
+      void usageTracker.get().catch(() => {}); // warms the gauge the end of the lot will read
       audit("run.launch", { runId: id, ...(pane ? { autonomous: true } : {}), ...(idle ? { reason: "idle" } : {}), ...(byGoal ? { reason: "goal" } : {}) });
       return ctx.json({ run: db.getRun(id) });
     }

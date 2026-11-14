@@ -703,6 +703,8 @@ export interface RunEventPayloads {
   "plan.exported": { runId: string; ok: boolean; error?: string; skipped?: string };
   /** Whether the chain goes on (ADR 0030/0047): at each end of lot, and at each launch refused to the orchestrator. Null card: the lot's. */
   "run.chain": { runId: string; go: boolean; why: string | null; next: string | null };
+  /** The week gauge (whole account, not the lot's) read at the launch and at the end; `tokens` (end only) the lot's, null when any card's is unknown. A past fact. Null card. */
+  "run.quota": { runId: string; at: "start" | "end"; percent: number | null; tokens?: number | null };
 }
 
 export type RunEventKind = keyof RunEventPayloads;
@@ -719,6 +721,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.report",
   "run.chain",
   "run.moved",
+  "run.quota",
 ];
 
 /** The lead's send-backs before the operator, when the repo's operator has not set it (run.ts). */
@@ -2409,6 +2412,16 @@ export class BoardDb {
       .all(since)
       .flatMap((r) => this.getRun(r.id) ?? [])
       .filter((r) => this.ownsRun(r));
+  }
+
+  /** The lot's journaled gauge readings and token total (cost.ts `consumedLine`); a missing reading is null. */
+  runQuota(id: string): { start: number | null; end: number | null; tokens: number | null } {
+    const rows = this.db
+      .query<{ payload: string }, [string]>("SELECT payload FROM event WHERE type = 'run.quota' AND json_extract(payload, '$.runId') = ? ORDER BY id")
+      .all(id)
+      .map((r) => JSON.parse(r.payload) as RunEventPayloads["run.quota"]);
+    const at = (k: "start" | "end") => rows.find((r) => r.at === k);
+    return { start: at("start")?.percent ?? null, end: at("end")?.percent ?? null, tokens: at("end")?.tokens ?? null };
   }
 
   /** When this run finished: the local `run.finished` event's ts, else the shared `finished_at` another pair pushed. */

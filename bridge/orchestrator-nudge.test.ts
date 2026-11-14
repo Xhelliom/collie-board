@@ -60,6 +60,17 @@ describe("OrchestratorNudger (ADR 0028)", () => {
     expect(w.sent[0]).toContain("Bloquées ou non mergées");
   });
 
+  it("cites the lot's tokens and the week gauge before/after — « inconnu » when a reading is missing", async () => {
+    const w = world();
+    w.db.recordRunEvent(null, "run.quota", { runId: w.run.id, at: "start", percent: 40 });
+    w.db.recordRunEvent(null, "run.quota", { runId: w.run.id, at: "end", percent: null, tokens: 1234 });
+    w.db.recordRunEvent(null, "run.finished", { runId: w.run.id });
+    w.nudger.update(snap(true));
+    await flush();
+    expect(w.sent[0]).toContain("1");
+    expect(w.sent[0]).toMatch(/Consommé : 1.234 tokens ; jauge de la semaine 40 % → inconnu .*pendant le lot/);
+  });
+
   it("lists a card merged when GitHub says its PR is MERGED, even halted in the journal", async () => {
     const w = world(async () => ({ state: "merged" }));
     w.db.patchCard(w.card.id, { status: "done", branch: "b" });
