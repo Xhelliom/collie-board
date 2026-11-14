@@ -1283,6 +1283,10 @@ export class Copilot {
  * finishes. Both are fire-and-forget — a card is fully usable if neither ever runs, which is what
  * lets the whole feature default to off.
  */
+/** The wait after a card's first failed review, doubled per failure up to the cap. */
+export const REVIEW_RETRY_MS = 30_000;
+export const REVIEW_RETRY_MAX_MS = 30 * 60_000;
+
 export class CopilotCoordinator {
   /** Cards whose review is in flight, so the poll doesn't queue the same one every 1.5 s. */
   /**
@@ -1294,11 +1298,14 @@ export class CopilotCoordinator {
    * case and lives in a column: there the work continues in an agent that outlives the bridge.)
    */
   private readonly busyCards = new Set<string>();
+  /** A card whose review keeps failing: when the poll may try it again. In memory, like `busyCards`. */
+  private readonly failing = new Map<string, { sessionId: string | null; fails: number; retryAt: number }>();
 
   constructor(
     private readonly db: BoardDb,
     private readonly copilot: Copilot,
     private readonly cfg: Config,
+    private readonly now: () => number = Date.now,
   ) {}
 
   /**
@@ -1645,6 +1652,8 @@ export class CopilotCoordinator {
 
     for (const { cardId, sessionId } of this.db.listCardsOwedReview()) {
       if (this.busyCards.has(cardId)) continue;
+      const f = this.failing.get(cardId);
+      if (f && f.sessionId === sessionId && this.now() < f.retryAt) continue;
       this.busyCards.add(cardId);
       void this.review(cardId, sessionId, statFor)
         .catch(() => {})
@@ -1701,9 +1710,15 @@ export class CopilotCoordinator {
     );
     const result = toReviewResult(parsed);
     if (!result) {
-      this.db.recordEvent(cardId, "copilot.review_failed", { sessionId });
+      // One journal entry per series, and a growing wait between tries: an unreachable copilot used to
+      // fail every poll, journal each one, and push a lot's green gate out of the window (run.ts).
+      const prev = this.failing.get(cardId);
+      const fails = prev?.sessionId === sessionId ? prev.fails + 1 : 1;
+      if (fails === 1) this.db.recordEvent(cardId, "copilot.review_failed", { sessionId });
+      this.failing.set(cardId, { sessionId, fails, retryAt: this.now() + Math.min(REVIEW_RETRY_MS * 2 ** (fails - 1), REVIEW_RETRY_MAX_MS) });
       return;
     }
+    this.failing.delete(cardId);
     // The loop closes here: what the agent left in plan becomes the next cards. A full card, not a
     // bare title — see the warning on SplitTask. Created BEFORE the review record so the review can
     // link to what it produced — the card the user taps through to from "N follow-ups added".

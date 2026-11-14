@@ -45,6 +45,7 @@ import { contextPercent } from "./context.ts";
 import {
   Copilot,
   CopilotCoordinator,
+  REVIEW_RETRY_MS,
   dropReasonFor,
   explainPrompt,
   toExplanation,
@@ -2986,6 +2987,29 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     coordinator.update(snapshot([]), async () => "stat");
     await settle();
     expect(state.asked).toBe(2);
+  });
+
+  it("an unreachable copilot: one review_failed per series, and a growing wait between tries", async () => {
+    const store = db();
+    const card = filed(store, { wrapupPending: false });
+    let asked = 0;
+    const copilot = { enabled: true, observe() {}, async ask() { asked++; return null; } } as unknown as Copilot;
+    let now = 0;
+    const coordinator = new CopilotCoordinator(store, copilot, cfg, () => now);
+    const poll = async () => (coordinator.update(snapshot([]), async () => "stat"), await settle());
+
+    for (let i = 0; i < 10; i++) await poll(); // a tight poll: one try, not ten
+    expect(asked).toBe(1);
+    now += REVIEW_RETRY_MS;
+    await poll();
+    expect(asked).toBe(2);
+    now += REVIEW_RETRY_MS; // the second wait is twice the first
+    await poll();
+    expect(asked).toBe(2);
+    now += REVIEW_RETRY_MS;
+    await poll();
+    expect(asked).toBe(3);
+    expect(store.listEvents(card.id).filter((e) => e.type === "copilot.review_failed")).toHaveLength(1);
   });
 
   it("waits for the closing note first — reviewing early loses the account of what was left undone", async () => {
