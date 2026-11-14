@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.328.1] - 2026-11-14
+
+### Fixed
+
+- Plan : les exports docs(plan) d'un même dépôt passent l'un après l'autre — deux fins de lot simultanées ne se disputent plus la branche roulante (« cannot lock ref ») (7e28e58)
+
 ## [0.328.0] - 2026-11-14
 
 ### Added
