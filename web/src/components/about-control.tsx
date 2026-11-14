@@ -1,3 +1,4 @@
+import { formatTokens } from "@/components/card-cost";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RotateCw } from "lucide-react";
 
@@ -74,7 +75,7 @@ export function AboutControl() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground break-words">
-                    <Rich id={`about.${r.id}.${r.key}` as MessageKey} params={r.vars} />
+                    <Rich id={`about.${r.id}.${r.key}` as MessageKey} params={r.id === "cost" ? { n: formatTokens(Number(r.vars?.n)) } : r.vars} />
                   </p>
                   {fix && (
                     <p className="text-sm break-words">

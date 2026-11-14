@@ -11,6 +11,7 @@ const healthy: AboutFacts = {
   push: { enabled: true, devices: 2 },
   copilot: { enabled: true, alive: true },
   lead: { paneId: null, alive: false },
+  board: { known: true, tokens: 1234 },
   peers: [{ name: "dev", state: "connected" }],
 };
 const row = (f: AboutFacts, id: string) => aboutRows(f).find((r) => r.id === id)!;
@@ -25,6 +26,11 @@ describe("aboutRows", () => {
     const f = { ...healthy, engine: { engine: "herdr09" as const, hc: null }, hc: { ...healthy.hc, reachable: false } };
     expect(row(f, "engine")).toMatchObject({ state: "todo", key: "herdr09" });
     expect(row(f, "hc")).toMatchObject({ state: "down", key: "down" });
+  });
+
+  test("the board's own consumption is a number when known, « unknown » otherwise — never 0", () => {
+    expect(row(healthy, "cost")).toEqual({ id: "cost", state: "ok", key: "total", vars: { n: 1234 } });
+    expect(row({ ...healthy, board: { known: false, tokens: 0 } }, "cost")).toMatchObject({ state: "off", key: "unknown" });
   });
 
   test("service, push, lead, peers each name what is wrong", () => {

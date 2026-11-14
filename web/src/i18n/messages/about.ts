@@ -87,6 +87,10 @@ export const about = defineMessages({
   "about.lead.dead": { en: "A lot is running, but its lead's pane is gone.", fr: "Un lot tourne, mais le pane de son lead a disparu." },
   "about.lead.dead.fix": { en: "Open the lot on the Project page and restart it.", fr: "Ouvrez le lot sur la page Projet et relancez-le." },
 
+  "about.cost": { en: "Board consumption", fr: "Consommation du board" },
+  "about.cost.total": { en: "{n} tokens since the bridge started (lead + copilot, all repos).", fr: "{n} tokens depuis le démarrage du bridge (lead + copilote, tous dépôts)." },
+  "about.cost.unknown": { en: "Unknown: no lead or copilot transcript read yet.", fr: "Inconnue : aucun transcript de lead ou de copilote lu pour l'instant." },
+
   "about.peers": { en: "Peers", fr: "Pairs" },
   "about.peers.none": { en: "No paired machine.", fr: "Aucune machine appairée." },
   "about.peers.all": { en: "{up} of {total} paired machine(s) reachable.", fr: "{up} machine(s) appairée(s) sur {total} joignable(s)." },

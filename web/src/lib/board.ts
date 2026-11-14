@@ -1714,3 +1714,17 @@ export interface CardCost {
 }
 export const fetchCardCost = (cardId: string, signal?: AbortSignal): Promise<CardCost> =>
   apiRequest(`/api/cards/${encodeURIComponent(cardId)}/cost`, { signal });
+
+/** What a lot, a phase or a project consumed — `GET /api/cost` (bridge/cost-routes.ts). `unknownCards`: cards with no figure, counted apart, never as 0. */
+export interface ScopeCostData {
+  known: boolean;
+  tokens: CardCost["tokens"] | null;
+  byModel: CardCost["byModel"];
+  cards: number;
+  unknownCards: number;
+  /** Project only: the orchestrator's own share, already in `tokens`. */
+  orchestrator: { known: boolean; tokens: CardCost["tokens"] } | null;
+  period: "week" | "all";
+}
+export const fetchScopeCost = (scope: { repo: string; runId?: string; phaseId?: string; period: "week" | "all" }, signal?: AbortSignal): Promise<ScopeCostData> =>
+  apiRequest(`/api/cost?${new URLSearchParams(Object.entries(scope) as [string, string][])}`, { signal });

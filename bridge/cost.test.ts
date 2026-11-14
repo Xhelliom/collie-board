@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 
 import { BUILTIN_ADAPTERS } from "./adapters.ts";
 import { BoardDb } from "./db.ts";
-import { CostTracker, foldCost, sumTranscript } from "./cost.ts";
+import { CostTracker, foldCost, sumTranscript, sumCards } from "./cost.ts";
 import type { TranscriptSource } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -163,5 +163,57 @@ describe("CostTracker", () => {
     release();
     await first;
     expect(loads).toBe(1);
+  });
+});
+
+describe("sumCards", () => {
+  it("adds the known cards and counts the unknown ones instead of adding 0", async () => {
+    const { db, t, snap } = setup({ s1: LOG });
+    const a = db.createCard({ title: "a" } as never);
+    const b = db.createCard({ title: "b" } as never);
+    const none = db.createCard({ title: "never started" } as never);
+    db.openSession({ cardId: a.id, paneId: "p1", agentSessionId: "s1", agentKind: "claude" });
+    db.openSession({ cardId: b.id, paneId: "p2", agentSessionId: "s1", agentKind: "codex" });
+    await t.update(snap);
+    const sum = t.forCards([a.id, b.id, none.id]);
+    expect(sum).toMatchObject({ known: true, cards: 2, unknownCards: 1, tokens: { output: 27 } });
+    expect(t.forCards([b.id])).toMatchObject({ known: false, cards: 1, unknownCards: 1 });
+    expect(t.forCards([])).toMatchObject({ known: false, cards: 0 });
+  });
+
+  it("keeps only the sessions started since the period's start", async () => {
+    const { db, t, snap } = setup({ s1: LOG });
+    const a = db.createCard({ title: "a" } as never);
+    db.openSession({ cardId: a.id, paneId: "p1", agentSessionId: "s1", agentKind: "claude" });
+    await t.update(snap);
+    expect(t.forCards([a.id], 0).known).toBe(true);
+    expect(t.forCards([a.id], Date.now() + 60_000)).toMatchObject({ known: false, cards: 0 });
+  });
+  it("is a pure fold", () => {
+    expect(sumCards([]).known).toBe(false);
+  });
+});
+
+describe("panes outside any card", () => {
+  const agent = (paneId: string, sid: string, cwd: string, kind = "claude") => ({ paneId, agentSessionId: sid, agent: kind, cwd }) as never;
+  it("counts the orchestrator per repo and the board (lead, copilot) apart, live only", async () => {
+    const files = { o1: LOG, l1: row("claude-opus-5-5", [0, 5, 0, 0], "q"), c1: LOG };
+    const db = new BoardDb(":memory:");
+    const source = {
+      async resolve(id: string) {
+        return id in files ? id : null;
+      },
+      async load(path: string) {
+        return { text: (files as Record<string, string>)[path] ?? "", complete: true, size: 0, mtimeMs: 0 };
+      },
+    } as unknown as TranscriptSource;
+    const roles: Record<string, never> = { po: { kind: "orchestrator", repo: "/r" }, pl: { kind: "board" }, pc: { kind: "board" } } as never;
+    const t = new CostTracker(db, source, BUILTIN_ADAPTERS, () => 0, (a) => roles[a.paneId] ?? null);
+    const snap = { agents: [agent("po", "o1", "/r"), agent("pl", "l1", "/x"), agent("pc", "c1", "/x", "codex")], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" } as unknown as EngineSnapshot;
+    await t.update(snap);
+    expect(t.forOrchestrator("/r")).toMatchObject({ known: true, tokens: { output: 27 } });
+    expect(t.forOrchestrator("/other").known).toBe(false);
+    // the codex pane is unverified: the board's figure is the lead's alone, and says so
+    expect(t.forBoard()).toMatchObject({ known: true, tokens: { output: 5 } });
   });
 });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { StatusSignal } from "@/components/status-signal";
 import { Lock, Play, Rocket, Trash2, TriangleAlert } from "lucide-react";
 
+import { ScopeCost } from "@/components/scope-cost";
 import { MENU_ITEM, MoreActions } from "@/components/project-more";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
@@ -248,6 +249,7 @@ export function PhaseLots({
                 </span>
               );
             })}
+          {pl.lot.launchedAt !== null && <ScopeCost repo={pl.lot.repoPath} runId={pl.lot.id} className="basis-full" />}
           <span className="ml-auto flex items-center gap-2">
             <LotAction pl={pl} byId={byId} onLaunched={onLaunched} />
             {planned && <MoreActions label={t("lot.more", { name: nameOf(pl) })}>{deleteItem(pl)}</MoreActions>}

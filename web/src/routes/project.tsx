@@ -13,6 +13,7 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { usePanelWidth } from "@/hooks/use-panel-width";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
+import { ScopeCost } from "@/components/scope-cost";
 import { ProjectOpen } from "@/components/project-open";
 import { MigrateAllHc } from "@/components/migrate-hc-button";
 import { MachineSwitcher } from "@/components/machine-switcher";
@@ -294,6 +295,7 @@ export function ProjectRoute() {
     const visible = p.steps.filter(shownIn);
     return (
       <>
+        {repo && p.phase && <ScopeCost repo={repo} phaseId={p.phase.id} className="px-1" />}
         {settingsOf === p.key && p.phase && !p.phase.closedAt && (
           <div className="flex flex-col gap-2 rounded-xl border border-dashed p-3">
             <PhaseTemplate
@@ -529,6 +531,7 @@ export function ProjectRoute() {
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 pb-24 pt-5 lg:px-6 lg:pt-6">
             {repo && <ProjectShowcase repo={repo} />}
+            {repo && <ScopeCost repo={repo} className="-my-2 px-1" />}
             {v.closedCount > 0 && <p className="-mb-2 -mt-2 px-1 text-[13px] text-muted-foreground sm:hidden">{doneLine}</p>}
             {closedOpen && (
               <section aria-label={t("project.closed.title")} className={PANEL}>
