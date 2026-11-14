@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.332.0] - 2026-11-14
+
+### Added
+
+- Fiche PR : choix du mode de fusion (squash, merge, rebase) parmi ceux du dépôt (600341f)
+- Fiche PR : Fusionner dit pourquoi il est impossible (conflit, rouge, en cours, revue, brouillon) (600341f)
+
+### Changed
+
+- Fusionner/Fermer une PR est refusé à un pane agent (403) (600341f)
+
 ## [0.331.1] - 2026-11-14
 
 ### Fixed
