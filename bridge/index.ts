@@ -362,8 +362,10 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     contextTracker = context;
     engine.onUpdate((snap) => void context.update(snap), "context");
     // What each card has consumed in tokens — throttled inside, remembered on the card at session end (cost.ts).
-    const cost = new CostTracker(board, new ClaudeTranscriptSource(cfg.transcriptRoot), adapters, Date.now, (a) =>
+    const costSource = new ClaudeTranscriptSource(cfg.transcriptRoot);
+    const cost = new CostTracker(board, costSource, adapters, Date.now, (a) =>
       isOrchestratorAgent(a) ? { kind: "orchestrator", repo: a.cwd } : isLeadPane(a.paneId) || a.paneId === copilot.paneId ? { kind: "board" } : null,
+      (paneId, cwd) => resolveWithoutSession({ source: costSource, paneProcess: (id) => herdr.paneProcess(id), startedAt: processStartedAt, paneId, cwd }),
     );
     costTracker = cost;
     engine.onUpdate((snap) => void cost.update(snap).catch(() => {}), "cost");

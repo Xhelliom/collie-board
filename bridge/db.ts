@@ -2549,6 +2549,11 @@ export class BoardDb {
       .map(toSession);
   }
 
+  /** Every session that has ended, across every card — cost.ts's one-off catch-up. */
+  listEndedSessions(): CardSession[] {
+    return this.db.query<SessionRow, []>("SELECT * FROM session WHERE ended_at IS NOT NULL").all().map(toSession);
+  }
+
   /**
    * Closed sessions still waiting on a wrapup note. A closed session with the marker still set means
    * exactly that and nothing else — see `isPendingWrapup`. Normally empty, and the table holds one

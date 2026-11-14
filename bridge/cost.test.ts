@@ -217,3 +217,44 @@ describe("panes outside any card", () => {
     expect(t.forBoard()).toMatchObject({ known: true, tokens: { output: 5 } });
   });
 });
+
+const UUID = "11111111-2222-4333-8444-555555555555";
+
+describe("CostTracker: sessions the tracker never saw live", () => {
+  it("catches up once, at the first update, a finished session whose agentSessionId is known; one without stays unknown", async () => {
+    const { db, t, snap } = setup({ s1: LOG });
+    const card = db.createCard({ title: "x" } as never);
+    const known = db.openSession({ cardId: card.id, paneId: "p1", agentSessionId: "s1", agentKind: "claude" });
+    const anon = db.openSession({ cardId: card.id, paneId: "p2", agentSessionId: null, agentKind: "claude" });
+    db.closeSession(known.id, "done" as never);
+    db.closeSession(anon.id, "done" as never);
+    expect(new CostTracker(db, {} as never, BUILTIN_ADAPTERS).forCard(card.id)).toMatchObject({ known: false, counted: 0 });
+    await t.update(snap);
+    await new Promise((r) => setTimeout(r, 10));
+    await t.update(snap);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(db.listEventsOf(card.id, ["session.cost"])).toHaveLength(1);
+    expect(t.forCard(card.id)).toMatchObject({ known: true, partial: true, sessions: 2, counted: 1, tokens: { output: 27 } });
+  });
+
+  it("records the conversation a live herdr-core session writes, then measures it", async () => {
+    const files = { [UUID]: LOG };
+    const db = new BoardDb(":memory:");
+    const source = {
+      async resolve(id: string) {
+        return files[id as keyof typeof files] ? id : null;
+      },
+      async load(path: string) {
+        return { text: files[path as keyof typeof files] ?? "", complete: true, size: 0, mtimeMs: 0 };
+      },
+    } as unknown as TranscriptSource;
+    const t = new CostTracker(db, source, BUILTIN_ADAPTERS, () => 0, () => null, async (pane, cwd) => (pane === "p1" && cwd === "/wt" ? `/logs/${UUID}.jsonl` : null));
+    const card = db.createCard({ title: "x" } as never);
+    const s = db.openSession({ cardId: card.id, paneId: "p1", agentSessionId: null, agentKind: "claude" });
+    const snap = { agents: [{ paneId: "p1", cwd: "/wt", agent: "claude" }], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" } as unknown as EngineSnapshot;
+    await t.update(snap);
+    expect(db.getSession(s.id)!.agentSessionId).toBe(UUID);
+    expect(t.forCard(card.id).tokens.output).toBe(27);
+  });
+});
+
