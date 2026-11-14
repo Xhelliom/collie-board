@@ -31,8 +31,18 @@ export async function navCached<T>(key: string, load: () => Promise<T>): Promise
       return cache.get(key) as T;
     }
     const pending = inflight.get(key);
-    if (pending) return pending as Promise<T>;
+    // The joined load was aborted (its navigation was superseded, e.g. by a revalidation or a second click):
+    // that abort is not ours — load for ourselves rather than land on the error page.
+    if (pending) return (pending as Promise<T>).catch((e) => (isAbort(e) ? fetchFresh(key, load) : Promise.reject(e)));
   }
+  return fetchFresh(key, load);
+}
+
+function isAbort(e: unknown): boolean {
+  return (e as { name?: unknown } | null)?.name === "AbortError";
+}
+
+async function fetchFresh<T>(key: string, load: () => Promise<T>): Promise<T> {
   const run = load();
   inflight.set(key, run);
   try {
