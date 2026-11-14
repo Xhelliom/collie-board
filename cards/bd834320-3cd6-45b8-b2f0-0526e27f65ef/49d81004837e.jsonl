@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794697207111.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"template_id":"5e3b234d-683c-437d-a829-a57c2229d397"}}
 {"v":1,"hlc":"1794697207111.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : chaque export docs(plan) lance toute la suite de tests (hook pre-push) et sature le CPU","status":"backlog"},"ts":1794697195383}}
 {"v":1,"hlc":"1794697207112.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e9729aea-eca7-4214-b8ef-082bc668be82"}}
+{"v":1,"hlc":"1794698500507.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
