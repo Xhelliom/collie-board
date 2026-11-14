@@ -27,3 +27,4 @@
 {"v":1,"hlc":"1794667029842.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794667029842.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794667022213}}
 {"v":1,"hlc":"1794667041884.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/readme-apres-un-redemarrage-herdr-core-ne-part-q","stat":"docs/architecture/demarrage-herdr-core-au-boot.md | +14 -2\ndocs/usage/12-troubleshooting.md | +8 -0\nREADME.md | +6 -0\n3 files changed, 28 insertions(+), 2 deletions(-)"},"ts":1794667038382}}
+{"v":1,"hlc":"1794686784630.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"e2b051f0-08bf-4284-b5a0-4f4cf1c31ea4"}}

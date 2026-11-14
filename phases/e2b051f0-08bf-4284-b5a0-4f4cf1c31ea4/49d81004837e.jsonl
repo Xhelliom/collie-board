@@ -1,0 +1,2 @@
+{"v":1,"hlc":"1794686784627.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Bug","goal":"","position":52,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794686777231}}
+{"v":1,"hlc":"1794686784630.0012.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794686777235}}

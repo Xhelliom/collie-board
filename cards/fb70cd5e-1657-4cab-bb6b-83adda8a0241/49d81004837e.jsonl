@@ -25,3 +25,4 @@
 {"v":1,"hlc":"1794500940370.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794500940370.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794500940045}}
 {"v":1,"hlc":"1794500959192.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/bug-la-page-reglages-du-depot-ne-prend-pas-toute","stat":"web/src/routes/repo-settings.tsx | +36 -33\nchanges/board-bug-la-page-reglages-du-depot-ne-prend-pas-toute.md | +4 -0\n2 files changed, 40 insertions(+), 33 deletions(-)"},"ts":1794500954203}}
+{"v":1,"hlc":"1794686784629.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"e2b051f0-08bf-4284-b5a0-4f4cf1c31ea4"}}
