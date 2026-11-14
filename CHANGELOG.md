@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.328.0] - 2026-11-14
+
+### Added
+
+- Terminal : un bouton « Afficher » sur chaque secret masqué, qui le révèle à la demande (masqué de nouveau en quittant la vue) (29b3da9)
+
+### Changed
+
+- La relance reprend la dernière conversation Claude (`--resume`) quand elle existe, sans renvoyer la spec (4f90ea8)
+
+### Fixed
+
+- Une image jointe avec du texte part en un geste vers Claude : l'Entrée n'est plus retenue quand la zone affiche « [Image #1] » (46e8669)
+- Fiche carte : « Relancer sur sa branche » revient quand l'agent n'a pas survécu (terminal resté shell) (4f90ea8)
+
 ## [0.327.2] - 2026-11-14
 
 ### Changed
