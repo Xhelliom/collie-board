@@ -1378,10 +1378,12 @@ export function integrateCard(
   andDone = false,
   /** `resolve` only: the gesture that hit the conflict — a PR's is settled against origin's base. */
   via?: "merge" | "pr",
+  /** `merge` only: the repo-allowed mode picked on a PR's sheet; omitted, the squash. */
+  mode?: MergeMode,
 ): Promise<{ ok: true; url?: string | null; base?: string; discarded?: number; card: CardView }> {
   return apiRequest(
     `/api/cards/${encodeURIComponent(id)}/integration`,
-    { method: "POST", body: JSON.stringify({ action, andDone, via }) },
+    { method: "POST", body: JSON.stringify({ action, andDone, via, mode }) },
     // Only the gestures that run git for real get the long budget; the rest keep the mutation one.
     action === "merge" || action === "pr" || action === "resolve" ? INTEGRATION_TIMEOUT_MS : undefined,
   );

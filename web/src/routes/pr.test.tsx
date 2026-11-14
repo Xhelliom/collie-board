@@ -88,13 +88,23 @@ describe("PrRoute", () => {
   it("offers the modes the repo allows, the first preselected, and merges with the one picked", async () => {
     const calls: unknown[] = [];
     server.use(http.post("*/api/board/prs/merge", async ({ request }) => (calls.push(await request.json()), HttpResponse.json({ ok: true }))));
-    mount({ repo: "/repo", number: "7", detail: detail({ modes: ["squash", "rebase"] }), error: null });
+    mount({ repo: "/repo", number: "7", detail: detail({ modes: ["squash", "rebase"], card: null }), error: null });
     expect(await screen.findByRole("radio", { name: "Squash" })).toBeChecked();
     expect(screen.queryByRole("radio", { name: "Merge commit" })).toBeNull();
     await userEvent.click(screen.getByRole("radio", { name: "Rebase" }));
     await userEvent.click(screen.getByRole("button", { name: /^merge$/i }));
     await screen.findByText("list");
     expect(calls).toEqual([{ repo: "/repo", number: 7, mode: "rebase" }]);
+  });
+
+  it("a card's PR merges through the card's integration, with the mode", async () => {
+    const calls: unknown[] = [];
+    server.use(http.post("*/api/cards/c1/integration", async ({ request }) => (calls.push(await request.json()), HttpResponse.json({ ok: true, card: {} }))));
+    mount({ repo: "/repo", number: "7", detail: detail({ modes: ["squash", "rebase"] }), error: null });
+    await userEvent.click(await screen.findByRole("radio", { name: "Rebase" }));
+    await userEvent.click(screen.getByRole("button", { name: /^merge$/i }));
+    await screen.findByText("list");
+    expect(calls).toEqual([{ action: "merge", andDone: false, mode: "rebase" }]);
   });
 
   it("lists the checks, with Re-run on a failure only", async () => {

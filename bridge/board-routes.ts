@@ -58,6 +58,7 @@ import {
   gitUserEmail,
   readWorktreeFile,
   worktreePathFor,
+  MERGE_MODES,
   type MergeMode,
 } from "./git.ts";
 import { redactDeep, redactText } from "./redact.ts";
@@ -1755,6 +1756,10 @@ async function route(
     // Which gesture hit the conflict a resolve settles. An enumeration, never a ref: the base it
     // picks is typed into a terminal.
     const via = (body as { via?: unknown }).via === "pr" ? "pr" : "merge";
+    // The merge mode, when the sheet picked one: an enumeration too — it becomes a `gh` flag.
+    const rawMode = (body as { mode?: unknown }).mode;
+    if (rawMode !== undefined && !(MERGE_MODES as readonly unknown[]).includes(rawMode)) return text("bad merge mode", 400);
+    const mode = rawMode as MergeMode | undefined;
 
     // A worker mid-turn (incident cimaise 08/11): merged now, what it commits next reaches nothing.
     if (what === "merge" || (what === "pr" && andDone)) {
@@ -1769,7 +1774,7 @@ async function route(
       // on the card that one left, not on a snapshot taken before it.
       const now = db.getCard(id) ?? card;
       return what === "merge"
-        ? await mergeCard(db, now)
+        ? await mergeCard(db, now, undefined, { mode })
         : what === "pr"
           ? await prForCard(db, now)
           : what === "resolve"

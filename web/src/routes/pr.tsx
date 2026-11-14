@@ -11,7 +11,7 @@ import { MENU_ITEM, MoreActions } from "@/components/project-more";
 import { buttonVariants } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { useT } from "@/i18n";
-import { boardErrorMessage, cardPath, prGesture, rerunPrChecks, type MergeMode, type PrCheck, type PrDetail } from "@/lib/board";
+import { boardErrorMessage, cardPath, integrateCard, prGesture, rerunPrChecks, type MergeMode, type PrCheck, type PrDetail } from "@/lib/board";
 import type { PrSheetData } from "@/lib/board-loaders";
 import { ago } from "@/lib/project-facts";
 import { setStatus } from "@/lib/status";
@@ -80,8 +80,8 @@ export function PrRoute() {
     if (what === "close" && !confirm.confirm("close")) return;
     setBusy(true);
     try {
-      // By number, with the chosen mode: the card's own merge has no mode. The list's next read journals the landing.
-      await prGesture(repo, detail.number, what, what === "merge" ? mode : undefined);
+      // A card's PR merges through its card (lock, 409 while the agent works, landing journaled), as in the list.
+      await (what === "merge" && detail.card ? integrateCard(detail.card.id, "merge", false, undefined, mode) : prGesture(repo, detail.number, what, what === "merge" ? mode : undefined));
       setStatus(what === "merge" ? t("prs.mergedNow", { count: 1 }) : t("prs.closedNow"), "success");
       back();
     } catch (e) {
