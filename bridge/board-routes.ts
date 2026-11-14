@@ -82,6 +82,7 @@ import { GOAL_JOURNAL, goalView, handleGoalRoute, weekPercent } from "./goal-rou
 import { goalOfOrchestrator, openGoalOf, recordCheckpoint } from "./goal-mode.ts";
 import { handleRecetteRoute, parseRecetteBody } from "./recette.ts";
 import { handleDocsRoute } from "./docs.ts";
+import { handlePageTabsRoute } from "./page-tabs.ts";
 import { awaitingOn } from "./roadmap.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
@@ -476,6 +477,8 @@ async function route(
   if (share) return share;
   const recette = await handleRecetteRoute(pathname, req, ctx);
   if (recette) return recette;
+  const pageTabs = await handlePageTabsRoute(pathname, req, ctx);
+  if (pageTabs) return pageTabs;
   const docs = await handleDocsRoute(pathname, req, ctx);
   if (docs) return docs;
 
