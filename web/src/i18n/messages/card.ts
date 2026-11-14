@@ -56,6 +56,7 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "journal.wrapupCollected": { en: "Wrap-up collected", fr: "Passation récupérée" },
   "journal.statusLoop": { en: "{count} moves {a} ↔ {b}", fr: "{count} passages {a} ↔ {b}" },
   "journal.showAll": { en: "Showing {shown} of {total} — show all", fr: "{shown} sur {total} — tout voir" },
+  "journal.sessionCost": { en: "Session tokens counted", fr: "Tokens de la session comptés" },
   "journal.created": { en: "Card created", fr: "Carte créée" },
   "journal.status": { en: "Moved from {from} to {to}", fr: "Passée de {from} à {to}" },
   "journal.worktree": { en: "Worktree on {branch}", fr: "Worktree sur {branch}" },

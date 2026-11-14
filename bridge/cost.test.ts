@@ -126,4 +126,42 @@ describe("CostTracker", () => {
     const fresh = new CostTracker(db, {} as never, BUILTIN_ADAPTERS);
     expect(fresh.forCard(card.id)).toMatchObject({ known: false, partial: true, counted: 0 });
   });
+
+  it("throttles a session that resolves to nothing, or whose read is slow", async () => {
+    const db = new BoardDb(":memory:");
+    let resolves = 0;
+    let loads = 0;
+    let release: () => void = () => {};
+    const slow = new Promise<void>((r) => (release = r));
+    let missing = true;
+    const source = {
+      async resolve() {
+        resolves++;
+        return missing ? null : "p";
+      },
+      async load() {
+        loads++;
+        await slow;
+        return { text: LOG, complete: true, size: 0, mtimeMs: 0 };
+      },
+    } as unknown as TranscriptSource;
+    let now = 0;
+    const t = new CostTracker(db, source, BUILTIN_ADAPTERS, () => now);
+    const snap: EngineSnapshot = { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" };
+    const card = db.createCard({ title: "x" } as never);
+    db.openSession({ cardId: card.id, paneId: "p1", agentSessionId: "s1", agentKind: "claude" });
+    await t.update(snap);
+    now += 1500;
+    await t.update(snap);
+    expect(resolves).toBe(1); // no path: not re-resolved at the next tick
+    now += 60_000;
+    missing = false;
+    const first = t.update(snap); // read in flight…
+    await Promise.resolve();
+    now += 1500;
+    await t.update(snap); // …a second tick does not start another
+    release();
+    await first;
+    expect(loads).toBe(1);
+  });
 });

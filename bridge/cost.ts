@@ -137,9 +137,12 @@ export class CostTracker {
         if (last && now - last.at < REFRESH_MS) return;
         const sessionId = s.agentSessionId ?? snap.agents.find((p) => p.paneId === s.paneId)?.agentSessionId ?? null;
         if (!sessionId) return; // never guess a log by directory: a wrong total is worse than none
+        // Marked BEFORE the await (like ContextTracker): a failure, a missing path or a slow read
+        // in flight all wait REFRESH_MS instead of being retried and overlapped at every tick.
+        this.live.set(s.id, { at: now, sessionId, path: last?.path ?? "", usage: last?.usage ?? [], complete: last?.complete ?? false });
         try {
           // the agent session id can change under a card session (a resume): re-resolve then
-          const path = last?.sessionId === sessionId ? last.path : await this.source.resolve(sessionId);
+          const path = last?.sessionId === sessionId && last.path ? last.path : await this.source.resolve(sessionId);
           if (!path) return;
           const { text, complete } = await this.source.load(path);
           this.live.set(s.id, { at: now, sessionId, path, usage: sumTranscript(text), complete });

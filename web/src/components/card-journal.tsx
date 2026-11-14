@@ -370,6 +370,8 @@ export function describeEvent(event: BoardEvent): string {
       return t("journal.filed", { title: String(p.title ?? t("journal.untitled")) });
     case "agent.notify":
       return t("journal.agentAsked", { message: String(p.message ?? "") });
+    case "session.cost":
+      return t("journal.sessionCost");
     case "session.closed":
       return t("journal.sessionEnded", { outcome: String(p.outcome) });
     case "review.created":
