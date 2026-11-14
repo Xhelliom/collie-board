@@ -99,6 +99,7 @@ import {
 } from "./integrate.ts";
 import { memoOn } from "./http-cache.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
+import { prResolvePorts, resolvePrConflict } from "./pr-resolve.ts";
 import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { prDetail, prRerun, prUpdateBranch } from "./pr-detail.ts";
@@ -148,6 +149,7 @@ const BOARD_PRS_GESTURE = /^\/api\/board\/prs\/(merge|close)$/;
 
 /** `GET /api/board/prs/<number>?repo=` — one open PR's sheet (see pr-detail.ts). */
 const BOARD_PR_UPDATE = /^\/api\/board\/prs\/([^/]+)\/update-branch$/;
+const BOARD_PR_RESOLVE = /^\/api\/board\/prs\/([^/]+)\/resolve$/;
 const BOARD_PR_RERUN = /^\/api\/board\/prs\/([^/]+)\/rerun$/;
 const BOARD_PR_SHEET = /^\/api\/board\/prs\/([^/]+)$/;
 
@@ -781,6 +783,30 @@ async function route(
     const r = await prRerun(ctx.db, repo, decodeURIComponent(prRerunMatch[1]!), runId);
     ctx.audit.record({ action: "pr.rerun", session: ctx.session, device: ctx.device, detail: { path: repo, number: prRerunMatch[1], runId, ok: r.ok } });
     return r.ok ? ctx.json({ ok: true }) : ctx.json({ error: r.error }, r.status);
+  }
+
+  // Hand a PR's conflict to an agent (the card's own, or a card filed for it): starts one, so the operator's tap, never a pane's.
+  const prResolveMatch = BOARD_PR_RESOLVE.exec(pathname);
+  if (prResolveMatch) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("starting an agent on a PR's conflict is the operator's gesture — an agent pane may not", 403);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { repo } = (body ?? {}) as { repo?: unknown };
+    if (typeof repo !== "string") return ctx.text("repo required", 400);
+    const n = decodeURIComponent(prResolveMatch[1]!);
+    // One tap at a time per PR: a double tap must not file two cards.
+    const held = await exclusive(integrating, `pr:${repo}#${n}`, () => resolvePrConflict(ctx.db, repo, n, prResolvePorts(ctx.db, ctx.herdr, ctx.cfg)));
+    if (held.busy) return ctx.json({ error: "a conflict resolution is already starting on this PR" }, 409);
+    const r = held.value;
+    ctx.audit.record({ action: "pr.resolve", session: ctx.session, device: ctx.device, detail: { path: repo, number: n, ok: r.ok, ...(r.ok ? { cardId: r.card.id } : {}) } });
+    return r.ok ? ctx.json({ ok: true, card: r.card }) : ctx.json({ error: r.error }, r.status);
   }
 
   // Bring a PR's branch up to its base: the operator's tap, never a pane's.

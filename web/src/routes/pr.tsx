@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator } from "react-router";
-import { ChevronDown, ChevronRight, ExternalLink, GitBranch, GitMerge, RefreshCw, RotateCw, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, GitBranch, GitMerge, GitPullRequestArrow, RefreshCw, RotateCw, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { lineClass } from "@/components/card-diff";
@@ -11,7 +11,7 @@ import { MENU_ITEM, MoreActions } from "@/components/project-more";
 import { buttonVariants } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { useT } from "@/i18n";
-import { boardErrorMessage, cardPath, integrateCard, prGesture, rerunPrChecks, updatePrBranch, type MergeMode, type PrCheck, type PrDetail } from "@/lib/board";
+import { boardErrorMessage, cardPath, integrateCard, prGesture, rerunPrChecks, resolvePrConflict, updatePrBranch, type MergeMode, type PrCheck, type PrDetail } from "@/lib/board";
 import type { PrSheetData } from "@/lib/board-loaders";
 import { ago } from "@/lib/project-facts";
 import { setStatus } from "@/lib/status";
@@ -79,6 +79,18 @@ export function PrRoute() {
       revalidator.revalidate();
     }
   };
+  const resolve = async () => {
+    setBusy(true);
+    try {
+      await resolvePrConflict(repo, detail.number);
+      setStatus(t("pr.resolving"), "success");
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    } finally {
+      setBusy(false);
+      revalidator.revalidate();
+    }
+  };
   // Several failed jobs often share one run: re-run each run once.
   const failedRuns = [...new Set(failed.flatMap((c) => (c.runId ? [c.runId] : [])))];
   const stateLabel =
@@ -134,7 +146,7 @@ export function PrRoute() {
         </p>
         {detail.card && (
           <Link to={cardPath(detail.card.id)} className="flex min-h-11 items-center gap-1 rounded-lg border px-3 text-sm font-medium">
-            <span className="min-w-0 flex-1 truncate">{t("pr.card", { title: detail.card.title })}</span>
+            <span className="min-w-0 flex-1 truncate">{t("pr.cardState", { title: detail.card.title, status: t(`status.${detail.card.status}`) })}</span>
             <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
           </Link>
         )}
@@ -224,6 +236,12 @@ export function PrRoute() {
                   </button>
                 )}
               </>
+            )}
+            {detail.conflicting && (
+              <button type="button" disabled={busy} onClick={() => void resolve()} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-11 w-full text-sm")}>
+                <GitPullRequestArrow className="size-4" />
+                {t("pr.resolve")}
+              </button>
             )}
             {blockedWhy && <p className="w-full text-sm text-destructive">{blockedWhy}</p>}
             <button type="button" disabled={busy} onClick={() => void act("close")} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-11 flex-1 text-sm text-destructive")}>

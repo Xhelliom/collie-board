@@ -26,7 +26,7 @@ const detail = (over: Partial<PrDetail> = {}): PrDetail => ({
   conflicting: false,
   isDraft: false,
   url: "https://github.com/o/r/pull/7",
-  card: { id: "c1", title: "The card" },
+  card: { id: "c1", title: "The card", status: "working" },
   modes: [],
   blocker: null,
   behind: false,
@@ -78,6 +78,21 @@ describe("PrRoute", () => {
     mount({ repo: "/repo", number: "7", detail: detail({ conflicting: true, mergeable: false, blocker: "conflict" }), error: null });
     expect(await screen.findByText("Can't merge: it conflicts with main.")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^merge$/i })).toBeDisabled();
+  });
+
+  it("a conflicting PR offers « Have the conflict resolved », a clean one does not; the card shows its state", async () => {
+    const calls: unknown[] = [];
+    server.use(http.post("*/api/board/prs/7/resolve", async ({ request }) => (calls.push(await request.json()), HttpResponse.json({ ok: true, card: { id: "c1", title: "The card" } }))));
+    mount({ repo: "/repo", number: "7", detail: detail({ conflicting: true, mergeable: false, blocker: "conflict" }), error: null });
+    expect(await screen.findByRole("link", { name: /the card · in progress/i })).toBeTruthy();
+    await userEvent.click(await screen.findByRole("button", { name: /have the conflict resolved/i }));
+    await waitFor(() => expect(calls).toEqual([{ repo: "/repo" }]));
+  });
+
+  it("offers no resolve button on a clean PR", async () => {
+    mount({ repo: "/repo", number: "7", detail: detail(), error: null });
+    await screen.findByRole("button", { name: /^merge$/i });
+    expect(screen.queryByRole("button", { name: /conflict resolved/i })).toBeNull();
   });
 
   it("a PR behind its base says so and updates the branch on tap", async () => {

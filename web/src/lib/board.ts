@@ -1328,7 +1328,7 @@ export interface PrDetail {
   conflicting: boolean;
   isDraft: boolean;
   url: string;
-  card: { id: string; title: string } | null;
+  card: { id: string; title: string; status: CardStatus } | null;
   /** The merge modes the repo allows, the preselected one first; empty: no choice to offer. */
   modes: MergeMode[];
   /** Behind its base with no conflict: the branch can be updated. */
@@ -1357,6 +1357,11 @@ export function rerunPrChecks(repo: string, number: number, runId: string): Prom
 /** Bring a PR's branch up to its base (merge, or rebase) — the operator's tap. */
 export function updatePrBranch(repo: string, number: number, mode?: "rebase"): Promise<{ ok: true }> {
   return apiRequest(`/api/board/prs/${number}/update-branch`, { method: "POST", body: JSON.stringify({ repo, mode }) }, INTEGRATION_TIMEOUT_MS);
+}
+
+/** Hand a conflicted PR to an agent: its card's own, or a card filed on the PR's branch — the operator's tap. */
+export function resolvePrConflict(repo: string, number: number): Promise<{ ok: true; card: { id: string; title: string } }> {
+  return apiRequest(`/api/board/prs/${number}/resolve`, { method: "POST", body: JSON.stringify({ repo }) }, INTEGRATION_TIMEOUT_MS);
 }
 
 /** Merge or close a PR by number — the operator's tap; a card's PR merges through `integrateCard`. */
