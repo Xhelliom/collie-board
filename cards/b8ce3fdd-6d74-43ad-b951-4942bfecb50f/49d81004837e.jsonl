@@ -2,3 +2,9 @@
 {"v":1,"hlc":"1794672716431.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Le brouillon de l orchestrateur survit à un changement de page","status":"backlog"},"ts":1794672710446}}
 {"v":1,"hlc":"1794672716431.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c2a03053-acf6-40e6-9cc6-246755e2599d"}}
 {"v":1,"hlc":"1794672716421.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794672720644.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/le-brouillon-de-l-orchestrateur-survit-a-un-chan"}}
+{"v":1,"hlc":"1794672720644.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794672720644.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794672719699}}
+{"v":1,"hlc":"1794672728949.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794672728949.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794672725204}}
+{"v":1,"hlc":"1794672728950.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2465},"ts":1794672725433}}
