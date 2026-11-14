@@ -1422,7 +1422,7 @@ export async function listPrs(repoPath: string, state: "open" | "merged", gh: Gi
 /** `gh pr view <n> --json …` for the PR sheet: raw JSON, or null when GitHub cannot be read. `number` is a validated integer. */
 export async function prViewRaw(repoPath: string, number: number, gh: GitRunner = runGh): Promise<string | null> {
   if (!Number.isSafeInteger(number) || number <= 0) return null;
-  const fields = "number,title,body,author,createdAt,updatedAt,baseRefName,headRefName,state,mergeable,isDraft,url,files";
+  const fields = "number,title,body,author,createdAt,updatedAt,baseRefName,headRefName,state,mergeable,isDraft,url,files,statusCheckRollup";
   try {
     const r = await gh(["pr", "view", String(number), "--json", fields], repoPath);
     return r.ok ? r.stdout : null;
@@ -1441,6 +1441,17 @@ export async function prDiffText(repoPath: string, number: number, gh: GitRunner
     return { diff: truncated ? r.stdout.slice(0, MAX_DIFF_BYTES) : r.stdout, truncated };
   } catch {
     return null;
+  }
+}
+
+/** `gh run rerun <id> --failed` — the operator's tap on a PR's sheet. `runId` is digits only (it ends up in an argv). */
+export async function rerunFailed(repoPath: string, runId: string, gh: GitRunner = runGh): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!/^\d{1,15}$/.test(runId)) return { ok: false, error: "bad run id" };
+  try {
+    const r = await gh(["run", "rerun", runId, "--failed"], repoPath);
+    return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 

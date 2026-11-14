@@ -3,8 +3,17 @@
 // validated here as a plain integer and the repo must be one the board reads, or nothing is spawned.
 
 import type { BoardDb } from "./db.ts";
-import { prDiffText, prViewRaw, type GitRunner } from "./git.ts";
+import { prDiffText, prViewRaw, rerunFailed, type GitRunner } from "./git.ts";
 import { openPrsOf, reposOf } from "./prs.ts";
+
+export interface PrCheck {
+  name: string;
+  state: "success" | "failure" | "pending" | "skipped" | "cancelled";
+  startedAt: number | null;
+  completedAt: number | null;
+  url: string;
+  runId: string | null;
+}
 
 export interface PrDetail {
   number: number;
@@ -22,6 +31,7 @@ export interface PrDetail {
   url: string;
   card: { id: string; title: string } | null;
   files: { path: string; additions: number; deletions: number }[];
+  checks: PrCheck[];
   diff: string;
   diffTruncated: boolean;
 }
@@ -29,6 +39,35 @@ export interface PrDetail {
 /** A plain positive integer, nothing else — it ends up in an argv. Pure + exported. */
 export function parsePrNumber(raw: string): number | null {
   return /^[1-9]\d{0,9}$/.test(raw) ? Number(raw) : null;
+}
+
+/** One `statusCheckRollup` array as rows: a CheckRun has status/conclusion, a commit StatusContext has state. Pure + exported. */
+export function parseCheckRows(rollup: unknown): PrCheck[] {
+  if (!Array.isArray(rollup)) return [];
+  const date = (v: unknown) => (typeof v === "string" && Number.isFinite(Date.parse(v)) && !v.startsWith("0001") ? Date.parse(v) : null);
+  return (rollup as Record<string, unknown>[]).flatMap((c) => {
+    if (!c || typeof c !== "object") return [];
+    let state: PrCheck["state"];
+    if (typeof c.status === "string") {
+      const done = c.status === "COMPLETED";
+      const k = String(c.conclusion ?? "");
+      state = !done ? "pending" : k === "SUCCESS" || k === "NEUTRAL" ? "success" : k === "SKIPPED" ? "skipped" : k === "CANCELLED" ? "cancelled" : "failure";
+    } else {
+      const k = String(c.state ?? "");
+      state = k === "SUCCESS" ? "success" : k === "PENDING" || k === "EXPECTED" ? "pending" : "failure";
+    }
+    const url = String(c.detailsUrl ?? c.targetUrl ?? "");
+    return [
+      {
+        name: String(c.name ?? c.context ?? "(unnamed check)"),
+        state,
+        startedAt: date(c.startedAt),
+        completedAt: date(c.completedAt),
+        url,
+        runId: /\/actions\/runs\/(\d+)/.exec(url)?.[1] ?? null,
+      },
+    ];
+  });
 }
 
 /** Shape `gh pr view --json …`; null when it is not a PR. The card and the diff are added by the caller. Pure + exported. */
@@ -63,6 +102,7 @@ export function parsePrDetail(stdout: string): Omit<PrDetail, "card" | "diff" | 
     isDraft: r.isDraft === true,
     url: r.url,
     files,
+    checks: parseCheckRows(r.statusCheckRollup),
   };
 }
 
@@ -85,4 +125,19 @@ export async function prDetail(
     ok: true,
     detail: { ...d, card: card ? { id: card.id, title: card.title } : null, diff: diff?.diff ?? "", diffTruncated: diff?.truncated ?? false },
   };
+}
+
+/** The operator re-runs the failed jobs of one run: the repo must be one the board reads, ids are digits. The route refuses panes. */
+export async function prRerun(
+  db: BoardDb,
+  repoPath: string,
+  rawNumber: string,
+  runId: unknown,
+  gh?: GitRunner,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (!reposOf(db).has(repoPath)) return { ok: false, status: 403, error: "unknown repo" };
+  if (!parsePrNumber(rawNumber)) return { ok: false, status: 400, error: "bad PR number" };
+  if (typeof runId !== "string" || !/^\d{1,15}$/.test(runId)) return { ok: false, status: 400, error: "bad run id" };
+  const r = await rerunFailed(repoPath, runId, gh);
+  return r.ok ? r : { ok: false, status: 409, error: r.error };
 }

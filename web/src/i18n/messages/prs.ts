@@ -81,6 +81,12 @@ export const prs = defineMessages({
   "pr.diffShow": { en: "Show the diff", fr: "Voir le diff" },
   "pr.diffHide": { en: "Hide the diff", fr: "Masquer le diff" },
   "pr.diffTruncated": { en: "Diff cut here: the rest is on GitHub.", fr: "Diff coupé ici : la suite est sur GitHub." },
+  "pr.checks": { en: "Checks", fr: "Vérifications" },
+  "pr.noChecks": { en: "No check on this PR.", fr: "Aucune vérification sur cette PR." },
+  "pr.checkLog": { en: "View the log on GitHub", fr: "Voir le journal sur GitHub" },
+  "pr.rerun": { en: "Re-run", fr: "Relancer" },
+  "pr.rerunAll": { en: "Re-run the failures", fr: "Relancer les échecs" },
+  "pr.rerunning": { en: "Re-run started.", fr: "Relance lancée." },
   "pr.back": { en: "Open PRs", fr: "PR ouvertes" },
   "pr.error": { en: "This PR could not be read: {error}", fr: "Cette PR n'a pas pu être lue : {error}" },
 });
