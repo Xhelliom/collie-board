@@ -336,6 +336,28 @@ export function sendKeys(paneId: string, keys: string[], session?: string): Prom
   });
 }
 
+/**
+ * The secret behind one mask of the mirror, on the operator's tap (bridge/reveal.ts). The mask is
+ * named by the row as shown, how many identical rows sit below it, and a column inside it; the read
+ * mode matches the mirror's. Null when it has left the screen. Local panes only.
+ */
+export async function revealSecret(
+  paneId: string,
+  at: { line: string; fromEnd: number; col: number; lines: number; unwrapped: boolean },
+  session?: string,
+): Promise<string | null> {
+  try {
+    const res = await req<{ value: string }>(withSession(`/api/pane/${encodeURIComponent(paneId)}/reveal`, session), {
+      method: "POST",
+      body: JSON.stringify(at),
+    });
+    return res.value;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
 /** Close a pane ("kill the agent"). */
 export function closePane(paneId: string, session?: string): Promise<ActionResponse> {
   return req<ActionResponse>(withSession(`/api/pane/${encodeURIComponent(paneId)}/close`, session), {

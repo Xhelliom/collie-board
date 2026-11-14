@@ -24,7 +24,7 @@ import { useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
-import { closePane, fetchHistory, sendKeys } from "@/lib/api";
+import { closePane, fetchHistory, revealSecret, sendKeys } from "@/lib/api";
 import { BlockedScreenBanner } from "@/components/blocked-screen-banner";
 import { submitFreeText, type FreeTextModel } from "@/lib/free-text-action";
 import { boardErrorMessage, cardPath, handoffCard } from "@/lib/board";
@@ -167,6 +167,12 @@ export function AgentChat({
   // This device isn't allowlisted to type into agents: the backend rejects every write, so the
   // composer drops to read-only (and shows a banner). The mirror still polls (reading is fine).
   const readOnly = isReadOnly(device);
+  // « Afficher » on a masked secret: local panes, authorised devices (the bridge gates it the same way).
+  const handleReveal = useCallback(
+    (line: string, fromEnd: number, col: number) =>
+      revealSecret(paneId, { line, fromEnd, col, lines: requestedLines, unwrapped: prefs.rawTerminal }, session),
+    [paneId, session, requestedLines, prefs.rawTerminal],
+  );
 
   // Drawers/sheets are mutually exclusive — at most one open. A single value makes that invariant
   // unrepresentable to violate.
@@ -912,6 +918,7 @@ export function AgentChat({
                   onPreviewAction={handlePreviewAction}
                   onMultiSelectAction={handleMultiSelectAction}
                   promptDisabled={readOnly || gone}
+                  onReveal={readOnly || paneId.includes("@") ? undefined : handleReveal}
                 />
               </>
             ) : (

@@ -29,6 +29,7 @@ import { handleRollback, handleUpdate } from "./rollback.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { SEEN_HEADER } from "./seen.ts";
 import { redactAnsi, redactDeep } from "./redact.ts";
+import { revealPane } from "./reveal.ts";
 import { asPaste } from "./paste.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
@@ -111,7 +112,7 @@ const SECURITY_HEADERS: Record<string, string> = {
 // co-located proxy) can reach the bridge's port; a loopback Origin only on that port (see checkAccess).
 const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
-const PANE_ROUTE = /^\/api\/pane\/([^/]+)(?:\/(reply|keys|upload|close|rename|history))?$/;
+const PANE_ROUTE = /^\/api\/pane\/([^/]+)(?:\/(reply|keys|upload|close|rename|history|reveal))?$/;
 // `/api/pane/:id/artifacts` (the session-artifact LIST) and `/api/pane/:id/artifact` (one file's
 // bytes). Kept out of PANE_ROUTE on purpose: the list carries a trailing `s`, and neither should be
 // reachable as an action a POST could hit.
@@ -434,6 +435,7 @@ export function startServer(opts: {
         if (action === "upload" && req.method === "POST") return uploadPane(cfg, paneId, req, audit, device, session);
         if (action === "close" && req.method === "POST") return closePane(herdr, paneId, req, audit, device, session);
         if (action === "rename" && req.method === "POST") return renamePane(herdr, paneId, req, audit, device, session);
+        if (action === "reveal" && req.method === "POST") return secure(await revealPane(herdr, paneId, req, audit, device, session, cfg.readLines));
         return text("method not allowed", 405);
       }
 

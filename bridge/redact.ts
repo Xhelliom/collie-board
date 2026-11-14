@@ -32,6 +32,8 @@
 // rows (see `findSpans`).
 //
 // What the operator SENDS (replies, keys) is never touched here: only text going out to a phone.
+// The one way back is the operator's tap on « Afficher » (`revealAt`, served by `reveal.ts`): one
+// secret, named by where its mask sits, never in the default read.
 //
 // ── COST ─────────────────────────────────────────────────────────────────────
 // The mirror is polled every 1.5 s per open pane. Each pattern opens on a literal prefix and has no
@@ -340,4 +342,36 @@ export function redactDeep<T>(value: T): T {
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redactDeep(v)])) as T;
   }
   return value;
+}
+
+/**
+ * The secret behind one mask of a terminal read — what the reveal route (`reveal.ts`) sends to the
+ * phone, and only on the operator's tap. The phone names the mask by what it SEES: `line` is the
+ * masked row, `fromEnd` how many identical rows sit below it (counted from the bottom, so output
+ * that scrolled in since does not shift it), `col` a column inside the mask. Null when that row or
+ * that mask is no longer on screen, or when masking is off. A wrapped secret comes back whole.
+ */
+export function revealAt(text: string, line: string, fromEnd: number, col: number): string | null {
+  if (!ENABLED) return null;
+  const plain = text.replace(ESCAPE_RE, "");
+  const spans = findSpans(plain, true);
+  if (spans.length === 0) return null;
+  const masked = applySpans(plain, spans);
+  let seen = 0;
+  for (let end = masked.length; end >= 0; ) {
+    const start = masked.lastIndexOf("\n", end - 1) + 1;
+    const row = masked.slice(start, end).replace(/\r$/, "");
+    if (row === line && seen++ === fromEnd) {
+      const at = start + col;
+      if (col < 0 || col >= row.length || masked[at] !== MASK) return null;
+      const hits = spans.filter(([s, e]) => s <= at && at < e);
+      if (hits.length === 0) return null;
+      const from = Math.min(...hits.map(([s]) => s));
+      const to = Math.max(...hits.map(([, e]) => e));
+      return plain.slice(from, to).replace(/[\r\n]/g, "");
+    }
+    if (start === 0) return null;
+    end = start - 1;
+  }
+  return null;
 }
