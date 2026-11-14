@@ -2,3 +2,7 @@
 {"v":1,"hlc":"1794687156782.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Mise à jour en échec : « Faire réparer par un agent »","status":"backlog"},"ts":1794687154935}}
 {"v":1,"hlc":"1794687156785.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"4dc00e8f-1529-45db-8a64-1afdf20fdbde"}}
 {"v":1,"hlc":"1794693521662.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794693536054.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/mise-a-jour-en-echec-faire-reparer-par-un-agent"}}
+{"v":1,"hlc":"1794693536054.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794693536054.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794693525793}}
+{"v":1,"hlc":"1794693536054.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3909},"ts":1794693535423}}
