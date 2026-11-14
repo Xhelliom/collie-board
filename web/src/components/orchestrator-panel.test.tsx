@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -9,6 +9,7 @@ import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import type { OrchestratorMemory, OrchestratorState } from "@/lib/board";
 import type { TranscriptEntry } from "@/lib/types";
 import { server } from "@/test/setup";
+import { __resetDrafts } from "@/hooks/use-pane-draft";
 
 const turn = (text: string, role: "user" | "assistant" = "assistant"): TranscriptEntry => ({
   uuid: text,
@@ -31,7 +32,10 @@ const item = (name: string) => screen.getByRole("menuitem", { name });
 
 // The texts asserted here are in one language, whatever the browser says.
 beforeEach(() => setPreference("fr"));
-afterEach(() => setPreference("en"));
+afterEach(() => {
+  setPreference("en");
+  __resetDrafts();
+});
 
 describe("OrchestratorPanel", () => {
   it("asks for a repo when none is chosen", async () => {
@@ -79,6 +83,21 @@ describe("OrchestratorPanel", () => {
     await screen.findByLabelText("Message à l'orchestrateur");
     expect(sent).toEqual({ text: "Range-les en deux phases", submit: true });
     expect(screen.getByLabelText("Message à l'orchestrateur")).toHaveValue("");
+  });
+
+  it("keeps what you typed when you leave the page and come back, and forgets it once sent", async () => {
+    server.use(http.post("*/api/pane/w1%3Ap2/reply", () => HttpResponse.json({ ok: true })));
+    const field = () => screen.findByLabelText("Message à l'orchestrateur");
+    mount("/g/app", { paneId: "w1:p2", running: true });
+    await userEvent.type(await field(), "Range-les");
+    cleanup();
+    mount("/g/app", { paneId: "w1:p2", running: true });
+    expect(await field()).toHaveValue("Range-les");
+    await userEvent.click(screen.getByRole("button", { name: "Envoyer" }));
+    await waitFor(async () => expect(await field()).toHaveValue(""));
+    cleanup();
+    mount("/g/app", { paneId: "w1:p2", running: true });
+    expect(await field()).toHaveValue("");
   });
 
   it("an attached image is an [Image #N] token at the caret, shown as a data: thumbnail, and its path is sent once", async () => {

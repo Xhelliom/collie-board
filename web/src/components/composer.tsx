@@ -7,6 +7,7 @@ import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
 import { useImageUpload } from "@/hooks/use-image-upload";
+import { usePaneDraft } from "@/hooks/use-pane-draft";
 import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
 import { setStatus } from "@/lib/status";
 import { Button } from "@/components/ui/button";
@@ -27,40 +28,7 @@ import { sendGuardedReply } from "@/lib/reply-action";
 import { TerminalDraftPreview } from "@/components/terminal-draft-preview";
 import { boardErrorMessage } from "@/lib/board";
 import { PasteChips } from "@/components/paste-chips";
-import { expandPastes, isCollapsiblePaste, liveChips, pasteMarker, type PasteChip } from "@/lib/paste-chips";
-
-// Per-pane draft persistence: `input` below is local state, and AgentChat remounts Composer wholesale
-// (`key={paneId}` in routes/detail.tsx) on every pane switch — without this, navigating away and back
-// silently drops whatever was typed. A module-scoped Map survives that remount the same way
-// loaders.ts's lastPaneText does; bounded so switching through many panes over a long session can't
-// grow it forever. Only Composer reads this, so a plain Map is enough — no need for the
-// useSyncExternalStore pub/sub lib/idle.ts and lib/status.ts use for state shared across components.
-const DRAFT_MAX = 20;
-// A draft keeps its paste chips with it — a marker without its chip would be sent literally.
-interface Draft {
-  input: string;
-  pastes: PasteChip[];
-}
-const drafts = new Map<string, Draft>();
-
-function saveDraft(paneId: string, value: Draft): void {
-  if (value.input === "") {
-    drafts.delete(paneId);
-    return;
-  }
-  drafts.delete(paneId); // re-insert at the end — Map iteration order is insertion order
-  drafts.set(paneId, value);
-  if (drafts.size > DRAFT_MAX) {
-    const oldest = drafts.keys().next().value;
-    if (oldest !== undefined) drafts.delete(oldest);
-  }
-}
-
-/** Test-only: module state outlives a single test's render tree, unlike everything else in this file
- *  — every test that mounts a Composer must start from an empty map. Mirrors __resetReloadGuard. */
-export function __resetDrafts(): void {
-  drafts.clear();
-}
+import { expandPastes, isCollapsiblePaste, liveChips, pasteMarker } from "@/lib/paste-chips";
 
 export interface ComposerHandle {
   /** Focus the input and put the caret at the end — used by the mirror-tap-to-focus in AgentChat. */
@@ -185,9 +153,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // Every write affordance is off when the pane is gone OR this device is read-only.
   const locked = gone || readOnly;
 
-  const [input, setInput] = useState(() => drafts.get(paneId)?.input ?? "");
-  // Long pastes collapsed to a `[Collé #N]` marker in `input` (lib/paste-chips.ts).
-  const [pastes, setPastes] = useState<PasteChip[]>(() => drafts.get(paneId)?.pastes ?? []);
+  // Survives the remount on every pane switch (hooks/use-pane-draft.ts). Long pastes are collapsed to
+  // a `[Collé #N]` marker in `input` (lib/paste-chips.ts).
+  const { input, setInput, pastes, setPastes } = usePaneDraft(paneId);
   const chips = liveChips(input, pastes);
   // A message sent mid-turn waits in Claude Code's queue until the turn ends; "Send now" hands it over.
   const [queued, setQueued] = useState<string | null>(null);
@@ -293,12 +261,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // never holds. When held, the self-updater shows the "tap to update" banner instead and updates once
   // the hold clears (see lib/self-update.ts). Keyed by pane so panes don't clobber each other's hold.
   useHoldReload(`composer:${paneId}`, input.trim() !== "" || upload.uploading);
-
-  // Write-through for the module-scoped draft map above — every keystroke, and the clear on send,
-  // land here so the NEXT mount of this paneId (a pane switch and back) seeds from it.
-  useEffect(() => {
-    saveDraft(paneId, { input, pastes });
-  }, [paneId, input, pastes]);
 
   // The turn ended: the queue went in on its own.
   useEffect(() => {

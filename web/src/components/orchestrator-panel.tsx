@@ -16,6 +16,7 @@ import { SendButton } from "@/components/ui/chat/send-button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
 import { useImageUpload } from "@/hooks/use-image-upload";
+import { usePaneDraft } from "@/hooks/use-pane-draft";
 import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
 import { sendKeys, sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
@@ -77,7 +78,8 @@ export function OrchestratorPanel({
   const t = useT();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState(initialDraft);
+  // Kept per repo across leaving the Project page and coming back (hooks/use-pane-draft.ts).
+  const { input: draft, setInput: setDraft } = usePaneDraft(`orchestrator:${repo ?? ""}`, initialDraft);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // A screenshot goes up under the orchestrator's own pane, its `[Image #N]` token into the draft — the composer's hook.
   const upload = useImageUpload({ paneId: state?.paneId ?? "orchestrator", disabled: !state?.paneId, text: draft, setText: setDraft, inputRef });

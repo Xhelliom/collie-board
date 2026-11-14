@@ -10,7 +10,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { isReloadHeld, __resetReloadGuard } from "@/lib/reload-guard";
 import { server } from "@/test/setup";
 import { recordReply } from "@/test/handlers";
-import { Composer, __resetDrafts } from "./composer";
+import { Composer } from "./composer";
+import { __resetDrafts } from "@/hooks/use-pane-draft";
 
 // A guarded send is TWO reply calls: type (submit:false), then — once the text is verified on the
 // input line — submit-only (empty text). Overriding the reply handler therefore has to keep the fake
