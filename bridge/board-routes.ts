@@ -69,6 +69,7 @@ import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleOpenRoute } from "./open-routes.ts";
 import { handleTidyRoute } from "./tidy.ts";
 import { handleFlowRoute } from "./flow-routes.ts";
+import { handleCostRoute } from "./cost.ts";
 import { handleDeliverablesRoute, removeCardDeliverables } from "./deliverables.ts";
 import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./pipeline.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
@@ -215,6 +216,8 @@ export interface BoardContext {
   paneContext?: (paneId: string) => number | null;
   /** The same pane's model label and effort, from the same tracker; absent fields when unknown. */
   paneModel?: (paneId: string) => { model?: string; effort?: string };
+  /** What a card has consumed in tokens (cost.ts); absent: unknown. */
+  cardCost?: (cardId: string) => import("./cost.ts").CardCost;
   /** The agent table (adapters/agents.toml), for the one thing a start reads from it: a kind's model flag (ADR 0026). */
   adapters?: Record<string, AgentAdapter>;
   /** JSON response; pass a status for the non-200 board errors (409 busy, 502 herdr). */
@@ -476,6 +479,8 @@ async function route(
   if (tidy) return tidy;
   const mcp = await handleMcpSetupRoute(pathname, req, ctx);
   if (mcp) return mcp;
+  const cost = handleCostRoute(pathname, req, ctx);
+  if (cost) return cost;
   const deliverables = await handleDeliverablesRoute(pathname, req, ctx);
   if (deliverables) return deliverables;
   const share = await handleShareRoute(pathname, req, ctx);

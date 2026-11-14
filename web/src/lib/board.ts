@@ -1702,3 +1702,15 @@ export const saveDecision = (repoPath: string, d: Omit<Decision, "id"> & { id?: 
 export const saveRoadmap = (
   r: { repoPath: string; vision: string; items: RoadmapItem[]; decisions?: Decision[]; revision: number },
 ): Promise<{ roadmap: Roadmap }> => apiRequest("/api/roadmap", { method: "PUT", body: JSON.stringify(r) });
+
+/** What a card consumed in tokens — `GET /api/cards/<id>/cost` (bridge/cost.ts). `known:false` is "unknown", never 0. */
+export interface CardCost {
+  tokens: { input: number; output: number; cacheWrite: number; cacheRead: number };
+  byModel: { model: string; label: string; tokens: CardCost["tokens"] }[];
+  sessions: number;
+  counted: number;
+  known: boolean;
+  partial: boolean;
+}
+export const fetchCardCost = (cardId: string, signal?: AbortSignal): Promise<CardCost> =>
+  apiRequest(`/api/cards/${encodeURIComponent(cardId)}/cost`, { signal });

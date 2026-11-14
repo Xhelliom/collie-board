@@ -224,6 +224,16 @@ by editing `node.toml` (a hand edit is still taken without a restart). Tell the 
 
 A retried start reuses the card's checkout on the peer (and keeps an agent already in it).
 
+## What a card consumed (« Consommé »)
+
+```bash
+curl -s http://127.0.0.1:8788/api/cards/<id>/cost
+# → {tokens:{input,output,cacheWrite,cacheRead}, byModel:[{model,label,tokens}], sessions, counted, known, partial}
+```
+Sum over **all** the card's sessions (rounds, flow roles, relances). `known:false` means unknown — an
+agent whose transcript is not verified (`context = true` in `adapters/agents.toml`), or nothing read
+yet — never 0. `partial:true` (`counted` < `sessions`): some sessions have no figure, the total is a floor. A monitor only; nothing is capped.
+
 ## Publish a deliverable on a card (« Publier un livrable »)
 
 What you made for a card — an image, a PDF, a spreadsheet, a report — is lost with your session

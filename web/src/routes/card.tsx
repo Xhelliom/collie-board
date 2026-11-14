@@ -48,6 +48,7 @@ import { Card } from "@/components/ui/card";
 import { BottomSheet } from "@/components/ui/sheet";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { CardReportSection } from "@/components/card-report";
+import { CardCostLine } from "@/components/card-cost";
 import { cardReport } from "@/lib/card-report";
 import { MarkdownText } from "@/components/markdown-text";
 import { StatusBadge } from "@/components/status-badge";
@@ -1198,6 +1199,7 @@ export function CardRoute() {
       onRestore={restore}
       more={
         <>
+          {detail.sessions.length > 0 && <CardCostLine cardId={card.id} />}
           {detail.sessions.length > 0 && (
             <Section label={t("card.section.sessions")}>
               <div className="flex flex-col">
