@@ -69,3 +69,4 @@
 {"v":1,"hlc":"1794692066441.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/441"},"ts":1794692059838}}
 {"v":1,"hlc":"1794692066441.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794692066441.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794692059873}}
+{"v":1,"hlc":"1794692078401.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"usage_group":"Suivre la consommation"}}
