@@ -1349,6 +1349,8 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   models     TEXT,
   -- The HTML pages shown as tabs (JSON array of keys: a docs/pages name, or <cardId>/<file>). NULL: none.
   page_tabs  TEXT,
+  -- The one ticked page shown at the head of the Project page (a page_tabs key). NULL: none.
+  showcase   TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -1855,6 +1857,7 @@ export class BoardDb {
       { table: "repo_pref", column: "models", ddl: "TEXT" },
       // The pages shown as tabs: none was chosen before (docs/pages were all shown by default).
       { table: "repo_pref", column: "page_tabs", ddl: "TEXT" },
+      { table: "repo_pref", column: "showcase", ddl: "TEXT" },
       // Phases, lots, roadmap (ADR 0021).
       { table: "card", column: "phase_id", ddl: "TEXT" },
       { table: "run", column: "phase_id", ddl: "TEXT" },
@@ -3353,8 +3356,23 @@ export class BoardDb {
     this.pruneRepoPref(path);
   }
 
+  /** The page shown at the head of the Project page, or null. */
+  repoShowcase(path: string): string | null {
+    return this.db.query<{ showcase: string | null }, [string]>("SELECT showcase FROM repo_pref WHERE path = ?").get(path)?.showcase ?? null;
+  }
+
+  setRepoShowcase(path: string, key: string | null): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, showcase, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET showcase = excluded.showcase, updated_at = excluded.updated_at`,
+      )
+      .run(path, key, this.now());
+    this.pruneRepoPref(path);
+  }
+
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND model IS NULL AND effort IS NULL AND models IS NULL AND page_tabs IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND model IS NULL AND effort IS NULL AND models IS NULL AND page_tabs IS NULL AND showcase IS NULL").run(path);
   }
 
   // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────

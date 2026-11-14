@@ -221,6 +221,31 @@ describe("DocumentsRoute", () => {
     ]);
   });
 
+  it("offers « Showcase » on a ticked page only, one per project", async () => {
+    const puts: unknown[] = [];
+    server.use(
+      http.get("/api/docs/page-tabs", () =>
+        HttpResponse.json({ ref: "main", pages: [{ name: "roadmap", size: 9 }], deliverables: [{ cardId: "c9", cardTitle: "Offer", name: "offre.html", size: 9 }], tabs: ["roadmap"], showcase: null }),
+      ),
+      http.put("/api/docs/page-tabs", async ({ request }) => {
+        const body = (await request.json()) as { showcase: string | null };
+        puts.push(body);
+        return HttpResponse.json({ ref: "main", pages: [], deliverables: [], tabs: ["roadmap"], showcase: body.showcase });
+      }),
+    );
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    const pin = await screen.findByRole("button", { name: "Show roadmap at the head of the Project page" });
+    expect(screen.queryByRole("button", { name: "Show offre at the head of the Project page" })).toBeNull();
+    await userEvent.click(pin);
+    expect(pin).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(pin);
+    expect(pin).toHaveAttribute("aria-pressed", "false");
+    expect(puts).toEqual([
+      { repo: "/r/app", showcase: "roadmap" },
+      { repo: "/r/app", showcase: null },
+    ]);
+  });
+
   it("« Request a change » files a card naming the file and the operator's words, then opens it", async () => {
     let body: Record<string, unknown> | null = null;
     server.use(

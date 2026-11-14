@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { BoardTabs } from "@/components/board-tabs";
+import { ProjectShowcase } from "@/components/project-showcase";
 import { server } from "@/test/setup";
 
 import { CustomPageRoute } from "./custom-page";
@@ -12,7 +13,7 @@ import { CustomPageRoute } from "./custom-page";
 const at = (url: string, element: React.ReactNode) => render(<RouterProvider router={createMemoryRouter([{ path: "*", element }], { initialEntries: [url] })} />);
 
 describe("custom pages", () => {
-  const listing = (tabs: string[]) =>
+  const listing = (tabs: string[], showcase: string | null = null) =>
     server.use(
       http.get("/api/docs/page-tabs", () =>
         HttpResponse.json({
@@ -20,6 +21,7 @@ describe("custom pages", () => {
           pages: [{ name: "marketing", size: 9 }, { name: "roadmap", size: 9 }],
           deliverables: [{ cardId: "c1", cardTitle: "Plan", name: "offre.html", size: 9 }],
           tabs,
+          showcase,
         }),
       ),
     );
@@ -62,5 +64,37 @@ describe("custom pages", () => {
     const frame = screen.getByTitle("Project page offre.html");
     expect(frame).toHaveAttribute("sandbox", "");
     expect(frame).toHaveAttribute("src", "/api/cards/c1/deliverables/offre.html");
+  });
+
+  it("shows the showcase at the head of the Project page, sandboxed, with a link to its tab in full screen", async () => {
+    listing(["marketing", "c1/offre.html"], "c1/offre.html");
+    at("/board/project?repo=%2Fr%2Fapp", <ProjectShowcase repo="/r/app" />);
+    const frame = await screen.findByTitle("Project page offre");
+    expect(frame).toHaveAttribute("sandbox", "");
+    expect(frame).toHaveAttribute("src", "/api/cards/c1/deliverables/offre.html");
+    expect(screen.getByRole("link", { name: /Open full screen/ })).toHaveAttribute("href", "/board/page?repo=%2Fr%2Fapp&card=c1&name=offre.html&full=1");
+  });
+
+  it("draws nothing on the Project page without a showcase", async () => {
+    listing(["marketing"]);
+    const { container } = at("/board/project?repo=%2Fr%2Fapp", <ProjectShowcase repo="/r/app" />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("opens in full screen from the showcase's link, and the tab's « ⋯ » puts it in or out of the showcase", async () => {
+    listing(["marketing"]);
+    const puts: unknown[] = [];
+    server.use(
+      http.put("/api/docs/page-tabs", async ({ request }) => {
+        puts.push(await request.json());
+        return HttpResponse.json({ ref: "main", pages: [], deliverables: [], tabs: ["marketing"], showcase: "marketing" });
+      }),
+    );
+    at("/board/page?repo=%2Fr%2Fapp&name=marketing&full=1", <CustomPageRoute />);
+    expect(screen.getByTitle("Project page marketing").parentElement).toHaveClass("fixed", "inset-0");
+    await userEvent.click(await screen.findByRole("button", { name: "More for this page" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Showcase on the Project page/ }));
+    expect(puts).toEqual([{ repo: "/r/app", showcase: "marketing" }]);
   });
 });
