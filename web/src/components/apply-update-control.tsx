@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Download, Loader2 } from "lucide-react";
+import { Link } from "react-router";
+import { Bot, Download, Loader2, Wrench } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
-import { applyUpdate, isUpdateRefusal } from "@/lib/api";
+import { applyUpdate, isUpdateRefusal, repairUpdate } from "@/lib/api";
+import { panePath } from "@/lib/nav";
 
 // t("settings.updates.apply") — one tap updates plugin, UI and bridge to `latest`. The bridge hands it
 // to the update action, which runs outside its unit; once the new build is served, lib/self-update.ts
-// reloads the page onto it. Until then the button says it's under way; a refusal shows its reason.
+// reloads the page onto it. Until then the button says it's under way; a refusal shows its reason,
+// and offers an agent to fix it in this machine's checkout.
 export function ApplyUpdateControl({ latest }: { latest: string }) {
   const t = useT();
   const [state, setState] = useState<"idle" | "updating" | "failed">("idle");
@@ -35,8 +38,42 @@ export function ApplyUpdateControl({ latest }: { latest: string }) {
         <div className="w-full text-xs text-destructive">
           {t("settings.updates.applyFailed")}
           <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">{reason}</pre>
+          <RepairControl />
         </div>
       )}
     </>
+  );
+}
+
+// t("settings.updates.repair") — the operator hands the failure to an agent instead of staying stuck.
+function RepairControl() {
+  const t = useT();
+  const [state, setState] = useState<{ s: "idle" | "busy" } | { s: "started"; paneId: string } | { s: "failed"; reason: string }>({ s: "idle" });
+
+  async function go() {
+    setState({ s: "busy" });
+    try {
+      const r = await repairUpdate();
+      setState(r.ok ? { s: "started", paneId: r.pane.paneId } : { s: "failed", reason: r.error });
+    } catch (e) {
+      setState({ s: "failed", reason: (e as Error).message });
+    }
+  }
+
+  if (state.s === "started")
+    return (
+      <Link to={panePath(state.paneId)} className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-foreground underline underline-offset-4">
+        <Bot className="size-4" />
+        {t("settings.updates.repairOpen")}
+      </Link>
+    );
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <Button variant="outline" size="sm" disabled={state.s === "busy"} onClick={go}>
+        {state.s === "busy" ? <Loader2 className="size-4 animate-spin" /> : <Wrench className="size-4" />}
+        {state.s === "busy" ? t("settings.updates.repairing") : t("settings.updates.repair")}
+      </Button>
+      {state.s === "failed" && <span>{t("settings.updates.repairFailed", { reason: state.reason })}</span>}
+    </div>
   );
 }

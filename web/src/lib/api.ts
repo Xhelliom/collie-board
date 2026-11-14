@@ -513,6 +513,11 @@ export function applyUpdate(): Promise<{ started: true }> {
  * dropped connection, a timeout or a proxy's 5xx mean "under way" — only the bridge's own refusal (a
  * 4xx, or its `update-failed`) is a failure, and the running version is still the old one.
  */
+/** Start an agent in this machine's plugin checkout, briefed with the last failed update (bridge/update-repair.ts). */
+export function repairUpdate(): Promise<CreateResponse> {
+  return req<CreateResponse>("/api/update/repair", { method: "POST" });
+}
+
 export function isUpdateRefusal(e: unknown): e is ApiError {
   return e instanceof ApiError && (e.status < 500 || e.kind === "update-failed");
 }

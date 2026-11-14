@@ -67,6 +67,7 @@ import { HELD_ERROR, hold, release } from "./held.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleOpenRoute } from "./open-routes.ts";
+import { handleUpdateRepairRoute } from "./update-repair.ts";
 import { handleTidyRoute } from "./tidy.ts";
 import { handleFlowRoute } from "./flow-routes.ts";
 import { handleCostRoute, type CostTracker } from "./cost.ts";
@@ -192,8 +193,8 @@ const CARD_ROUTE =
  * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
  * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
  */
-const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy", "/api/recette", "/api/docs", "/api/goals", "/api/panes/migrate-hc"];
-// ^ MIGRATE_HC_ROUTE, spelled out: importing it here would read it before migrate-hc-routes.ts (which imports us) has set it.
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy", "/api/recette", "/api/docs", "/api/goals", "/api/panes/migrate-hc", "/api/update/repair"];
+// ^ MIGRATE_HC_ROUTE and UPDATE_REPAIR_ROUTE, spelled out: importing it here would read it before their files (which import us) has set it.
 export const isBoardPath = (pathname: string): boolean =>
   BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
@@ -462,6 +463,8 @@ async function route(
   // Before the project routes: it lives under their prefix.
   const opened = await handleOpenRoute(pathname, req, ctx);
   if (opened) return opened;
+  const repair = await handleUpdateRepairRoute(pathname, req, ctx);
+  if (repair) return repair;
   const project = await handleProjectRoute(pathname, req, ctx, req.headers.get(PANE_HEADER)?.trim() || null);
   if (project) return project;
   const orchestrator = await handleOrchestratorRoute(pathname, req, ctx);

@@ -813,3 +813,12 @@ curl -s "$B/api/project/facts[?repo=/abs/repo]"                # per card, read 
 ```
 
 Use the facts to say *why* a card is stuck or sent back before proposing a next step, instead of guessing.
+
+## A failed update, handed to an agent (« Faire réparer par un agent »)
+
+When the update in Settings fails, the operator may tap « Faire réparer par un agent »: `POST /api/update/repair`
+(no body) starts the board's default agent in **this machine's plugin checkout** — the one the service runs from —
+briefed with the whole output of the failed update and the command that failed. It answers `{ok, pane:{paneId}}`;
+409 when no update has failed since the bridge started. The operator's tap only: 403 to any pane. On a peer, the tap
+is made from that peer's own Settings, so the agent runs there. If you are that agent: redo the update with
+`bun scripts/ctl.ts update`, diagnose and work around, push nothing, and if it is a Collie bug say so and propose a card.
