@@ -232,6 +232,8 @@ export interface NodeRouteDeps {
   /** The primary session's snapshot, `disconnected` included — the peer decides what to ignore. */
   snapshot: () => unknown;
   readPane: (paneId: string) => Promise<Response>;
+  /** The pane's conversation, read like the local `/api/pane/:id/history` — same params, same code. */
+  readHistory: (paneId: string) => Promise<Response>;
   json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;
   actions: NodeActions;
@@ -241,7 +243,7 @@ export interface NodeRouteDeps {
   version: string;
 }
 
-const NODE_PANE_ROUTE = /^\/api\/node\/pane\/([^/]+)$/;
+const NODE_PANE_ROUTE = /^\/api\/node\/pane\/([^/]+?)(\/history)?$/;
 const NODE_POST = new Set(["/api/node/reply", "/api/node/keys", "/api/node/launch", "/api/node/end"]);
 
 /** The `/api/node/*` family. Returns null for any other path. */
@@ -308,7 +310,7 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
     return (diff as { ok?: boolean }).ok === false ? d.json(diff, 400) : d.json(redactDeep(diff));
   }
   const pane = NODE_PANE_ROUTE.exec(pathname);
-  if (pane) return d.readPane(decodeURIComponent(pane[1]!));
+  if (pane) return (pane[2] ? d.readHistory : d.readPane)(decodeURIComponent(pane[1]!));
   return d.text("not found", 404);
 }
 

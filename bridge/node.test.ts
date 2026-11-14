@@ -214,6 +214,7 @@ describe("handleNodeRoute", () => {
       audit: (action, peer, detail) => audited.push([action, peer, detail]),
       snapshot: () => snap,
       readPane: async (id) => Response.json({ paneId: id }),
+      readHistory: async (id) => Response.json({ paneId: id, history: true }),
       text: (body, status) => new Response(body, { status }),
       json: (data, status) => Response.json(data, { status: status ?? 200 }),
       actions: {
@@ -287,6 +288,12 @@ describe("handleNodeRoute", () => {
   it("reads one pane", async () => {
     const res = (await call("/api/node/pane/w1%3Ap3", deps().d))!;
     expect(await res.json()).toEqual({ paneId: "w1:p3" });
+  });
+
+  it("reads one pane's history behind the same token, and nothing else under it", async () => {
+    expect(await (await call("/api/node/pane/w1%3Ap3/history", deps().d))!.json()).toEqual({ paneId: "w1:p3", history: true });
+    expect((await call("/api/node/pane/w1%3Ap3/history", deps().d, req("/api/node/pane/w1%3Ap3/history", null)))!.status).toBe(401);
+    expect((await call("/api/node/pane/w1%3Ap3/other", deps().d))!.status).toBe(404);
   });
 
   it("lists the environments without their paths", async () => {

@@ -492,6 +492,8 @@ curl -s "$B/api/herd"                         # {peers:[{peer, state, error, age
 #   state: connected | disconnected (unreachable, refused, or its herdr down — that peer only) | pending
 #   each pane carries `peer`; its paneId is the peer's own
 curl -s "$B/api/herd/<peer>/pane/<paneId>"    # that remote pane's recent output
+curl -s "$B/api/herd/<peer>/pane/<paneId>/history?limit=40"  # its conversation, same params and
+#   answer as the local /api/pane/<id>/history; 502 with {ok:false,error} when the peer is unreachable
 curl -s -X POST "$B/api/herd/<peer>/pane/<paneId>/reply" -H 'content-type: application/json' \
   -d '{"text":"yes, go ahead"}'               # same body as the local reply
 curl -s -X POST "$B/api/herd/<peer>/pane/<paneId>/keys" -H 'content-type: application/json' \

@@ -106,6 +106,7 @@ export const pane = defineMessages({
   "pane.reading.no-log": { en: "No transcript file was found for this pane's session yet.", fr: "Aucun fichier de transcription trouvé pour la session de ce pane pour l'instant." },
   "pane.reading.unsupported": { en: "This agent keeps no transcript Collie can read — switch to Terminal for this pane.", fr: "Cet agent ne garde aucune transcription que Collie puisse lire — passe en Terminal pour ce pane." },
   "pane.reading.error": { en: "Couldn't read the transcript. Switch to Terminal, or try again in a moment.", fr: "Impossible de lire la transcription. Passe en Terminal, ou réessaie dans un instant." },
+  "pane.reading.peer": { en: "{peer} can't be reached right now, so its conversation can't be read from here. Try again in a moment.", fr: "{peer} est injoignable pour l'instant, sa conversation ne peut pas être lue d'ici. Réessaie dans un instant." },
   "pane.reading.empty": { en: "Nothing in the transcript yet.", fr: "Rien dans la transcription pour l'instant." },
   "pane.readOnlyStatus": { en: "Read-only — device not authorised", fr: "Lecture seule — appareil non autorisé" },
   "pane.rename.label": { en: "Label", fr: "Libellé" },

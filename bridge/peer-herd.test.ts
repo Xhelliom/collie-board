@@ -179,6 +179,22 @@ describe("handleHerdRoute", () => {
     expect(JSON.stringify(await res!.json())).not.toContain(DEV.token);
   });
 
+  it("relays a pane's history to the peer's /history, read-guarded, a clear 502 when it is down", async () => {
+    const { fetch, seen } = fakeFetch(() => Response.json({ paneId: "w1:p1", available: true, entries: [] }));
+    const levels: string[] = [];
+    const { d } = deps(fetch, { guard: (l) => (levels.push(l), null) });
+    const res = await handleHerdRoute("/api/herd/dev/pane/w1%3Ap1/history", new Request("http://x/api/herd/dev/pane/w1%3Ap1/history?limit=40&after=u1"), d);
+    expect(res!.status).toBe(200);
+    expect(await res!.json()).toMatchObject({ available: true });
+    expect(seen[0]!.url).toBe(`${DEV.url}/api/node/pane/w1%3Ap1/history?limit=40&after=u1`);
+    expect(levels).toEqual(["read"]);
+    expect((await handleHerdRoute("/api/herd/dev/pane/p/history", post("/", {}), d))!.status).toBe(405);
+
+    const down = await handleHerdRoute("/api/herd/dev/pane/p/history", new Request("http://x/"), deps(fakeFetch(() => new Error("down")).fetch).d);
+    expect(down!.status).toBe(502);
+    expect(((await down!.json()) as { error: string }).error).toContain("dev unreachable");
+  });
+
   it("relays a reply and keys to /api/node/reply|keys, audited with the peer", async () => {
     const { fetch, seen } = fakeFetch(() => Response.json({ ok: true, textDelivered: true }));
     const { d, audited } = deps(fetch);

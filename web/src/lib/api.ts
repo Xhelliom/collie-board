@@ -311,8 +311,7 @@ export function fetchHistory(
   // Follow the live tail: only the turns written since one we already hold (reading view).
   if (opts.after) q.set("after", opts.after);
   const qs = q.toString();
-  const path = `/api/pane/${encodeURIComponent(paneId)}/history${qs ? `?${qs}` : ""}`;
-  return conditionalGet<PaneHistoryResponse>(withSession(path, session), signal);
+  return conditionalGet<PaneHistoryResponse>(paneRoute(paneId, `/history${qs ? `?${qs}` : ""}`, session), signal);
 }
 
 export function sendReply(
