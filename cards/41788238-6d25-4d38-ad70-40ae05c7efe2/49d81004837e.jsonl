@@ -3,3 +3,10 @@
 {"v":1,"hlc":"1794661904899.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"template_id":"43a1dc45-6efa-4107-8f6a-68269e51d1fd"}}
 {"v":1,"hlc":"1794661904899.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"579256f9-bd57-42da-8d6c-5caf48f9440a"}}
 {"v":1,"hlc":"1794663506730.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794663514757.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/explorer-apres-un-redemarrage-du-pc-herdr-core-n"}}
+{"v":1,"hlc":"1794663514757.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794663514757.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794663509521}}
+{"v":1,"hlc":"1794663514757.0007.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.template","payload":{"templateId":"43a1dc45-6efa-4107-8f6a-68269e51d1fd","name":"Exploration","key":"explore","kind":"claude","args":["--model","opus","--effort","medium"],"model":null},"ts":1794663509673}}
+{"v":1,"hlc":"1794663514757.0012.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794663514757.0013.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794663513990}}
+{"v":1,"hlc":"1794663514757.0018.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2709},"ts":1794663514219}}
