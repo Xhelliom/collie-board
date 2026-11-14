@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.328.2] - 2026-11-14
+
+### Fixed
+
+- Copilote : sous herdr-core seul, il ouvre son pane sur hc au lieu d'échouer sur un herdr 0.9 absent (26b4885)
+- Copilote injoignable : réessais espacés (30 s doublés, 30 min max), un seul `copilot.review_failed` par série (26b4885)
+- Lot : une gate verte noyée sous des événements récents laisse quand même la carte fusionner (26b4885)
+
 ## [0.328.1] - 2026-11-14
 
 ### Fixed
