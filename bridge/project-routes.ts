@@ -238,7 +238,8 @@ export async function handleProjectRoute(
       const idleWhy = pane && run && !auto!.armed && goalWhy === undefined ? idleRefusal(db, run) : undefined;
       const idle = idleWhy === null;
       // An orchestrator refused leaves why in the lot's journal: what stops the chain is measured.
-      const refuse = (why: string, body = "launching is the operator's gesture — an agent pane cannot launch a lot") => {
+      // The body says why: the orchestrator cites it to the operator, with the setting that would allow it.
+      const refuse = (why: string, body = `launching is the operator's gesture — an agent pane cannot launch a lot: ${why}`) => {
         if (pane && run) db.recordRunEvent(null, "run.chain", { runId: run.id, go: false, why, next: run.id });
         return ctx.text(body, 403);
       };

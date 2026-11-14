@@ -44,7 +44,7 @@ export function lotMessage(name: string | null, cards: Card[], blocked: Set<stri
           `L'opérateur t'a accordé l'autonomie : tu peux lancer UN lot, le prochain planifié « ${auto.next.name ?? "sans nom"} » (POST /api/runs/${auto.next.id}/launch, avec ton x-collie-pane) — si tu juges le bilan ci-dessus assez bon. Ne valide jamais une phase toi-même.`,
         ]
       : auto
-        ? [`Autonomie arrêtée : ${auto.why}. Ne lance rien ; l'opérateur a été prévenu et reprend la main.`, "Ne valide rien toi-même."]
+        ? [`Autonomie arrêtée : ${auto.why} — le bridge te refusera un lancement ; l'opérateur a été prévenu et reprend la main.`, "Ne valide rien toi-même."]
         : goal
           ? []
           : autonomy?.enabled
@@ -55,7 +55,7 @@ export function lotMessage(name: string | null, cards: Card[], blocked: Set<stri
                   ? "Dès qu'il est planifié et que rien ne tourne, lance-le toi-même (POST /api/runs/<id>/launch avec ton x-collie-pane). Ne valide aucune phase toi-même."
                   : "Puis propose-le à l'opérateur : c'est lui qui le lance. Ne valide rien toi-même.",
               ]
-            : ["Ne lance rien et ne valide rien toi-même."]),
+            : ["L'autonomie est coupée sur ce dépôt : le bridge te refusera un lancement. Propose le lot suivant à l'opérateur — ou l'autonomie, s'il veut que tu enchaînes. Ne valide rien toi-même."]),
     ...(goal && !(auto && !auto.go) ? goalLines(goal, repoPath ?? "<repo>", !auto) : []),
   ].join("\n");
 }
@@ -86,8 +86,8 @@ export const GOAL_LOT_LINE =
   "Un objectif est ouvert sur ce dépôt : ce bilan va au journal de l'objectif (POST /api/board/notify {kind: \"done\", message} — le bridge l'y range, rien ne part au téléphone). Ne pousse une question que pour une décision qui revient à l'opérateur.";
 
 /** The message for one card the lead reports unmerged or blocked. Pure. */
-export function cardMessage(card: Card, why: string): string {
-  return `La carte « ${card.title} » (${card.id}) n'est pas mergée : ${why}\nDis à l'opérateur ce que tu proposes ; ne relance rien toi-même.`;
+export function cardMessage(card: Card, why: string, runId = "<id>"): string {
+  return `La carte « ${card.title} » (${card.id}) n'est pas mergée : ${why}\nSi l'arrêt est mécanique (PR en retard sur sa base, pre-push rouge, lead muet, travail non commité, démarrage raté) et que l'autonomie ou un objectif est actif, corrige la cause si elle est à toi puis reprends le lot (POST /api/runs/${runId}/resume avec ton x-collie-pane) ; le bridge te refuse un arrêt qui est une décision. Sinon, dis à l'opérateur pourquoi et ce que tu proposes.`;
 }
 
 /** The message for commits that reached a merged card's branch after the merge (late-commits.ts). Pure. */
@@ -223,6 +223,6 @@ export class OrchestratorNudger {
     const card = this.db.getCard(e.cardId);
     if (!card || this.told.has(key)) return null;
     this.told.add(key);
-    return { repoPath: run.repoPath, text: cardMessage(card, p.reason ?? "le lead n'a pas pu la mener au bout") };
+    return { repoPath: run.repoPath, text: cardMessage(card, p.reason ?? "le lead n'a pas pu la mener au bout", run.id) };
   }
 }
