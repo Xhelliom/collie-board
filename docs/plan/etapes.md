@@ -55,84 +55,50 @@
 - **Toutes les machines sur hc** — validated 2026-11-11, 3 steps
 - **Recette et terrain** — validated 2026-11-12, 2 steps
 - **Interface simplifiée** — validated 2026-11-13, 23 steps
+- **Les PR sans quitter Collie** — validated 2026-11-14, 6 steps
+- **Bug** — validated 2026-11-14, 29 steps
 
-## Phase 50 — Les PR sans quitter Collie
+## Phase 51 — Ce que coûte le travail
 
-Tout ce qu on fait sur GitHub pour une PR se fait dans Collie, depuis le téléphone : lire, vérifier, fusionner, débloquer.
+La consommation de chaque carte, lot, phase et projet, visible. Monitorer, sans frein.
 
-### Lot — Lire une PR (launched, 2 at a time)
+### Lot — Voir ce que ça coûte (launched, 2 at a time)
 
-- **Bug : le titre de la PR docs(plan) roulante dépasse 256 caractères, GitHub refuse la mise à jour** — done
+- **Le bilan d un lot dit ce qu il a consommé** — done
+  - after: Le total à chaque niveau : lot, phase, projet
 
-  Après #411 (rattrapage des exports au démarrage), le redémarrage du 13/11 23:36 (local) a réexporté les lots manqués, mais plusieurs exports échouent : `[plan] lot … export failed — GraphQL: Title is too long (maximum is 256 characters) (updatePullRequest)` (journalctl --user -u collie-board). Le titre de la PR docs(plan) roulante (« docs(plan): fin des lots A, B, C, … ») concatène tous les noms de lots : avec ~23 lots en attente il dépasse 256 caractères et GitHub refuse la mise à jour.
-  À faire dans bridge/plan-export.ts : un titre BORNÉ (≤ 256, viser ≤ 120) : « docs(plan): fin du lot X » pour un lot, « docs(plan): fin des lots X et Y » pour deux, au-delà « docs(plan): fin de N lots (dernier : X) » ; la liste complète des lots va dans le CORPS de la PR. Couper proprement un nom de lot trop long (…). Test bun : 1, 2, 23 lots, et un nom de 300 caractères → titre ≤ 256. Vérifier ensuite que la PR roulante de collie-board se met à jour au prochain export (ou au redémarrage, via le rattrapage).
-
-  - [x] Titre de la PR roulante toujours ≤ 256 caractères, liste complète dans le corps
-  - [x] Test bun : 1, 2, 23 lots, nom très long
-  - [x] La PR roulante de collie-board se met à jour
-- **Les checks d une PR sur sa fiche, et Relancer ceux qui ont échoué** — done
-  - after: La fiche d une PR dans Collie : description, fichiers et diff, depuis PR ouvertes
-
-  Phase « Les PR sans quitter Collie », lot 1, carte 2/2 — part de la fiche d une PR livrée par la carte 1 (web/src/routes/pr.tsx, bridge/pr-detail.ts).
-  À faire : LES CHECKS d une PR, et les relancer.
-  - Bridge (bridge/pr-detail.ts + bridge/git.ts pour l appel gh) : la fiche renvoie aussi checks:[{name, state: success|failure|pending|skipped|cancelled, startedAt, completedAt, url, runId}] (gh pr checks --json / statusCheckRollup). Route POST /api/board/prs/:number/rerun {repo, runId} → `gh run rerun <runId> --failed` : GESTE DE L OPÉRATEUR, refusé (403) à toute requête portant x-collie-pane, comme /api/board/prs/merge (même garde que prGesture dans bridge/prs.ts). Journalisé dans l audit.
-  - Web (pr.tsx) : section « Vérifications » sous l en-tête : une ligne par check, signal d état (StatusSignal : vert fini, rouge échec, bleu en cours), durée, lien vers le journal (⋯ « Voir le journal sur GitHub »). Un check en échec a un bouton « Relancer » (secondaire) ; « Relancer les échecs » si plusieurs. Après relance : le check repasse en cours (relecture de la fiche). Le verdict de la PR en tête reflète les checks (comme la liste).
-  - Documente la route dans skills/collie-board/SKILL.md ; i18n fr/en.
-  Tests : bun (mapping des états, refus 403 avec x-collie-pane), vitest (lignes de checks, bouton Relancer sur un échec seulement).
-
-  - [x] La fiche liste les checks avec état, durée et lien
-  - [x] Relancer un check en échec depuis Collie (geste opérateur, refusé à un pane)
-  - [x] Route documentée dans le skill ; tests verts
-- **La fiche d une PR dans Collie : description, fichiers et diff, depuis PR ouvertes** — done
-
-  UTILISE LE SKILL frontend-design AVANT DE COMMENCER (charge-le).
-  Phase « Les PR sans quitter Collie », lot 1, carte 1/2. Aujourd hui l onglet PR ouvertes (web/src/routes/prs.tsx, bridge/prs.ts) liste les PR et sait fusionner une PR prête ou en fermer une ; pour LIRE une PR l opérateur doit ouvrir GitHub.
-  À faire : LA FICHE D UNE PR dans Collie, pour toute PR ouverte d un dépôt connu (de carte ou non, docs(plan) comprises).
-  - Bridge : nouveau module bridge/pr-detail.ts (pas dans server.ts/index.ts), route GET /api/board/prs/:number?repo=<path> → {number, title, body (markdown), author, createdAt, updatedAt, base, head, state, mergeable, isDraft, url, card (si une carte la porte), files:[{path, additions, deletions}], diff (texte unifié, plafonné comme le diff d une carte)}. Les appels `gh pr view --json …` et `gh pr diff` passent par bridge/git.ts (ADR 0020 : seul endroit qui shell-out, argv, jamais de shell ; le numéro validé comme entier, le repo parmi les dépôts connus — sinon 403/400). Lecture seule : ouverte aux panes aussi. Logique de mise en forme pure et testée en bun test.
-  - Web : nouvelle route /board/prs/:number?repo=… (web/src/router.tsx, loader dans web/src/lib/board-loaders.ts, écran web/src/routes/pr.tsx), ouverte en touchant une ligne de l onglet PR ouvertes (le titre devient un lien ; « Ouvrir sur GitHub » reste dans un ⋯). Contenu : titre, numéro, état et verdict (mêmes puces que la liste), auteur et âge, branche → base, carte liée (lien), description rendue en markdown (le rendu markdown existant, pas d innerHTML brut), puis Fichiers (liste repliable, + / −) et le diff en réutilisant CardDiff / ses lignes (web/src/components/card-diff.tsx). Les actions qui existent déjà (Fusionner si prête, Fermer) apparaissent en bas, mêmes gestes et confirmations que la liste. Téléphone 390 px d abord.
-  - Documente la route dans skills/collie-board/SKILL.md (bridge/skill.test.ts l exige). i18n fr/en dans web/src/i18n/messages/prs.ts.
-  Tests : bun (mise en forme, validation du numéro/repo), vitest (la fiche rend titre, description, fichiers ; le lien depuis la liste).
-
-  - [x] Toucher une PR dans PR ouvertes ouvre sa fiche dans Collie
-  - [x] La fiche montre titre, état, auteur, branche, carte liée, description, fichiers et diff
-  - [x] Fusionner/Fermer existants disponibles sur la fiche ; Ouvrir sur GitHub dans un ⋯
-  - [x] Route documentée dans le skill ; tests verts
-
-### Lot — Agir sur une PR (launched, 2 at a time)
-
-- **Fiche PR : « Faire résoudre le conflit » par un agent** — done
-  - after: Fiche PR : « Mettre à jour la branche » quand elle est en retard sur la base
-
-  Skill frontend-design en tête. Mêmes fichiers que les deux cartes précédentes de la phase.
+  Suite de « Ce qu a consommé une carte » (bridge/cost.ts).
   
-  Une PR en conflit affiche « Faire résoudre le conflit ». 
-  - PR portée par une carte : on réutilise le chemin existant de la carte (resolveConflict, ADR 0014) — l agent de la carte, ou un agent relancé sur sa branche (launchAgent, jamais agent.start direct).
-  - PR sans carte (PR d un humain, docs(plan)…) : le tap crée une carte « Résoudre le conflit de la PR #n » sur la branche de la PR (branch = sa head, pas de nouvelle branche) et la démarre ; l agent rebase/merge la base, résout, pousse sur la même branche.
-  - La fiche montre ensuite le lien vers la carte et son état. Le tap est celui de l opérateur (démarre un agent : refusé à un x-collie-pane). Documenter dans skills/collie-board/SKILL.md.
+  Au lancement d un lot et à sa fin, relever la jauge du quota de la semaine (bridge/usage.ts, usageTracker / weekPercent de bridge/goal-routes.ts) et la journaliser sur le lot (un fait passé, durable). À la fin du lot :
+  - le message de fin de lot à l orchestrateur (bridge/orchestrator-nudge.ts, lotMessage) ajoute une ligne « Consommé : N tokens ; jauge de la semaine X % → Y % » (« inconnu » si une lecture manque — jamais une soustraction douteuse) ;
+  - le bilan exporté du lot (bridge/plan-export.ts, docs/plan/lots/<lot>.md) porte la même ligne.
+  La jauge mesure TOUT le compte (d autres sessions tournent en même temps) : le dire dans le texte (« pendant le lot »), ne pas l attribuer au lot. Tests dans les tests existants de ces deux fichiers.
 
-  - [x] Une PR en conflit propose « Faire résoudre le conflit »
-  - [x] Sur une PR sans carte, le tap crée et démarre une carte sur la branche de la PR
-  - [x] La fiche lie la carte qui résout
-- **Fiche PR : « Mettre à jour la branche » quand elle est en retard sur la base** — done
-  - after: Fiche PR : fusionner en choisissant le mode, et dire pourquoi ça ne fusionne pas
+  - [x] Le message de fin de lot cite les tokens du lot et la jauge avant/après
+  - [x] Le bilan docs/plan du lot porte la même ligne
+  - [x] Une lecture manquante donne « inconnu »
+- **Le total à chaque niveau : lot, phase, projet** — done
+  - after: Ce qu a consommé une carte : ses tokens, lus dans les transcripts
 
-  Skill frontend-design en tête. Mêmes fichiers que la carte « fusionner en choisissant le mode » (bridge/prs.ts, bridge/pr-detail.ts, web/src/routes/prs.tsx).
+  Suite de « Ce qu a consommé une carte » (bridge/cost.ts). Skill frontend-design en tête.
   
-  Quand une PR est en retard sur sa base sans conflit (mergeStateStatus BEHIND), la fiche le dit et offre « Mettre à jour la branche » (gh pr update-branch, par merge ; rebase en option si le dépôt l autorise). Après le tap, les vérifications repartent et la fiche le montre. Geste de l opérateur, refusé à un x-collie-pane. Documenter dans skills/collie-board/SKILL.md.
-
-  - [x] Une PR en retard affiche « En retard sur main » et le bouton
-  - [x] Le tap met la branche à jour et les vérifications repartent
-  - [x] Le bouton n apparaît pas sur une PR à jour ou en conflit
-- **Fiche PR : fusionner en choisissant le mode, et dire pourquoi ça ne fusionne pas** — done
-
-  Skill frontend-design en tête.
+  Agréger les tokens des cartes : par lot (ses cartes), par phase (ses cartes), par projet (toutes ses cartes + les conversations hors carte du dépôt : son orchestrateur — trouvé par son label, cf. bridge/orchestrator.ts). Le lead et le copilote servent tous les dépôts : les compter à part, « le board », sur la page À propos (bridge/about.ts) plutôt que de les répartir au hasard.
   
-  Aujourd hui « Fusionner » sur la fiche d une PR (bridge/prs.ts prGesture → enableAutoMerge, web/src/routes/prs.tsx et la fiche PR de #413) fusionne sans choix de mode et sans dire d avance si ça passera.
-  
-  - Le bouton Fusionner propose les modes que le dépôt autorise (squash, merge, rebase — lus sur GitHub une fois, en cache), celui par défaut du dépôt présélectionné.
-  - Si la PR ne peut pas fusionner (conflit, vérifications rouges ou en cours, revue demandée, brouillon), le bouton dit pourquoi en une phrase au lieu d échouer après le tap.
-  - La route reste un geste de l opérateur (refusée à un x-collie-pane). Mettre à jour skills/collie-board/SKILL.md.
+  Routes en lecture (nouveau fichier, pas server.ts) : GET /api/cost?repo=…[&runId=…|&phaseId=…] et une période (cette semaine / tout). Affichage : sur un lot (web/src/components/project-lots.tsx), sur une phase et en tête de la page Projet (web/src/routes/project.tsx), un chiffre court avec le détail au tap. Une part inconnue (agent non Claude) est dite : « + 2 cartes inconnues ». Documenter dans skills/collie-board/SKILL.md.
 
-  - [x] On choisit squash, merge ou rebase parmi ceux que le dépôt autorise
-  - [x] Une PR en conflit ou aux vérifications rouges dit pourquoi avant le tap
-  - [x] Une PR fusionnée disparaît de PR ouvertes
+  - [x] Un lot, une phase et la page Projet affichent leur total de tokens
+  - [x] L orchestrateur du projet est compté dans le projet ; lead et copilote à part sur À propos
+  - [x] Les cartes inconnues sont comptées comme telles, pas comme 0
+- **Ce qu a consommé une carte : ses tokens, lus dans les transcripts** — done
+
+  Phase « Ce que coûte le travail » (monitorer, aucun frein).
+  
+  Le bridge sait déjà lire l usage d un transcript Claude pour la jauge de contexte (bridge/context.ts, ContextTracker ; transcripts via TranscriptStore/ClaudeTranscriptSource, cf. bridge/index.ts). Ajouter, dans un NOUVEAU fichier bridge/cost.ts (logique pure, testée en bun test) : la somme des tokens d une conversation — entrée, sortie, cache écrit, cache lu — par modèle, sur TOUTES les sessions d une carte (ses rounds, ses rôles du flux, ses relances). Mémorisée quand une session finit (event sur la carte, durable : c est un fait passé), recalculée tant qu elle vit, throttlée dans le consommateur (pas de nouveau poll : engine.onUpdate).
+  
+  Route GET /api/cards/:id/cost → {tokens:{input,output,cacheWrite,cacheRead}, byModel:[…], sessions, known:boolean}. Seulement pour les agents dont adapters/agents.toml dit context = true (Claude aujourd hui) : sinon known:false et l interface dit « inconnu », jamais 0.
+  
+  Sur la fiche d une carte (web/src/routes/ — trouver la fiche), une ligne « Consommé : 1,2 M tokens · Opus » avec le détail au tap. Skill frontend-design en tête. Documenter la route dans skills/collie-board/SKILL.md.
+
+  - [x] Une carte finie montre ses tokens, détaillés par modèle et par type
+  - [x] Une carte d un agent non vérifié affiche « inconnu », jamais 0
+  - [x] Test : un transcript connu donne la somme attendue
