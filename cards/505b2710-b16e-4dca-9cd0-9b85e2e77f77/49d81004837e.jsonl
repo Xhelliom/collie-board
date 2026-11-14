@@ -8,3 +8,4 @@
 {"v":1,"hlc":"1794665413746.0013.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794665413746.0014.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794665404920}}
 {"v":1,"hlc":"1794665413746.0024.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2927},"ts":1794665405170}}
+{"v":1,"hlc":"1794665823279.0020.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"505b2710-b16e-4dca-9cd0-9b85e2e77f77","name":"vitrine-page-projet.png","size":144299,"by":"agent","pane":"t7m"},"ts":1794665823251}}
