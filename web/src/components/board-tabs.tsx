@@ -5,7 +5,7 @@ import { BookOpen, ChevronDown, FileCode, ClipboardCheck, Columns3, GitPullReque
 import { useT, type MessageKey } from "@/i18n";
 import { AddProjectSheet } from "@/components/add-project-sheet";
 import { loadRepoScope, repoName, saveRepoScope, withListedRepos } from "@/lib/board";
-import { fetchPages } from "@/lib/docs";
+import { pageTab, usePageTabs } from "@/lib/docs";
 import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
 import { cn } from "@/lib/utils";
 
@@ -72,29 +72,13 @@ export function BoardTabs({ counts = {} }: { counts?: Partial<Record<(typeof TAB
   const active = boardTabFor(pathname);
   const repo = params.get("repo") ?? loadRepoScope();
   const q = repo ? `?repo=${encodeURIComponent(repo)}` : "";
-  // The repo's custom pages (docs/pages/*.html on main), one tab each — read when the row mounts, never polled.
-  const [pages, setPages] = useState<string[]>([]);
-  useEffect(() => {
-    setPages([]);
-    if (!repo) return;
-    const ctl = new AbortController();
-    fetchPages(repo, ctl.signal)
-      // "roadmap" is the live tab now: its old static export is not shown twice.
-      .then((r) => setPages(r.pages.map((p) => p.name).filter((n) => n !== "roadmap")))
-      .catch(() => {});
-    return () => ctl.abort();
-  }, [repo]);
-  const pageOpen = pathname === "/board/page" ? params.get("name") : null;
+  // The pages the operator ticked « En onglet » in Documents. Nothing is a tab until it is ticked.
+  const tabs = usePageTabs(repo)?.tabs ?? [];
+  const pageOpen = pathname === "/board/page" ? `${params.get("card") ? `${params.get("card")}/` : ""}${params.get("name") ?? ""}` : null;
 
   const items: TabItem[] = [
     ...TABS.map((tab) => ({ key: tab.key, to: `${tab.path}${q}`, label: t(tab.label), icon: tab.icon, current: active === tab.key, count: counts[tab.key] || undefined })),
-    ...(repo ? pages : []).map((name) => ({
-      key: `page:${name}`,
-      to: `/board/page${q}&name=${encodeURIComponent(name)}`,
-      label: name,
-      icon: FileCode,
-      current: pageOpen === name,
-    })),
+    ...(repo ? tabs : []).map((key) => ({ key: `page:${key}`, to: pageTab(repo!, key).to, label: pageTab(repo!, key).label, icon: FileCode, current: pageOpen === key })),
   ];
   const activeIndex = items.findIndex((i) => i.current);
 

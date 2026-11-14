@@ -12,26 +12,7 @@ done
 
 ## Carte sans agent : remettre « Relancer sur sa branche »
 
-done · codé · https://github.com/Xhelliom/collie-board/pull/419
-
-> Issue : codé
-> 
-> Fait :
-> - Cause : après un reboot, le terminal de la carte revient en simple shell ; la carte gardait sa session
->   ouverte et un `runtime` (shell), la fiche la croyait vivante et masquait la relance. Le pont, lui,
->   refusait « already running ».
-> - Fiche (web/src/routes/card.tsx) : la relance s'affiche aussi quand le pane est un shell (sauf carte en
->   « starting ») ; libellé « Relancer sur sa branche », aussi pour une carte qui a une branche.
-> - startCard (bridge/cards.ts) : une session ouverte sur un pane sans agent est fermée « lost » puis la carte
->   relancée dans le même worktree (worktree.open, branche inchangée), via launchAgent.
-> - Si la dernière conversation Claude de la carte a son transcript sur disque : `claude --resume <id>` et un
->   court message de reprise au lieu de la spec ; sinon démarrage normal.
-> - Tests : board.test.ts (shell → relance, starting → refus, --resume, transcript absent), card-fiche.test.tsx.
->   2176 tests pont + tests web verts, tsc des deux côtés OK.
-> 
-> Pas fait :
-> - Pas de capture : le bridge déployé sert main, pas cette branche.
-> - Pas de reprise par répertoire quand aucun id de conversation n'a été enregistré (resume-lost le fait, ici non).
+done
 
 ## Bug : en ouvrant une page projet, « page introuvable » s affiche avant la page (PC dev)
 
@@ -43,36 +24,12 @@ done
 
 ## Bug : image jointe + texte, le message reste dans la zone de saisie (PC dev)
 
-done · https://github.com/Xhelliom/collie-board/pull/418
+done
 
 ## Explorer : après un redémarrage du PC, herdr-core ne démarre qu avec l app herdr 0.9
 
-done · codé · https://github.com/Xhelliom/collie-board/pull/420
-
-> Issue : codé
-> 
-> Fait :
-> - Conclusion écrite : docs/architecture/demarrage-herdr-core-au-boot.md.
-> - Qui démarre herdr-core au boot : personne. Il démarre à la demande, au premier client (ici l'app
->   herdr à 14:06:44), dans des unités systemd transitoires `hc-serve-*`. Aucune unité persistante, aucun
->   autostart. C'est la conception de herdr, pas un bug.
-> - Collie : le bridge démarre au boot (lingering), réessaie sans casser et se reconnecte quand
->   herdr-core arrive. En attendant, le téléphone ne voit rien et ne peut pas démarrer herdr-core.
-> - Recommandation : correctif chez nous (ExecStartPre dans l'unité écrite par collie-board-ctl.sh).
->   Le rapport à herdr est facultatif. La question de ce choix reste posée à l'opérateur.
-> - Deux cartes créées : 8531d8a5 (démarrer herdr-core au boot), a06f7ceb (le message de démarrage
->   cite l'ancien socket herdr 0.9).
-> 
-> Pas fait : aucun code (exploration). Pas testé : `herdr-core server start` lancé depuis une unité
-> en tout début de boot.
+done
 
 ## Bug : l export docs(plan) d un lot échoue quand deux exports du même dépôt se croisent
 
-done · codé · https://github.com/Xhelliom/collie-board/pull/421
-
-> Issue : codé
-> 
-> - Fait : `exportPlanAtLotEnd` (bridge/plan-export.ts) passe par une file par dépôt (même motif que `prepareLot`) : deux exports du même dépôt lancés ensemble s'exécutent l'un après l'autre ; le second voit la PR roulante ouverte par le premier et pousse sur sa branche. Test ajouté (bridge/plan-export.test.ts), qui échoue sans la file.
-> - Export en échec rattrapé au démarrage : déjà vrai depuis #411 (`runsAwaitingPlanExport` exige un `plan.exported` ok=1 ; test « export cut short by a restart » avec ok:false). Rien à changer.
-> - Bilan « Lire une PR » : déjà rattrapé. Journal du bridge : échec à 14:09:07, puis réexport du lot 854ec9a5 à 14:11:23 après redémarrage ; `docs/plan/lots/lot-lire-une-pr-854ec9.md` est sur origin/board/plan-lot-recette-roadmap-et-pr-ouvertes-dabd15 et sur origin/main.
-> - Non fait : rien. Le correctif bridge demande un redémarrage du service une fois mergé.
+done

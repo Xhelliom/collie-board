@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
-import { ArrowLeft, ChevronRight, FilePlus2, FileText, Folder, FolderOpen, Globe, ListChecks, PencilLine, Search, Wand2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, FilePlus2, Square, SquareCheck, FileText, Folder, FolderOpen, Globe, ListChecks, PencilLine, Search, Star, Wand2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
@@ -19,9 +19,13 @@ import {
   fetchDoc,
   fileCount,
   folderChain,
+  pageKey,
   pageNameOf,
   isPageName,
   pagePath,
+  pageTab,
+  setPageTab,
+  setShowcase,
   resolveDocLink,
   searchDocs,
   type DecisionStatus,
@@ -29,6 +33,7 @@ import {
   type DocEntry,
   type DocFolder,
   type DocsIndex,
+  type PageTabs,
 } from "@/lib/docs";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +73,7 @@ function saveOpen(repo: string, open: ReadonlySet<string>) {
 
 export function DocumentsRoute() {
   const t = useT();
-  const { repo, index, pages } = useLoaderData() as { repo: string | null; index: DocsIndex | null; pages: string[] };
+  const { repo, index, pages } = useLoaderData() as { repo: string | null; index: DocsIndex | null; pages: PageTabs | null };
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const doc = params.get("doc");
@@ -103,7 +108,7 @@ export function DocumentsRoute() {
   );
 }
 
-function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: DocsIndex; pages: string[]; doc: string | null; hrefOf: (path: string) => string }) {
+function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: DocsIndex; pages: PageTabs | null; doc: string | null; hrefOf: (path: string) => string }) {
   const t = useT();
   const [query, setQuery] = useState("");
   const [inText, setInText] = useState<ReadonlySet<string>>(new Set());
@@ -137,7 +142,7 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
   const needle = query.trim().toLowerCase();
   const files = new Map<string, DocEntry>();
   for (const d of [...index.rubrics.flatMap((r) => r.docs), ...index.other]) files.set(d.path, d);
-  for (const name of pages) files.set(pagePath(name), { path: pagePath(name), title: name, size: 0 });
+  for (const { name } of pages?.pages ?? []) files.set(pagePath(name), { path: pagePath(name), title: name, size: 0 });
   const tree = docTree([...files.values()].filter((d) => docMatches(d, query, inText)));
   const roadmapAll = index.decisions.filter((d): d is Extract<DocDecision, { kind: "roadmap" }> => d.kind === "roadmap");
   // "" is the project as a whole — a decision tied to no phase.
@@ -189,6 +194,8 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
         </section>
       )}
 
+      {pages && <PagesSection key={repo} repo={repo} pages={pages} needle={needle} hrefOf={hrefOf} />}
+
       {files.size === 0 && roadmapAll.length === 0 ? (
         <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t("docs.empty", { ref: index.ref })}</p>
       ) : tree.folders.length === 0 && tree.files.length === 0 && !showRoadmap ? (
@@ -223,6 +230,112 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
         </nav>
       )}
     </div>
+  );
+}
+
+/**
+ * Documents › Pages: every HTML page the board can show for this project — its docs/pages on the
+ * default branch, then the HTML its cards published — each with « En onglet ». A tick puts it in the
+ * tab row for this repo (the bridge keeps it); nothing is a tab until it is ticked. A ticked one can also be
+ * « En vitrine »: shown at the head of the Project page, one per project.
+ */
+function PagesSection({ repo, pages, needle, hrefOf }: { repo: string; pages: PageTabs; needle: string; hrefOf: (path: string) => string }) {
+  const t = useT();
+  const [tabs, setTabs] = useState<ReadonlySet<string>>(() => new Set(pages.tabs));
+  const [showcase, setShown] = useState(pages.showcase);
+  const rows = [
+    ...pages.pages.map((p) => ({ key: pageKey(p), label: p.name, from: t("docs.pages.fromDocs"), to: hrefOf(pagePath(p.name)) })),
+    ...pages.deliverables.map((d) => ({ key: pageKey(d), label: pageTab(repo, pageKey(d)).label, from: t("docs.pages.fromCard", { title: d.cardTitle }), to: pageTab(repo, pageKey(d)).to })),
+  ].filter((r) => !needle || `${r.label} ${r.from}`.toLowerCase().includes(needle));
+
+  const flip = async (key: string) => {
+    const on = !tabs.has(key);
+    const next = new Set(tabs);
+    if (on) next.add(key);
+    else next.delete(key);
+    setTabs(next);
+    try {
+      const r = await setPageTab(repo, key, on);
+      setTabs(new Set(r.tabs));
+      setShown(r.showcase);
+    } catch (e) {
+      setTabs(tabs);
+      setStatus(t("docs.pages.tabFailed", { why: e instanceof Error ? e.message : String(e) }), "error");
+    }
+  };
+  // One showcase per project: picking one replaces the last, picking it again takes it down.
+  const pin = async (key: string) => {
+    const before = showcase;
+    setShown(showcase === key ? null : key);
+    try {
+      setShown((await setShowcase(repo, showcase === key ? null : key)).showcase);
+    } catch (e) {
+      setShown(before);
+      setStatus(t("docs.pages.tabFailed", { why: e instanceof Error ? e.message : String(e) }), "error");
+    }
+  };
+
+  if (needle && rows.length === 0) return null;
+  return (
+    <section aria-labelledby="docs-pages" className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5 px-1 py-1">
+        <SectionLabel>
+          <span id="docs-pages">{t("docs.pages.title")}</span>
+        </SectionLabel>
+        <span className="text-xs tabular-nums text-muted-foreground/70">{rows.length}</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-1 text-sm text-muted-foreground">{t("docs.pages.empty")}</p>
+      ) : (
+        <ul className="flex flex-col">
+          {rows.map((r) => {
+            const on = tabs.has(r.key);
+            const Box = on ? SquareCheck : Square;
+            return (
+              <li key={r.key} className="flex items-center gap-1">
+                <Link to={r.to} className={cn(ROW, "min-w-0 flex-1 pl-1")} title={r.from}>
+                  <Globe className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate">{r.label}</span>
+                    <span className="truncate text-xs text-muted-foreground">{r.from}</span>
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  aria-pressed={on}
+                  aria-label={t("docs.pages.tabAria", { name: r.label })}
+                  onClick={() => void flip(r.key)}
+                  className={cn(
+                    "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors",
+                    on ? "border-primary/40 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                    FOCUS,
+                  )}
+                >
+                  <Box className={cn("size-4", on && "text-primary")} aria-hidden="true" />
+                  {t("docs.pages.tab")}
+                </button>
+                {on && (
+                  <button
+                    type="button"
+                    aria-pressed={showcase === r.key}
+                    aria-label={t("docs.pages.showcaseAria", { name: r.label })}
+                    onClick={() => void pin(r.key)}
+                    className={cn(
+                      "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors",
+                      showcase === r.key ? "border-primary/40 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                      FOCUS,
+                    )}
+                  >
+                    <Star className={cn("size-4", showcase === r.key && "fill-primary text-primary")} aria-hidden="true" />
+                    {t("docs.pages.showcase")}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

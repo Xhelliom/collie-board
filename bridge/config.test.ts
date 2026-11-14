@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { defaultSocketPath, hcSocketPath, loadConfig } from "./config.ts";
+import { defaultSocketPath, hcSocketPath, loadConfig, unreachableHerdrMessage } from "./config.ts";
 
 // loadConfig is the deployment contract — env vars in, a resolved Config out. Pure (just reads
 // process.env + homedir), so we drive it by mutating the environment and restoring it after.
@@ -263,4 +263,11 @@ describe("defaultSocketPath", () => {
       join("C:\\Users\\u", "AppData", "Roaming", "herdr", "herdr.sock"),
     );
   });
+});
+
+test("the startup warning names the herdr-core socket it probed and how to start it", () => {
+  const msg = unreachableHerdrMessage("/run/user/7/herdr-core/default.sock", "/home/u/.config/herdr/herdr.sock");
+  expect(msg).toContain("herdr-core at /run/user/7/herdr-core/default.sock");
+  expect(msg).toContain("hc server start");
+  expect(msg).toContain("herdr 0.9 at /home/u/.config/herdr/herdr.sock");
 });

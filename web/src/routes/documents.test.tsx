@@ -43,7 +43,9 @@ beforeEach(() => {
       const path = new URL(request.url).searchParams.get("path")!;
       return path in FILES ? HttpResponse.json({ path, text: FILES[path], truncated: false }) : new HttpResponse("no", { status: 404 });
     }),
-    http.get("/api/docs/pages", () => HttpResponse.json({ ref: "main", pages: [{ name: "roadmap", size: 9 }] })),
+    http.get("/api/docs/page-tabs", () =>
+      HttpResponse.json({ ref: "main", pages: [{ name: "roadmap", size: 9 }], deliverables: [{ cardId: "c9", cardTitle: "Offer", name: "offre.html", size: 9 }], tabs: [] }),
+    ),
     http.get("/api/docs/search", ({ request }) =>
       HttpResponse.json({ paths: new URL(request.url).searchParams.get("q") === "girafe" ? ["NOTES.md"] : [] }),
     ),
@@ -191,6 +193,57 @@ describe("DocumentsRoute", () => {
     expect(frame).toHaveAttribute("src", "/api/docs/page?repo=%2Fr%2Fapp&name=roadmap");
     await userEvent.click(screen.getByRole("button", { name: /Full screen/ }));
     expect(frame.parentElement).toHaveClass("fixed", "inset-0");
+  });
+
+  it("lists the repo's pages and its cards' HTML deliverables, each with « As a tab » that the bridge keeps", async () => {
+    const puts: unknown[] = [];
+    server.use(
+      http.put("/api/docs/page-tabs", async ({ request }) => {
+        const body = (await request.json()) as { key: string; on: boolean };
+        puts.push(body);
+        return HttpResponse.json({ ref: "main", pages: [], deliverables: [], tabs: body.on ? [body.key] : [] });
+      }),
+    );
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    const page = await screen.findByRole("button", { name: "Show roadmap as a tab" });
+    expect(page).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByText("Card: Offer")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /offre/ })).toHaveAttribute("href", "/board/page?repo=%2Fr%2Fapp&card=c9&name=offre.html");
+
+    const card = screen.getByRole("button", { name: "Show offre as a tab" });
+    await userEvent.click(card);
+    expect(card).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(card);
+    expect(card).toHaveAttribute("aria-pressed", "false");
+    expect(puts).toEqual([
+      { repo: "/r/app", key: "c9/offre.html", on: true },
+      { repo: "/r/app", key: "c9/offre.html", on: false },
+    ]);
+  });
+
+  it("offers « Showcase » on a ticked page only, one per project", async () => {
+    const puts: unknown[] = [];
+    server.use(
+      http.get("/api/docs/page-tabs", () =>
+        HttpResponse.json({ ref: "main", pages: [{ name: "roadmap", size: 9 }], deliverables: [{ cardId: "c9", cardTitle: "Offer", name: "offre.html", size: 9 }], tabs: ["roadmap"], showcase: null }),
+      ),
+      http.put("/api/docs/page-tabs", async ({ request }) => {
+        const body = (await request.json()) as { showcase: string | null };
+        puts.push(body);
+        return HttpResponse.json({ ref: "main", pages: [], deliverables: [], tabs: ["roadmap"], showcase: body.showcase });
+      }),
+    );
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    const pin = await screen.findByRole("button", { name: "Show roadmap at the head of the Project page" });
+    expect(screen.queryByRole("button", { name: "Show offre at the head of the Project page" })).toBeNull();
+    await userEvent.click(pin);
+    expect(pin).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(pin);
+    expect(pin).toHaveAttribute("aria-pressed", "false");
+    expect(puts).toEqual([
+      { repo: "/r/app", showcase: "roadmap" },
+      { repo: "/r/app", showcase: null },
+    ]);
   });
 
   it("« Request a change » files a card naming the file and the operator's words, then opens it", async () => {

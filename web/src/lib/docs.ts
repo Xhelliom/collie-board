@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 
 import { t } from "@/i18n";
@@ -80,14 +81,11 @@ export const fetchDoc = (repo: string, path: string, signal?: AbortSignal): Prom
 export const searchDocs = (repo: string, query: string, signal?: AbortSignal): Promise<{ paths: string[] }> =>
   apiRequest(`/api/docs/search?${q(repo)}&q=${encodeURIComponent(query)}`, { signal });
 
-export async function docsLoader({ request }: LoaderFunctionArgs): Promise<{ repo: string | null; index: DocsIndex | null; pages: string[] }> {
+export async function docsLoader({ request }: LoaderFunctionArgs): Promise<{ repo: string | null; index: DocsIndex | null; pages: PageTabs | null }> {
   const repo = new URL(request.url).searchParams.get("repo") ?? loadRepoScope();
-  if (!repo) return { repo, index: null, pages: [] };
+  if (!repo) return { repo, index: null, pages: null };
   // The pages are a bonus in the tree: a failure to list them never hides the Markdown.
-  const [index, pages] = await Promise.all([
-    fetchDocs(repo, request.signal),
-    fetchPages(repo, request.signal).then((r) => r.pages.map((p) => p.name), () => [] as string[]),
-  ]);
+  const [index, pages] = await Promise.all([fetchDocs(repo, request.signal), fetchPageTabs(repo, request.signal).catch(() => null)]);
   return { repo, index, pages };
 }
 
@@ -153,9 +151,75 @@ export const docMatches = (d: DocEntry, query: string, inText: ReadonlySet<strin
   return !needle || d.title.toLowerCase().includes(needle) || d.path.toLowerCase().includes(needle) || inText.has(d.path);
 };
 
-/** The project's custom pages — `docs/pages/<name>.html` on its default branch (bridge/docs.ts). */
-export const fetchPages = (repo: string, signal?: AbortSignal): Promise<{ ref: string; pages: { name: string; size: number }[] }> =>
-  apiRequest(`/api/docs/pages?${q(repo)}`, { signal });
+/** An HTML deliverable published on one of the repo's cards (bridge/deliverables.ts). */
+export interface CardPage {
+  cardId: string;
+  cardTitle: string;
+  name: string;
+  size: number;
+}
 
-/** The iframe's src: served scrubbed under its own sandbox CSP, never the board's. */
-export const pageUrl = (repo: string, name: string): string => `/api/docs/page?${q(repo)}&name=${encodeURIComponent(name)}`;
+/** Documents › Pages (bridge/page-tabs.ts): every HTML page of the project, and the keys shown as tabs. */
+export interface PageTabs {
+  ref: string | null;
+  pages: { name: string; size: number }[];
+  deliverables: CardPage[];
+  tabs: string[];
+  /** The tab shown at the head of the Project page, or null. */
+  showcase: string | null;
+}
+
+/** A page's key in `tabs`: its name, or `<cardId>/<file>` for a card's deliverable. Pure. */
+export const pageKey = (p: { name: string; cardId?: string }): string => (p.cardId ? `${p.cardId}/${p.name}` : p.name);
+
+/** The tab a key opens: its label and where it goes — a card's page by `card` + `name`. Pure. */
+export function pageTab(repo: string, key: string): { label: string; to: string; card: string | null; name: string } {
+  const slash = key.indexOf("/");
+  const card = slash < 0 ? null : key.slice(0, slash);
+  const name = slash < 0 ? key : key.slice(slash + 1);
+  const to = `/board/page?repo=${encodeURIComponent(repo)}${card ? `&card=${encodeURIComponent(card)}` : ""}&name=${encodeURIComponent(name)}`;
+  return { label: name.replace(/\.html?$/i, ""), to, card, name };
+}
+
+/** The tab row changed: the row re-reads it (it reads on mount, never on a poll). */
+export const PAGE_TABS_EVENT = "collie:page-tabs";
+
+export const fetchPageTabs = (repo: string, signal?: AbortSignal): Promise<PageTabs> => apiRequest(`/api/docs/page-tabs?${q(repo)}`, { signal });
+
+export async function setPageTab(repo: string, key: string, on: boolean): Promise<PageTabs> {
+  const r = await apiRequest<PageTabs>("/api/docs/page-tabs", { method: "PUT", body: JSON.stringify({ repo, key, on }) });
+  window.dispatchEvent(new Event(PAGE_TABS_EVENT));
+  return r;
+}
+
+/** The repo's pages and tabs, read on mount and re-read when a tick changes them — never polled. */
+export function usePageTabs(repo: string | null): PageTabs | null {
+  const [data, setData] = useState<PageTabs | null>(null);
+  useEffect(() => {
+    setData(null);
+    if (!repo) return;
+    const ctl = new AbortController();
+    const read = () =>
+      fetchPageTabs(repo, ctl.signal)
+        .then(setData)
+        .catch(() => {});
+    void read();
+    window.addEventListener(PAGE_TABS_EVENT, read);
+    return () => {
+      ctl.abort();
+      window.removeEventListener(PAGE_TABS_EVENT, read);
+    };
+  }, [repo]);
+  return data;
+}
+
+/** Puts one ticked tab at the head of the Project page, or none (`null`). */
+export async function setShowcase(repo: string, key: string | null): Promise<PageTabs> {
+  const r = await apiRequest<PageTabs>("/api/docs/page-tabs", { method: "PUT", body: JSON.stringify({ repo, showcase: key }) });
+  window.dispatchEvent(new Event(PAGE_TABS_EVENT));
+  return r;
+}
+
+/** The iframe's src: served scrubbed under its own sandbox CSP, never the board's. A card's page by its deliverable route. */
+export const pageUrl = (repo: string, name: string, card?: string | null): string =>
+  card ? `/api/cards/${encodeURIComponent(card)}/deliverables/${encodeURIComponent(name)}` : `/api/docs/page?${q(repo)}&name=${encodeURIComponent(name)}`;
