@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794692303574.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"04f1bfba-3447-4964-806a-9de7f43c60ee"}}
 {"v":1,"hlc":"1794692303574.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Recette : mettre de côté les étapes anciennes jamais testées","status":"backlog"},"ts":1794692302049}}
 {"v":1,"hlc":"1794692303575.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"cb0fc74c-af14-4bb0-a291-967865ad901f"}}
+{"v":1,"hlc":"1794699652398.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
