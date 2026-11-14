@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.331.0] - 2026-11-14
+
+### Added
+
+- Réglages → À propos : version, moteur herdr (core ou 0.9, « pensez à migrer »), herdr-core joignable, service systemd/boot/lingering, porte d'entrée, push, copilote, lead et pairs — chacun avec un état coloré et quoi faire. (abc0a75)
+- `GET /api/about` (`bridge/about.ts`) : lecture seule, aucun secret. (abc0a75)
+
 ## [0.330.0] - 2026-11-14
 
 ### Added
