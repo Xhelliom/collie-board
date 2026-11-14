@@ -102,3 +102,54 @@ La consommation de chaque carte, lot, phase et projet, visible. Monitorer, sans 
   - [x] Une carte finie montre ses tokens, détaillés par modèle et par type
   - [x] Une carte d un agent non vérifié affiche « inconnu », jamais 0
   - [x] Test : un transcript connu donne la somme attendue
+
+### Lot — Correctifs du coût (launched, one at a time)
+
+- **Bug : les totaux de coût ne s affichent pas (/api/cost non routé) et les cartes passées restent « inconnu »** — done
+
+  Constat de l orchestrateur après la MAJ 0.337.0 (14/11) :
+  1. GET /api/cost?repo=… répond la page web (200 text/html) : bridge/cost-routes.ts est branché dans bridge/board-routes.ts (l.487) mais « /api/cost » manque de BOARD_PREFIXES (board-routes.ts l.195), donc server.ts (l.353, isBoardPath) ne lui passe jamais la requête. Les totaux lot / phase / projet ne peuvent pas s afficher. Ajouter le préfixe, et un test qui vérifie que CHAQUE route documentée dans skills/collie-board/SKILL.md passe isBoardPath ou une autre garde de server.ts (bridge/skill.test.ts ne l a pas vu).
+  2. GET /api/cards/<id>/cost rend known:false, counted:0 pour des cartes Claude finies avant le déploiement (ex. ab9e513d : 8 sessions) : bridge/cost.ts ne mesure que les sessions vues vivantes. Rattraper au démarrage les sessions finies dont l agentSessionId est connu (le transcript est sur disque), une seule fois, journalisé comme les autres (COST_EVENT) ; une session sans agentSessionId reste « inconnu » (ne jamais deviner par dossier).
+  
+  3. AJOUT (bilan du lot « MAJ qui répare », 14/11) : même pour des sessions vivantes APRÈS le déploiement, le coût reste inconnu. Les sessions de cartes sous herdr-core ont agentSessionId null (GET /api/cards/<id> → sessions[].agentSessionId), et bridge/cost.ts (l.173) ne le trouve pas non plus dans le snapshot : sous hc, rien ne relie le pane à son transcript Claude. Trouver la source fiable de l id de conversation sous hc (ce que fait déjà resume-lost.ts pour reprendre une conversation : il retrouve le transcript d un terminal hc) et l enregistrer sur la session ; sans elle, aucune carte n a de coût.
+  4. Le bilan de fin de lot a affiché « jauge de la semaine 84 % → inconnu » : la lecture de fin de lot (usageTracker / weekPercent) a manqué. Relire la jauge à la fin (une lecture fraîche, pas le cache périmé) ; si elle échoue, le dire avec la raison dans le journal du bridge.
+
+  - [x] GET /api/cost répond du JSON et les totaux s affichent sur la page Projet
+  - [x] Une carte lancée sous herdr-core a ses tokens
+  - [x] Une carte Claude finie avant le déploiement montre ses tokens après un redémarrage
+  - [x] Le bilan de lot a la jauge de fin, ou la raison de son absence
+  - [x] Test : toute route documentée est routée
+
+## Phase 53 — Recette guidée
+
+Que la recette se fasse : une petite portion à la fois, guidée, après un tri des étapes périmées.
+
+### Lot — Faire le tri (planned, one at a time)
+
+- **Trier la recette de collie-board : retirer le périmé, fusionner ce qui se teste ensemble** — backlog
+  - after: Recette : mettre de côté les étapes anciennes jamais testées
+
+  Travail sur les données du board, pas de code. Après la carte « mettre de côté les étapes anciennes ».
+  
+  Pour chaque entrée « à tester » de GET /api/recette?repo=/home/swetterwald/git/perso/collie-board : comparer ses étapes à l interface ACTUELLE (code de web/src sur main, docs, cartes livrées plus tard qui ont refait la même fonction).
+  - Étape devenue fausse (bouton renommé, écran refait, fonction retirée) : la réécrire si la capacité existe toujours, sinon mettre l entrée de côté avec une note qui dit pourquoi (route de la carte précédente).
+  - Entrées qui se testent dans le même geste : réécrire leurs étapes pour qu elles se suivent (PATCH manualChecks, une étape = une ligne ≤ 100 caractères, verbe + où + quoi attendre) ; ne jamais fusionner deux cartes.
+  - AUCUN verdict (ok/ko) : c est le geste de l opérateur, la route le refuse d ailleurs.
+  - Publier en livrable un compte rendu : avant/après (nombre à tester), ce qui est mis de côté et pourquoi, ce qui est réécrit.
+
+  - [ ] Le nombre « à tester » a baissé, chaque mise de côté a sa raison
+  - [ ] Livrable : compte rendu avant/après
+  - [ ] Aucun verdict posé
+- **Recette : mettre de côté les étapes anciennes jamais testées** — backlog
+
+  Skill frontend-design en tête. Phase Recette guidée, principe : ne jamais montrer une montagne.
+  
+  Aujourd hui GET /api/recette (bridge/recette.ts) rend toutes les étapes non validées (~160) et la page (web/src/routes/recette.tsx) les montre toutes. Ajouter un état « mise de côté » pour une entrée (carte livrée) : hors de la file active et du compteur « N à tester », mais jamais perdue — un filtre « Mises de côté » la retrouve, un bouton la remet dans la file. Durable (journal de la carte, voyage par le journal partagé comme les verdicts).
+  - Mise de côté automatique d une entrée livrée depuis plus de 30 jours sans aucun verdict (seuil réglable par dépôt, défaut 30 j).
+  - Mise de côté à la main (bouton sur l entrée) et remise en file (bouton).
+  - Une route pour qu un agent (l orchestrateur, la carte de tri) mette de côté ou remette — ce n est PAS un verdict : autorisé à un x-collie-pane, journalisé avec qui et pourquoi (note obligatoire).
+  - Le compteur « N à tester » ne compte que la file active. Documenter dans skills/collie-board/SKILL.md.
+
+  - [ ] Une entrée livrée depuis plus de 30 jours sans verdict sort de « à tester » mais reste dans « Mises de côté »
+  - [ ] Mettre de côté et remettre en file : un bouton chacun
+  - [ ] Un agent peut mettre de côté avec une note ; il ne peut toujours pas poser un verdict
