@@ -2,3 +2,6 @@
 {"v":1,"hlc":"1794661892902.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : après un redémarrage du PC, ni l orchestrateur ni les agents des cartes ne reprennent","status":"backlog"},"ts":1794661883606}}
 {"v":1,"hlc":"1794661904899.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"579256f9-bd57-42da-8d6c-5caf48f9440a"}}
 {"v":1,"hlc":"1794661916897.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794661920009.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/bug-apres-un-redemarrage-du-pc-ni-l-orchestrateu"}}
+{"v":1,"hlc":"1794661920009.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794661920009.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794661919295}}
