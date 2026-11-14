@@ -3,3 +3,6 @@
 {"v":1,"hlc":"1794697207111.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : chaque export docs(plan) lance toute la suite de tests (hook pre-push) et sature le CPU","status":"backlog"},"ts":1794697195383}}
 {"v":1,"hlc":"1794697207112.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e9729aea-eca7-4214-b8ef-082bc668be82"}}
 {"v":1,"hlc":"1794698500507.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794698506352.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/bug-chaque-export-docs-plan-lance-toute-la-suite"}}
+{"v":1,"hlc":"1794698506352.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794698506352.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794698506077}}
