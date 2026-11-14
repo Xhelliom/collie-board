@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.338.1] - 2026-11-14
+
+### Fixed
+
+- La mise à jour n'échoue plus en silence : check-version.sh ne lit plus le CHANGELOG via `| head -1` (SIGPIPE, code 141). (3133173)
+- Une étape de build qui échoue nomme l'étape et son code. (3133173)
+
 ## [0.338.0] - 2026-11-14
 
 ### Added
