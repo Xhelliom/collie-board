@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.329.1] - 2026-11-14
+
+### Fixed
+
+- Sans herdr ni herdr-core, le journal du bridge cite le socket herdr-core sondé et `hc server start`, plus l'ancien socket de herdr 0.9. (be85091)
+
 ## [0.329.0] - 2026-11-14
 
 ### Added
