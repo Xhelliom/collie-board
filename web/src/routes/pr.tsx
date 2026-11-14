@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator } from "react-router";
-import { ChevronDown, ChevronRight, ExternalLink, GitBranch, GitMerge, RotateCw, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, GitBranch, GitMerge, RefreshCw, RotateCw, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { lineClass } from "@/components/card-diff";
@@ -11,7 +11,7 @@ import { MENU_ITEM, MoreActions } from "@/components/project-more";
 import { buttonVariants } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { useT } from "@/i18n";
-import { boardErrorMessage, cardPath, integrateCard, prGesture, rerunPrChecks, type MergeMode, type PrCheck, type PrDetail } from "@/lib/board";
+import { boardErrorMessage, cardPath, integrateCard, prGesture, rerunPrChecks, updatePrBranch, type MergeMode, type PrCheck, type PrDetail } from "@/lib/board";
 import type { PrSheetData } from "@/lib/board-loaders";
 import { ago } from "@/lib/project-facts";
 import { setStatus } from "@/lib/status";
@@ -67,9 +67,22 @@ export function PrRoute() {
       revalidator.revalidate();
     }
   };
+  const update = async (how?: "rebase") => {
+    setBusy(true);
+    try {
+      await updatePrBranch(repo, detail.number, how);
+      setStatus(t("pr.updated"), "success");
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    } finally {
+      setBusy(false);
+      revalidator.revalidate();
+    }
+  };
   // Several failed jobs often share one run: re-run each run once.
   const failedRuns = [...new Set(failed.flatMap((c) => (c.runId ? [c.runId] : [])))];
-  const stateLabel = detail.state === "merged" ? t("pr.state.merged") : detail.state === "closed" ? t("pr.state.closed") : verdict.why;
+  const stateLabel =
+    detail.state === "merged" ? t("pr.state.merged") : detail.state === "closed" ? t("pr.state.closed") : detail.behind ? t("pr.behind", { base: detail.base }) : verdict.why;
   const mode = picked && detail.modes.includes(picked) ? picked : detail.modes[0];
   const blockedWhy = detail.blocker
     ? t(`pr.block.${detail.blocker}`, { base: detail.base, name: failed[0]?.name ?? "" })
@@ -199,6 +212,19 @@ export function PrRoute() {
               <GitMerge className="size-4" />
               {busy ? t("prs.merging") : t("prs.merge")}
             </button>
+            {detail.behind && (
+              <>
+                <button type="button" disabled={busy} onClick={() => void update()} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-11 w-full text-sm")}>
+                  <RefreshCw className="size-4" />
+                  {t("pr.update")}
+                </button>
+                {detail.modes.includes("rebase") && (
+                  <button type="button" disabled={busy} onClick={() => void update("rebase")} className="min-h-11 w-full text-sm text-muted-foreground underline">
+                    {t("pr.updateRebase")}
+                  </button>
+                )}
+              </>
+            )}
             {blockedWhy && <p className="w-full text-sm text-destructive">{blockedWhy}</p>}
             <button type="button" disabled={busy} onClick={() => void act("close")} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-11 flex-1 text-sm text-destructive")}>
               <X className="size-4" />

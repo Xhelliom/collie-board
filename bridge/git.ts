@@ -1448,7 +1448,7 @@ export async function listPrs(repoPath: string, state: "open" | "merged", gh: Gi
 /** `gh pr view <n> --json …` for the PR sheet: raw JSON, or null when GitHub cannot be read. `number` is a validated integer. */
 export async function prViewRaw(repoPath: string, number: number, gh: GitRunner = runGh): Promise<string | null> {
   if (!Number.isSafeInteger(number) || number <= 0) return null;
-  const fields = "number,title,body,author,createdAt,updatedAt,baseRefName,headRefName,state,mergeable,isDraft,reviewDecision,url,files,statusCheckRollup";
+  const fields = "number,title,body,author,createdAt,updatedAt,baseRefName,headRefName,state,mergeable,mergeStateStatus,isDraft,reviewDecision,url,files,statusCheckRollup";
   try {
     const r = await gh(["pr", "view", String(number), "--json", fields], repoPath);
     return r.ok ? r.stdout : null;
@@ -1475,6 +1475,16 @@ export async function rerunFailed(repoPath: string, runId: string, gh: GitRunner
   if (!/^\d{1,15}$/.test(runId)) return { ok: false, error: "bad run id" };
   try {
     const r = await gh(["run", "rerun", runId, "--failed"], repoPath);
+    return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** `gh pr update-branch <n>` — the operator's tap: merges the base into the PR's branch (`--rebase` when asked). */
+export async function updatePrBranch(repoPath: string, number: number, rebase: boolean, gh: GitRunner = runGh): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const r = await gh(["pr", "update-branch", String(number), ...(rebase ? ["--rebase"] : [])], repoPath);
     return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };

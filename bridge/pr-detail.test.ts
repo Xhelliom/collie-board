@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { BoardDb } from "./db.ts";
 import type { GitRunner } from "./git.ts";
 import { handleBoardRoute, PANE_HEADER } from "./board-routes.ts";
-import { mergeBlocker, parseCheckRows, parsePrDetail, parsePrNumber, prDetail, prRerun } from "./pr-detail.ts";
+import { mergeBlocker, parseCheckRows, parsePrDetail, parsePrNumber, prDetail, prRerun, prUpdateBranch } from "./pr-detail.ts";
 
 const VIEW = JSON.stringify({
   number: 7,
@@ -129,6 +129,48 @@ describe("merge modes and blockers", () => {
     const db = new BoardDb(":memory:");
     const req = new Request("http://x/api/board/prs/merge", { method: "POST", headers: { "x-collie-pane": "p1" }, body: JSON.stringify({ repo: "/repo", number: 7 }) });
     const res = await handleBoardRoute("/api/board/prs/merge", req, { db, guard: () => null, text: (m: string, status: number) => new Response(m, { status }), json: (b: unknown, status = 200) => Response.json(b, { status }) } as never);
+    expect(res!.status).toBe(403);
+  });
+});
+
+describe("update the branch", () => {
+  const db = new BoardDb(":memory:");
+  db.setRepoListed("/repo", true);
+  const run = (modes: object) => {
+    const seen: string[][] = [];
+    const gh: GitRunner = async (a) =>
+      (seen.push(a), a[0] === "repo" ? { ok: true, stdout: JSON.stringify(modes), stderr: "" } : { ok: true, stdout: "", stderr: "" });
+    return { seen, gh };
+  };
+  it("says behind only for BEHIND, never for a conflict or an up-to-date PR", () => {
+    const p = (mergeStateStatus: string) => parsePrDetail(JSON.stringify({ ...JSON.parse(VIEW), mergeStateStatus }))!;
+    expect(p("BEHIND").behind).toBe(true);
+    expect(p("CLEAN").behind).toBe(false);
+    expect(p("DIRTY").behind).toBe(false);
+  });
+  it("runs `gh pr update-branch` (merge by default), rebase only when the repo allows it", async () => {
+    const { seen, gh } = run({ squashMergeAllowed: true, mergeCommitAllowed: true, rebaseMergeAllowed: false });
+    expect(await prUpdateBranch(db, "/repo", "7", undefined, gh)).toEqual({ ok: true });
+    expect(seen.at(-1)).toEqual(["pr", "update-branch", "7"]);
+    expect(await prUpdateBranch(db, "/repo", "7", "rebase", gh)).toMatchObject({ ok: false, status: 409 });
+    expect(await prUpdateBranch(db, "/repo", "7", "--web", gh)).toMatchObject({ ok: false, status: 400 });
+    expect(await prUpdateBranch(db, "/else", "7", undefined, gh)).toMatchObject({ ok: false, status: 403 });
+    expect(await prUpdateBranch(db, "/repo", "x", undefined, gh)).toMatchObject({ ok: false, status: 400 });
+  });
+  it("passes --rebase when asked and allowed", async () => {
+    const { seen, gh } = run({ squashMergeAllowed: true, mergeCommitAllowed: true, rebaseMergeAllowed: true });
+    expect(await prUpdateBranch(db, "/repo2", "7", "rebase", gh)).toMatchObject({ status: 403 });
+    db.setRepoListed("/repo2", true);
+    expect(await prUpdateBranch(db, "/repo2", "7", "rebase", gh)).toEqual({ ok: true });
+    expect(seen.at(-1)).toEqual(["pr", "update-branch", "7", "--rebase"]);
+  });
+  it("the route refuses a request carrying x-collie-pane (403)", async () => {
+    const req = new Request("http://x/api/board/prs/7/update-branch", {
+      method: "POST",
+      headers: { "content-type": "application/json", [PANE_HEADER]: "p1" },
+      body: JSON.stringify({ repo: "/repo" }),
+    });
+    const res = await handleBoardRoute("/api/board/prs/7/update-branch", req, { db, guard: () => null, text: (m: string, status: number) => new Response(m, { status }), json: (b: unknown, status = 200) => Response.json(b, { status }) } as never);
     expect(res!.status).toBe(403);
   });
 });
