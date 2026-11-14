@@ -14,7 +14,8 @@
 //
 // Aucun checkout : blobs, arbres et commit sont écrits en plomberie (`hash-object`, `mktree`,
 // `commit-tree`) sur la base d'origin, puis poussés vers une branche neuve. Ni hook de commit du dépôt,
-// ni checkout principal touché. Une erreur se dit dans le log du bridge ; rien ne la réessaie.
+// ni checkout principal touché. Une erreur se dit dans le log du bridge et journalise `plan.exported` en échec :
+// le démarrage suivant réexporte le lot (`runsAwaitingPlanExport`).
 
 import { basename } from "node:path";
 
@@ -211,8 +212,23 @@ export async function openPlanPr(
   return pr.ok ? { ok: true, url: pr.url } : pr;
 }
 
-/** La fin d'un lot : exporte le plan si le dépôt ne l'a pas coupé. Ne jette jamais. */
-export async function exportPlanAtLotEnd(db: BoardDb, run: Run, git: GitRunner = runGit, gh: GitRunner = runGh): Promise<ExportResult> {
+/** Les exports en cours, par dépôt : chacun attend le précédent (même motif que `prepareLot`). */
+const exporting = new Map<string, Promise<unknown>>();
+
+/**
+ * La fin d'un lot : exporte le plan si le dépôt ne l'a pas coupé. Ne jette jamais. Un export par dépôt
+ * à la fois : deux fins de lot (ou une fin et le rattrapage au démarrage) poussant ensemble sur la
+ * branche roulante, la seconde rate son verrou (« cannot lock ref ») et perd son bilan.
+ */
+export function exportPlanAtLotEnd(db: BoardDb, run: Run, git: GitRunner = runGit, gh: GitRunner = runGh): Promise<ExportResult> {
+  const key = run.repoPath;
+  const next = (exporting.get(key) ?? Promise.resolve()).then(() => exportNow(db, run, git, gh));
+  const tail = next.catch(() => {}).finally(() => exporting.get(key) === tail && exporting.delete(key));
+  exporting.set(key, tail);
+  return next;
+}
+
+async function exportNow(db: BoardDb, run: Run, git: GitRunner, gh: GitRunner): Promise<ExportResult> {
   try {
     if (!db.planExportOf(run.repoPath)) return { ok: true, skipped: "export off for this repo" };
     const base = run.lotBase ?? (await defaultBranchOf(run.repoPath, git));
