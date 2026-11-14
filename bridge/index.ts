@@ -13,6 +13,7 @@ import { ReviewGuard } from "./review-guard.ts";
 import { LateCommits } from "./late-commits.ts";
 import { hcSocketPath, loadConfig, unreachableHerdrMessage } from "./config.ts";
 import { ContextTracker } from "./context.ts";
+import { CostTracker } from "./cost.ts";
 import { createWindowResolver } from "./context-window.ts";
 import { Copilot, CopilotCoordinator } from "./copilot.ts";
 import { BoardDb, isAutoHandoffPending } from "./db.ts";
@@ -186,6 +187,7 @@ if (!updateRepo) {
 // The context gauge, primary session only (the board is). Built by the factory below, which the
 // registry runs at construction — so it is set well before startServer() reads it.
 let contextTracker: ContextTracker | null = null;
+let costTracker: CostTracker | null = null;
 // The paired peers: one store, shared by the routes (server.ts) and a lot starting a peer's card (run.ts).
 const peers = new PeerStore(cfg.stateDir);
 
@@ -359,6 +361,10 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // tracker's memory, not in the database (see ContextTracker.enrich).
     contextTracker = context;
     engine.onUpdate((snap) => void context.update(snap), "context");
+    // What each card has consumed in tokens — throttled inside, remembered on the card at session end (cost.ts).
+    const cost = new CostTracker(board, new ClaudeTranscriptSource(cfg.transcriptRoot), adapters);
+    costTracker = cost;
+    engine.onUpdate((snap) => void cost.update(snap).catch(() => {}), "cost");
     // Handoffs finish here too: the request only prompts the agent, and this notices when it has
     // gone quiet and swaps the pane. Guarded against re-entry inside the coordinator.
     const handoffs = new HandoffCoordinator(board, herdr, cfg);
@@ -486,6 +492,7 @@ const server = startServer({
   board,
   copilot: copilotBoard,
   context: contextTracker,
+  cost: costTracker,
   adapters,
   transcripts,
   peers,

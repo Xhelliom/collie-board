@@ -11,6 +11,7 @@ import { handleFilesRoute } from "./files-view.ts";
 import { handleGalleryRoute } from "./gallery.ts";
 import { withCardFields } from "./cards.ts";
 import type { ContextTracker } from "./context.ts";
+import type { CostTracker } from "./cost.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import { hcSocketPath, type Config } from "./config.ts";
@@ -151,6 +152,8 @@ export function startServer(opts: {
    * they cover panes with no card — so the snapshot route reads them from here.
    */
   context: ContextTracker | null;
+  /** Per-card token cost (cost.ts), or null when transcripts are off. */
+  cost?: CostTracker | null;
   /**
    * Per-agent divergence. The history route needs it: without herdr's `agent_session` a transcript is
    * resolved by DIRECTORY, which is only sound for an agent whose format we can actually read.
@@ -358,6 +361,7 @@ export function startServer(opts: {
           device: deviceAuth(req, cfg).device,
           adapters,
           peers,
+          ...(opts.cost && { cardCost: (id: string) => opts.cost!.forCard(id) }),
           paneContext: (id) =>
             context?.enrich(rt.engine.current().agents.filter((a) => a.paneId === id) as never)[0]?.ctxPct ?? null,
           paneModel: (id) => {
