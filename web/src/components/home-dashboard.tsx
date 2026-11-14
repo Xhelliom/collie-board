@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { ChevronRight, GitPullRequest, RefreshCw, Target } from "lucide-react";
 
 import { Ring } from "@/components/ring";
+import { StatusSignal } from "@/components/status-signal";
 import { STEP_TONE } from "@/components/project-step";
 import { FoldToggle } from "@/components/fold";
 import { firstSentence, isOpenGoal, type OpenGoal, type OpenGoalStatus } from "@/components/goal-chip";
@@ -210,14 +211,13 @@ export interface HomeGoal extends OpenGoal {
 }
 const GOAL_TONE: Record<OpenGoalStatus, string> = { active: "text-status-done", paused: "text-status-idle", claimed: "text-status-blocked" };
 
-function GoalCell({ goal, lot }: { goal?: HomeGoal; lot?: TileLot | null }) {
+function GoalCell({ goal }: { goal?: HomeGoal }) {
   const t = useT();
   if (!goal)
     return (
       // A phone's card says nothing of an absent objective: the phase line below is enough.
       <span className="hidden min-w-0 flex-col text-sm text-muted-foreground sm:flex">
         <span>{t("home.project.noGoal")}</span>
-        {lot && lot.finishedAt === null && <span className="hidden truncate sm:block">{t("home.project.lot", { name: lot.name ?? t("home.lot.unnamed") })}</span>}
       </span>
     );
   return (
@@ -263,18 +263,26 @@ function Activity({ repo, toTest, brief }: { repo: RepoTile; toTest: number; bri
 
 /** One project, one line of aligned columns on a wide screen; a small stacked card on a phone. */
 function ProjectRow({ repo, lot, toTest = 0, goal }: { repo: RepoTile; lot?: TileLot | null; toTest?: number; goal?: HomeGoal }) {
+  const t = useT();
+  const running = lot?.finishedAt === null ? lot : null;
+  // A card waiting for the operator outranks the work: its orange beacon, never the blue bar.
+  const signal = repo.waiting > 0 ? "blocked" : running || repo.active > 0 ? "working" : null;
   return (
     <Link
       to={projectPath(repo.path)}
       className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-1) p-3.5 transition-colors hover:border-foreground/25 sm:grid sm:min-h-16 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_minmax(0,13rem)_7rem] sm:items-center sm:gap-x-5 sm:px-4 sm:py-2.5"
     >
-      <span className="flex items-baseline gap-2">
-        <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
-        <span className="shrink-0 text-sm sm:hidden">
-          <Activity repo={repo} toTest={toTest} brief />
+      <span className="flex min-w-0 flex-col">
+        <span className="flex items-center gap-2">
+          {signal && <StatusSignal status={signal} />}
+          <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
+          <span className="shrink-0 text-sm sm:hidden">
+            <Activity repo={repo} toTest={toTest} brief />
+          </span>
         </span>
+        {running && <span className="truncate text-xs text-muted-foreground">{t("home.project.lot", { name: running.name ?? t("home.lot.unnamed") })}</span>}
       </span>
-      <GoalCell goal={goal} lot={lot} />
+      <GoalCell goal={goal} />
       <PhaseCell repo={repo} />
       <span className="hidden sm:block">
         <Activity repo={repo} toTest={toTest} />
