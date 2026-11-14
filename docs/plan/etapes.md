@@ -97,3 +97,42 @@ Tout ce qu on fait sur GitHub pour une PR se fait dans Collie, depuis le télép
   - [x] La fiche montre titre, état, auteur, branche, carte liée, description, fichiers et diff
   - [x] Fusionner/Fermer existants disponibles sur la fiche ; Ouvrir sur GitHub dans un ⋯
   - [x] Route documentée dans le skill ; tests verts
+
+### Lot — Agir sur une PR (launched, 2 at a time)
+
+- **Fiche PR : « Faire résoudre le conflit » par un agent** — done
+  - after: Fiche PR : « Mettre à jour la branche » quand elle est en retard sur la base
+
+  Skill frontend-design en tête. Mêmes fichiers que les deux cartes précédentes de la phase.
+  
+  Une PR en conflit affiche « Faire résoudre le conflit ». 
+  - PR portée par une carte : on réutilise le chemin existant de la carte (resolveConflict, ADR 0014) — l agent de la carte, ou un agent relancé sur sa branche (launchAgent, jamais agent.start direct).
+  - PR sans carte (PR d un humain, docs(plan)…) : le tap crée une carte « Résoudre le conflit de la PR #n » sur la branche de la PR (branch = sa head, pas de nouvelle branche) et la démarre ; l agent rebase/merge la base, résout, pousse sur la même branche.
+  - La fiche montre ensuite le lien vers la carte et son état. Le tap est celui de l opérateur (démarre un agent : refusé à un x-collie-pane). Documenter dans skills/collie-board/SKILL.md.
+
+  - [x] Une PR en conflit propose « Faire résoudre le conflit »
+  - [x] Sur une PR sans carte, le tap crée et démarre une carte sur la branche de la PR
+  - [x] La fiche lie la carte qui résout
+- **Fiche PR : « Mettre à jour la branche » quand elle est en retard sur la base** — done
+  - after: Fiche PR : fusionner en choisissant le mode, et dire pourquoi ça ne fusionne pas
+
+  Skill frontend-design en tête. Mêmes fichiers que la carte « fusionner en choisissant le mode » (bridge/prs.ts, bridge/pr-detail.ts, web/src/routes/prs.tsx).
+  
+  Quand une PR est en retard sur sa base sans conflit (mergeStateStatus BEHIND), la fiche le dit et offre « Mettre à jour la branche » (gh pr update-branch, par merge ; rebase en option si le dépôt l autorise). Après le tap, les vérifications repartent et la fiche le montre. Geste de l opérateur, refusé à un x-collie-pane. Documenter dans skills/collie-board/SKILL.md.
+
+  - [x] Une PR en retard affiche « En retard sur main » et le bouton
+  - [x] Le tap met la branche à jour et les vérifications repartent
+  - [x] Le bouton n apparaît pas sur une PR à jour ou en conflit
+- **Fiche PR : fusionner en choisissant le mode, et dire pourquoi ça ne fusionne pas** — done
+
+  Skill frontend-design en tête.
+  
+  Aujourd hui « Fusionner » sur la fiche d une PR (bridge/prs.ts prGesture → enableAutoMerge, web/src/routes/prs.tsx et la fiche PR de #413) fusionne sans choix de mode et sans dire d avance si ça passera.
+  
+  - Le bouton Fusionner propose les modes que le dépôt autorise (squash, merge, rebase — lus sur GitHub une fois, en cache), celui par défaut du dépôt présélectionné.
+  - Si la PR ne peut pas fusionner (conflit, vérifications rouges ou en cours, revue demandée, brouillon), le bouton dit pourquoi en une phrase au lieu d échouer après le tap.
+  - La route reste un geste de l opérateur (refusée à un x-collie-pane). Mettre à jour skills/collie-board/SKILL.md.
+
+  - [x] On choisit squash, merge ou rebase parmi ceux que le dépôt autorise
+  - [x] Une PR en conflit ou aux vérifications rouges dit pourquoi avant le tap
+  - [x] Une PR fusionnée disparaît de PR ouvertes
