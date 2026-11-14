@@ -296,6 +296,11 @@ export function hcSocketPath(env: NodeJS.ProcessEnv = process.env, platform: Nod
   return join(runtime, "herdr-core", "default.sock");
 }
 
+/** Startup warning when the primary session answers on neither socket: herdr-core first, it is the one to start. */
+export const unreachableHerdrMessage = (hcSocket: string, herdr09Socket: string): string =>
+  `[bridge] cannot reach herdr-core at ${hcSocket} (nor herdr 0.9 at ${herdr09Socket}) yet — ` +
+  `will keep retrying on the poll loop. Start it with \`hc server start\`.`;
+
 /** `cfg.boardBranchPrefix`, readable where no `Config` is threaded through (`baseOf` in git.ts). */
 export const boardBranchPrefix = (): string => process.env.COLLIE_BOARD_BRANCH_PREFIX ?? "board/";
 

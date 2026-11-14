@@ -11,7 +11,7 @@ import { BoardNotifier } from "./board-notify.ts";
 import { reconcile, withCardFields } from "./cards.ts";
 import { ReviewGuard } from "./review-guard.ts";
 import { LateCommits } from "./late-commits.ts";
-import { loadConfig } from "./config.ts";
+import { hcSocketPath, loadConfig, unreachableHerdrMessage } from "./config.ts";
 import { ContextTracker } from "./context.ts";
 import { createWindowResolver } from "./context-window.ts";
 import { Copilot, CopilotCoordinator } from "./copilot.ts";
@@ -446,10 +446,7 @@ const registry = new SessionRegistry({
 // up lazily via refresh(); an unreachable one just reads `reachable:false` in the sessions list.
 const primary = registry.get();
 if (primary && !(await primary.herdr.ping())) {
-  console.warn(
-    `[bridge] cannot reach Herdr socket at ${cfg.socketPath} yet — ` +
-      `will keep retrying on the poll loop. Is the Herdr server running?`,
-  );
+  console.warn(unreachableHerdrMessage(hcSocketPath(), cfg.socketPath));
 }
 
 // Discover any already-running named sessions now, then rescan on an interval so a session
