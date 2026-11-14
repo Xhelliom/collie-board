@@ -103,7 +103,7 @@ export function foldCost(parts: (ModelTokens[] | null)[], verified: boolean): Ca
 
 export class CostTracker {
   /** sessionId → what its transcript summed to the last time it was read. Memory only. */
-  private readonly live = new Map<string, { at: number; sessionId: string; path: string; usage: ModelTokens[] }>();
+  private readonly live = new Map<string, { at: number; sessionId: string; path: string; usage: ModelTokens[]; complete: boolean }>();
 
   constructor(
     private readonly db: BoardDb,
@@ -124,10 +124,10 @@ export class CostTracker {
       const session = this.db.getSession(id);
       if (!session) continue;
       try {
-        const { text } = await this.source.load(entry.path);
-        this.db.recordEvent(session.cardId, COST_EVENT, { sessionId: id, byModel: sumTranscript(text) });
+        const { text, complete } = await this.source.load(entry.path);
+        this.db.recordEvent(session.cardId, COST_EVENT, { sessionId: id, byModel: sumTranscript(text), complete });
       } catch {
-        this.db.recordEvent(session.cardId, COST_EVENT, { sessionId: id, byModel: entry.usage });
+        this.db.recordEvent(session.cardId, COST_EVENT, { sessionId: id, byModel: entry.usage, complete: entry.complete });
       }
     }
     await Promise.all(
@@ -141,8 +141,8 @@ export class CostTracker {
           // the agent session id can change under a card session (a resume): re-resolve then
           const path = last?.sessionId === sessionId ? last.path : await this.source.resolve(sessionId);
           if (!path) return;
-          const { text } = await this.source.load(path);
-          this.live.set(s.id, { at: now, sessionId, path, usage: sumTranscript(text) });
+          const { text, complete } = await this.source.load(path);
+          this.live.set(s.id, { at: now, sessionId, path, usage: sumTranscript(text), complete });
         } catch {
           // keep the last figure
         }
@@ -152,13 +152,18 @@ export class CostTracker {
 
   /** A card's cost from what the journal remembers plus what is live. Sync: the route is cheap. */
   forCard(cardId: string): CardCost {
-    const recorded = new Map<string, ModelTokens[]>();
+    // A head-clipped transcript (complete:false) is a floor, not the session's total: not counted.
+    const recorded = new Map<string, ModelTokens[] | null>();
     for (const e of this.db.listEventsOf(cardId, [COST_EVENT])) {
-      const p = e.payload as { sessionId?: string; byModel?: ModelTokens[] } | null;
-      if (p?.sessionId && Array.isArray(p.byModel)) recorded.set(p.sessionId, p.byModel);
+      const p = e.payload as { sessionId?: string; byModel?: ModelTokens[]; complete?: boolean } | null;
+      if (p?.sessionId && Array.isArray(p.byModel)) recorded.set(p.sessionId, p.complete === false ? null : p.byModel);
     }
     const sessions = this.db.listSessions(cardId);
-    const parts = sessions.map((s) => recorded.get(s.id) ?? this.live.get(s.id)?.usage ?? null);
+    const parts = sessions.map((s) => {
+      if (recorded.has(s.id)) return recorded.get(s.id)!;
+      const l = this.live.get(s.id);
+      return l && l.complete ? l.usage : null;
+    });
     const verified = sessions.length > 0 && sessions.every((s) => adapterFor(this.adapters, s.agentKind ?? "").context);
     return foldCost(parts, verified);
   }

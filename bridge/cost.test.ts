@@ -53,14 +53,14 @@ describe("foldCost", () => {
   });
 });
 
-function setup(files: Record<string, string>) {
+function setup(files: Record<string, string>, complete = true) {
   const db = new BoardDb(":memory:");
   const source = {
     async resolve(id: string) {
       return files[id] !== undefined ? id : null;
     },
     async load(path: string) {
-      return { text: files[path] ?? "", complete: true, size: 0, mtimeMs: 0 };
+      return { text: files[path] ?? "", complete, size: 0, mtimeMs: 0 };
     },
   } as unknown as TranscriptSource;
   let now = 0;
@@ -111,5 +111,19 @@ describe("CostTracker", () => {
     tick(60_000);
     await t.update(snap);
     expect(t.forCard(card.id).tokens.output).toBe(100);
+  });
+
+  it("does not count a head-clipped transcript, live or once finished", async () => {
+    const { db, t, snap, tick } = setup({ s1: LOG }, false);
+    const card = db.createCard({ title: "x" } as never);
+    const s = db.openSession({ cardId: card.id, paneId: "p1", agentSessionId: "s1", agentKind: "claude" });
+    await t.update(snap);
+    expect(t.forCard(card.id)).toMatchObject({ known: false, partial: true, sessions: 1, counted: 0 });
+    tick(60_000);
+    db.closeSession(s.id, "done" as never);
+    await t.update(snap);
+    expect(db.listEventsOf(card.id, ["session.cost"])[0]!.payload).toMatchObject({ complete: false });
+    const fresh = new CostTracker(db, {} as never, BUILTIN_ADAPTERS);
+    expect(fresh.forCard(card.id)).toMatchObject({ known: false, partial: true, counted: 0 });
   });
 });
