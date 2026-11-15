@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setPreference } from "@/i18n";
 import { useLightbox } from "@/lib/lightbox";
-import { byDelivery, dayMark, isPending, matchesQuery, prLabel, recetteLoader, stepDevice, stepTarget, type RecetteEntry, type RecetteGroup } from "@/lib/recette";
+import { byDelivery, dayMark, isPending, matchesQuery, prLabel, recetteCounts, recetteLoader, stepDevice, stepTarget, type RecetteEntry, type RecetteGroup } from "@/lib/recette";
 import { server } from "@/test/setup";
 
 import { RecetteChip, RecetteRoute } from "./recette";
@@ -297,5 +297,45 @@ describe("RecetteChip", () => {
     const { container } = render(<RouterProvider router={createMemoryRouter([{ path: "*", element: <RecetteChip repo="/r/app" /> }])} />);
     await new Promise((r) => setTimeout(r, 20));
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("mise de côté", () => {
+  function mount(groups: RecetteGroup[]) {
+    server.use(http.get("/api/recette", () => HttpResponse.json({ groups })));
+    const router = createMemoryRouter([{ path: "/board/recette", loader: recetteLoader, element: <RecetteRoute /> }], {
+      initialEntries: ["/board/recette?repo=%2Fr%2Fapp"],
+    });
+    render(<RouterProvider router={router} />);
+  }
+  const asideEntry = (over: Partial<RecetteEntry> = {}) => entry({ cardId: "old", capability: "Très ancienne", aside: true, shots: [], ...over });
+
+  it("une entrée mise de côté n'est plus à vérifier et ne compte pas", () => {
+    expect(isPending(asideEntry())).toBe(false);
+    expect(recetteCounts([entry(), asideEntry()])).toEqual({ todo: 1, ok: 0, ko: 0 });
+  });
+
+  it("sort de la file, se retrouve sous « Mises de côté », et un bouton la remet en file", async () => {
+    setPreference("fr");
+    let body: unknown = null;
+    server.use(http.post("/api/cards/old/recette-aside", async ({ request }) => ((body = await request.json()), HttpResponse.json({ ok: true }))));
+    mount([{ usage: null, entries: [entry(), asideEntry({ asideBy: { aside: true, by: "agent p1", at: 1, note: "périmé" } })] }]);
+    expect(await screen.findByText("Launch a card on dev from the editor")).toBeInTheDocument();
+    expect(screen.queryByText("Très ancienne")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Mises de côté/ }));
+    expect(screen.queryByText("Launch a card on dev from the editor")).toBeNull();
+    const old = screen.getByText("Très ancienne").closest("article")!;
+    expect(within(old).getByText(/périmé/)).toBeInTheDocument();
+    await userEvent.click(within(old).getByRole("button", { name: "Remettre dans la file" }));
+    expect(body).toEqual({ aside: false });
+  });
+
+  it("un bouton met une entrée de côté", async () => {
+    setPreference("fr");
+    let body: unknown = null;
+    server.use(http.post("/api/cards/c1/recette-aside", async ({ request }) => ((body = await request.json()), HttpResponse.json({ ok: true }))));
+    mount([{ usage: null, entries: [entry()] }]);
+    await userEvent.click(await screen.findByRole("button", { name: "Mettre de côté" }));
+    expect(body).toEqual({ aside: true });
   });
 });

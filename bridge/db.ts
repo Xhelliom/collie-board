@@ -267,6 +267,12 @@ export interface Card {
    */
   checkVerdicts: Record<string, CheckVerdict>;
   /**
+   * Recette « mise de côté » : le dernier geste (à la main ou d'un agent) qui sort l'entrée de la file
+   * active — ou l'y remet. Null : personne n'a rien décidé, seul l'âge de la livraison joue. Colonne à
+   * part, pour ne jamais écraser les verdicts ni les étapes dans le journal.
+   */
+  checkAside: CheckAside | null;
+  /**
    * « En main » (ADR 0058): the operator is talking to this card's worker, so the lead neither judges,
    * prompts nor closes it. Out of every allowlist — only {@link BoardDb.setHeld} writes it — and local:
    * it is about this machine's pane, so it is not a shared column.
@@ -306,6 +312,17 @@ export interface CheckVerdict {
   at: number;
   note?: string;
 }
+
+/** `by` is derived by the bridge, like a verdict's; `note` is the why — required from an agent. */
+export interface CheckAside {
+  aside: boolean;
+  by: string;
+  at: number;
+  note?: string;
+}
+
+/** Days after which a delivered entry with no verdict leaves the active recette, unless the repo says otherwise. */
+export const DEFAULT_ASIDE_DAYS = 30;
 
 /** A named environment on a paired peer (`peers.toml`): the peer resolves the path, never this machine. */
 export interface CardEnvironment {
@@ -820,6 +837,7 @@ interface CardRow {
   capability: string | null;
   usage_group: string | null;
   check_verdicts: string | null;
+  check_aside: string | null;
   held: string | null;
 }
 
@@ -987,6 +1005,11 @@ function parseVerdicts(raw: string | null): Record<string, CheckVerdict> {
   );
 }
 
+function parseAside(raw: string | null): CheckAside | null {
+  const v = jsonValue(raw) as Partial<CheckAside> | null;
+  return v && typeof v.aside === "boolean" && typeof v.by === "string" && typeof v.at === "number" ? (v as CheckAside) : null;
+}
+
 function jsonArray(raw: string | null): string[] {
   if (!raw) return [];
   try {
@@ -1111,6 +1134,7 @@ function toCard(r: CardRow): Card {
     capability: r.capability ?? null,
     usageGroup: r.usage_group ?? null,
     checkVerdicts: parseVerdicts(r.check_verdicts),
+    checkAside: parseAside(r.check_aside),
     held: parseHeld(r.held),
   };
 }
@@ -1438,7 +1462,7 @@ const SHARED = {
       branch: false, agent_kind: false, parent_id: false, duplicate_of: false, depends_on: false,
       origin: false, origin_card_id: false, category: false, tag: false, position: false, run_id: false,
       phase_id: false, template_id: false, pipeline_id: false, created_at: false, created_by: false, assignee: false,
-      manual_checks: true, capability: false, usage_group: false, check_verdicts: true,
+      manual_checks: true, capability: false, usage_group: false, check_verdicts: true, check_aside: true,
     },
     // Inserted when the first event of a card is not the one that names it; the next fields fill it.
     seed: "INSERT OR IGNORE INTO card (id, repo_path, title, status, created_at, updated_at) VALUES (?1, ?2, '', 'backlog', ?3, ?3)",
@@ -1902,6 +1926,9 @@ export class BoardDb {
       { table: "card", column: "capability", ddl: "TEXT" },
       { table: "card", column: "usage_group", ddl: "TEXT" },
       { table: "card", column: "check_verdicts", ddl: "TEXT" },
+      { table: "card", column: "check_aside", ddl: "TEXT" },
+      // Recette : jours avant qu'une livraison sans verdict sorte de la file. NULL : 30.
+      { table: "repo_pref", column: "recette_aside_days", ddl: "INTEGER" },
       // ADR 0058: « En main » — JSON {by, at, lastTouch}, or NULL.
       { table: "card", column: "held", ddl: "TEXT" },
       { table: "agent_template", column: "worker", ddl: "INTEGER NOT NULL DEFAULT 0" },
@@ -2163,6 +2190,27 @@ export class BoardDb {
     const verdicts = { ...card.checkVerdicts, [stepId]: verdict };
     this.db.query("UPDATE card SET check_verdicts = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(verdicts), this.now(), id);
     return this.getCard(id);
+  }
+
+  /** Mise de côté / remise en file d'une entrée de la recette. Hors {@link CardPatch} : aucun corps ne l'atteint. */
+  setCheckAside(id: string, v: CheckAside): Card | null {
+    this.db.query("UPDATE card SET check_aside = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(v), this.now(), id);
+    return this.getCard(id);
+  }
+
+  recetteAsideDaysOf(path: string | null): number {
+    const d = path ? this.db.query<{ d: number | null }, [string]>("SELECT recette_aside_days AS d FROM repo_pref WHERE path = ?").get(path)?.d : null;
+    return d ?? DEFAULT_ASIDE_DAYS;
+  }
+
+  setRecetteAsideDays(path: string, days: number): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, recette_aside_days, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET recette_aside_days = excluded.recette_aside_days, updated_at = excluded.updated_at`,
+      )
+      .run(path, days === DEFAULT_ASIDE_DAYS ? null : days, this.now());
+    this.pruneRepoPref(path);
   }
 
   /**
@@ -3390,7 +3438,7 @@ export class BoardDb {
   }
 
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND model IS NULL AND effort IS NULL AND models IS NULL AND page_tabs IS NULL AND showcase IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND recette_aside_days IS NULL AND model IS NULL AND effort IS NULL AND models IS NULL AND page_tabs IS NULL AND showcase IS NULL").run(path);
   }
 
   // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────

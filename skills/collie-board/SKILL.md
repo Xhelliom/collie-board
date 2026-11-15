@@ -197,6 +197,15 @@ state: todo|ok|ko, fixCardId, deliveredAt, phaseId, phase, runId, lot, prUrl, pr
 shot?, verdict}]}]}]}`. `prUrl` is the card's PR, or its lot's for a one-PR lot; `project` (the repo's
 name) is set only when no `repo` is given. Fully validated cards are left out unless `all=1`.
 
+**Set aside** (« Mises de côté »): each entry also has `aside` (+ `asideBy: {aside, by, at, note?}`). An entry
+delivered more than 30 days ago (per repo: `POST /api/repos/recette-aside {path, days}`, operator only;
+`GET ?repo=`) with no verdict at all is aside by itself; the last explicit gesture wins over age. An aside
+entry leaves the active queue and the « N à tester » count — never the list (`all=1`), and the page's
+« Mises de côté » filter finds it. `POST /api/cards/<id>/recette-aside {aside: true|false, note?}` sets it aside
+or puts it back. It is NOT a verdict: a pane (orchestrator, triage card) may call it, but then `note` (why) is
+required; `by` (`agent <pane>`, the pair's identity or `operator`) is derived and audited (`card.recette_aside`).
+An agent still gets 403 on `checks/<stepId>`.
+
 ### Run a card on another machine (ADR 0046 §4)
 
 A card may carry `"environment": {"peer": "dev", "name": "dev-board"}` (create or PATCH; `null` = this

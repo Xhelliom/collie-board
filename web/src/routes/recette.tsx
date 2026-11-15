@@ -50,6 +50,8 @@ export function RecetteRoute() {
   const session = SESSION_DEVICES.find((d) => d === sessionRaw) ?? null;
   const phaseName = phaseId ? groups.flatMap((g) => g.entries).find((e) => e.phaseId === phaseId)?.phase : null;
   const [everything, setEverything] = useState(!!phaseId);
+  // « Mises de côté »: the entries out of the active queue, found again here.
+  const [asideOnly, setAsideOnly] = useState(false);
   const [mineOnly, setMineOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState(loadGrouping);
@@ -62,10 +64,11 @@ export function RecetteRoute() {
   const identities = useIdentities();
 
   const counts = recetteCounts(groups.flatMap((g) => g.entries));
+  const asideCount = groups.flatMap((g) => g.entries).filter((e) => e.aside).length;
   const hasShared = groups.some((g) => g.entries.some((e) => e.repoPath && identities[e.repoPath]));
   const hasBusiness = groups.some((g) => g.entries.some((e) => sortOf(e) === "business"));
   const keep = (e: RecetteEntry, all: boolean) =>
-    (all || isPending(e)) &&
+    (asideOnly ? !!e.aside : all || isPending(e)) &&
     (!phaseId || e.phaseId === phaseId) &&
     matchesQuery(e, query) &&
     (!mineOnly || assignedToMe(e, identities)) &&
@@ -76,7 +79,7 @@ export function RecetteRoute() {
   const openId = flat.find(isPending)?.cardId;
   const gallery = flat.flatMap((e) => e.shots.map((s) => deliverableUrl(e.cardId, s)));
   // The session walks what is still to check under the same filters, whatever the history switch says.
-  const toCheck = groups.flatMap((g) => g.entries).filter((e) => keep(e, false)).sort((a, b) => b.deliveredAt - a.deliveredAt);
+  const toCheck = groups.flatMap((g) => g.entries).filter((e) => isPending(e) && keep(e, false)).sort((a, b) => b.deliveredAt - a.deliveredAt);
   const pickGrouping = (g: Grouping) => {
     setGrouping(g);
     saveGrouping(g);
@@ -103,7 +106,7 @@ export function RecetteRoute() {
         <div className="flex w-full max-w-5xl flex-col gap-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <h1 className="text-lg font-semibold lg:text-xl">{t(everything ? "recette.headingAll" : "recette.heading")}</h1>
+              <h1 className="text-lg font-semibold lg:text-xl">{t(asideOnly ? "recette.headingAside" : everything ? "recette.headingAll" : "recette.heading")}</h1>
               <p className="text-sm text-muted-foreground">{t("recette.summary", { count: flat.length, steps: flat.reduce((n, e) => n + e.steps.length, 0) })}</p>
             </div>
             {toCheck.some((e) => e.steps.some((s) => !s.verdict)) && (
@@ -117,8 +120,9 @@ export function RecetteRoute() {
           <Help />
           <div className="flex flex-wrap items-center gap-2">
             {phaseId && <Chip label={`✕ ${phaseName ?? t("recette.filter.phase")}`} active onClick={() => setParam("phase", null)} />}
-            <Chip label={t("recette.filter.todo")} active={!everything} onClick={() => setEverything(false)} />
-            <Chip label={t("recette.filter.all")} active={everything} onClick={() => setEverything(true)} />
+            <Chip label={t("recette.filter.todo")} active={!everything && !asideOnly} onClick={() => (setEverything(false), setAsideOnly(false))} />
+            <Chip label={t("recette.filter.all")} active={everything && !asideOnly} onClick={() => (setEverything(true), setAsideOnly(false))} />
+            {(asideCount > 0 || asideOnly) && <Chip label={t("recette.filter.aside", { count: asideCount })} active={asideOnly} onClick={() => setAsideOnly(!asideOnly)} />}
             {(hasShared || mineOnly) && <Chip label={t("people.toMe")} active={mineOnly} onClick={() => setMineOnly(!mineOnly)} />}
             {(hasBusiness || sort) && (
               <>
@@ -227,7 +231,7 @@ function Timeline({ entries, render }: { entries: RecetteEntry[]; render: (e: Re
             {first && <span className="col-span-2 pb-1.5 pt-2 text-xs font-medium text-muted-foreground first:pt-0 lg:hidden">{day}</span>}
             <span className="hidden pt-3 text-right text-xs font-medium text-muted-foreground lg:block">{first ? day : null}</span>
             <span className="flex flex-col items-center" aria-hidden>
-              <span className={cn("mt-4 size-2.5 shrink-0 rounded-full", isPending(e) ? STATE_TONE[e.state] : "bg-status-done")} />
+              <span className={cn("mt-4 size-2.5 shrink-0 rounded-full", isPending(e) ? STATE_TONE[e.state] : e.aside ? "bg-muted-foreground/40" : "bg-status-done")} />
               {!last && <span className="mt-1 w-px flex-1 bg-border" />}
             </span>
             <div className="min-w-0 pb-3">{render(e)}</div>
@@ -310,7 +314,7 @@ export function useRecetteTodo(repo: string | null): number {
   useEffect(() => {
     const ctl = new AbortController();
     fetchRecette(repo, ctl.signal).then(
-      (r) => setN(r.groups.flatMap((g) => g.entries).filter((e) => e.state === "todo").length),
+      (r) => setN(r.groups.flatMap((g) => g.entries).filter((e) => e.state === "todo" && !e.aside).length),
       () => {}, // an older bridge: no chip
     );
     return () => ctl.abort();

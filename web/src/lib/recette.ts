@@ -30,6 +30,10 @@ export interface RecetteEntry {
   /** The card's category — `business` makes it a business entry (optional: an older bridge does not send it). */
   category?: string | null;
   state: RecetteState;
+  /** Out of the active queue: set aside by hand, by an agent, or by age with no verdict (optional: an older bridge does not send it). */
+  aside?: boolean;
+  /** Who set it aside (or put it back) and why — null when only its age did. */
+  asideBy?: { aside: boolean; by: string; at: number; note?: string } | null;
   /** A KO whose follow-up card is delivered: over, like an OK. */
   followUpDone: boolean;
   /** Image deliverables of the card, newest first. */
@@ -65,6 +69,10 @@ export const postVerdict = (
     body: JSON.stringify(body),
   });
 
+/** Set an entry aside, or put it back in the queue — not a verdict. */
+export const postAside = (cardId: string, aside: boolean): Promise<{ ok: true }> =>
+  apiRequest(`/api/cards/${encodeURIComponent(cardId)}/recette-aside`, { method: "POST", body: JSON.stringify({ aside }) });
+
 /** « Me préparer le test »: the project's orchestrator is asked to bring the operator to this step. */
 export const prepareStep = (cardId: string, stepId: string): Promise<{ ok: true; paneId: string }> =>
   apiRequest(`/api/cards/${encodeURIComponent(cardId)}/checks/${encodeURIComponent(stepId)}/prepare`, { method: "POST", body: "{}" });
@@ -74,15 +82,15 @@ export async function recetteLoader({ request }: LoaderFunctionArgs): Promise<{ 
   return { repo, groups: (await fetchRecette(repo)).groups };
 }
 
-/** Still the operator's to look at: untested, or KO with no delivered fix. Pure. */
-export const isPending = (e: RecetteEntry): boolean => e.state === "todo" || (e.state === "ko" && !e.followUpDone);
+/** Still in the active queue: untested, or KO with no delivered fix — and not set aside. Pure. */
+export const isPending = (e: RecetteEntry): boolean => !e.aside && (e.state === "todo" || (e.state === "ko" && !e.followUpDone));
 
 /** A step with a verdict that needs nothing more — folded away at once. Pure. */
 export const stepSettled = (s: RecetteStep): boolean => s.verdict?.status === "ok" || s.verdict?.status === "skip";
 
 export function recetteCounts(entries: readonly RecetteEntry[]): Record<RecetteState, number> {
   const out = { todo: 0, ok: 0, ko: 0 };
-  for (const e of entries) out[e.state]++;
+  for (const e of entries) if (!e.aside) out[e.state]++;
   return out;
 }
 
