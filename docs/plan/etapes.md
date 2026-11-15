@@ -124,9 +124,21 @@ La consommation de chaque carte, lot, phase et projet, visible. Monitorer, sans 
 
 Que la recette se fasse : une petite portion à la fois, guidée, après un tri des étapes périmées.
 
-### Lot — Faire le tri (planned, one at a time)
+### Lot — Push doc sans tests (planned, one at a time)
 
-- **Trier la recette de collie-board : retirer le périmé, fusionner ce qui se teste ensemble** — backlog
+- **Pre-push : ne pas lancer les tests quand on ne pousse que de la doc** — backlog
+
+  Skill frontend-design non concerné (outillage). Le hook scripts/git-hooks/pre-push lance typecheck + toutes les suites (bridge, ctl, web Vitest) même quand les commits poussés ne touchent que de la doc. Sous charge, les tests web dépassent 10 min et bloquent une carte qui n a écrit qu un compte rendu (carte « Trier la recette », 15/11). Calculer les fichiers changés entre la base distante et ce qui est poussé (lignes stdin du hook : local_sha remote_sha ; branche neuve = merge-base avec origin/HEAD) ; si TOUS sont des *.md (ou sous docs/, .adr/, changes/), sauter typecheck et tests avec un message clair. Garder la vérification des fichiers non suivis. Dans le doute (calcul impossible), tout lancer comme aujourd hui.
+
+  - [ ] Un push qui ne contient que des .md passe sans typecheck ni tests, avec un message qui le dit
+  - [ ] Un push qui touche un .ts lance tout comme avant
+  - [ ] Une branche neuve est comparée à sa base, pas à rien : si le calcul échoue, tout est lancé
+  - [ ] Les fichiers non suivis bloquent toujours le push
+  - [ ] Un test couvre la décision doc seule / code
+
+### Lot — Faire le tri (launched, one at a time)
+
+- **Trier la recette de collie-board : retirer le périmé, fusionner ce qui se teste ensemble** — done
   - after: Recette : mettre de côté les étapes anciennes jamais testées
 
   Travail sur les données du board, pas de code. Après la carte « mettre de côté les étapes anciennes ».
@@ -137,10 +149,10 @@ Que la recette se fasse : une petite portion à la fois, guidée, après un tri 
   - AUCUN verdict (ok/ko) : c est le geste de l opérateur, la route le refuse d ailleurs.
   - Publier en livrable un compte rendu : avant/après (nombre à tester), ce qui est mis de côté et pourquoi, ce qui est réécrit.
 
-  - [ ] Le nombre « à tester » a baissé, chaque mise de côté a sa raison
-  - [ ] Livrable : compte rendu avant/après
-  - [ ] Aucun verdict posé
-- **Recette : mettre de côté les étapes anciennes jamais testées** — backlog
+  - [x] Le nombre « à tester » a baissé, chaque mise de côté a sa raison
+  - [x] Livrable : compte rendu avant/après
+  - [x] Aucun verdict posé
+- **Recette : mettre de côté les étapes anciennes jamais testées** — done
 
   Skill frontend-design en tête. Phase Recette guidée, principe : ne jamais montrer une montagne.
   
@@ -150,6 +162,6 @@ Que la recette se fasse : une petite portion à la fois, guidée, après un tri 
   - Une route pour qu un agent (l orchestrateur, la carte de tri) mette de côté ou remette — ce n est PAS un verdict : autorisé à un x-collie-pane, journalisé avec qui et pourquoi (note obligatoire).
   - Le compteur « N à tester » ne compte que la file active. Documenter dans skills/collie-board/SKILL.md.
 
-  - [ ] Une entrée livrée depuis plus de 30 jours sans verdict sort de « à tester » mais reste dans « Mises de côté »
-  - [ ] Mettre de côté et remettre en file : un bouton chacun
-  - [ ] Un agent peut mettre de côté avec une note ; il ne peut toujours pas poser un verdict
+  - [x] Une entrée livrée depuis plus de 30 jours sans verdict sort de « à tester » mais reste dans « Mises de côté »
+  - [x] Mettre de côté et remettre en file : un bouton chacun
+  - [x] Un agent peut mettre de côté avec une note ; il ne peut toujours pas poser un verdict
