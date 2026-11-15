@@ -6,6 +6,8 @@
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
+# The refs being pushed arrive on stdin: read them before anything else can.
+PUSHED="$(cat || true)"
 
 # ── Untracked files (a diff importing a file never `git add`ed fails only for the reviewer) ──
 "$ROOT/scripts/check-untracked.sh"
@@ -14,6 +16,12 @@ ROOT="$(git rev-parse --show-toplevel)"
 # git exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE… to its hooks and reads them BEFORE cwd or `-C`:
 # a test that spawns git in a temp repo without gitFreeEnv would commit and move refs in THIS repository.
 for v in $(compgen -e | grep '^GIT_' || true); do unset "$v"; done
+
+# ── Documentation-only push: nothing to typecheck or test (any doubt → run everything) ──
+if "$ROOT/scripts/push-is-doc-only.sh" <<<"$PUSHED"; then
+  echo "pre-push: only documentation (*.md, docs/, .adr/, changes/) pushed — skipping typecheck and tests" >&2
+  exit 0
+fi
 
 # ── Typecheck (the Vite build does NOT typecheck; catch it before it ships) ──
 if [ "${SKIP_TYPECHECK:-}" = "1" ]; then
