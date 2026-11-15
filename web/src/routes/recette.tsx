@@ -5,7 +5,7 @@ import { Check, ChevronDown, CircleDashed, CircleHelp, ListChecks, RotateCcw, Se
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { Entry, FOCUS, MOTION, PrLink, STATE_TONE } from "@/components/recette-entry";
-import { RecetteSession, type SessionDevice } from "@/components/recette-session";
+import { PORTION_SIZE, RecetteSession, sessionItems, type SessionDevice } from "@/components/recette-session";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -80,6 +80,7 @@ export function RecetteRoute() {
   const gallery = flat.flatMap((e) => e.shots.map((s) => deliverableUrl(e.cardId, s)));
   // The session walks what is still to check under the same filters, whatever the history switch says.
   const toCheck = groups.flatMap((g) => g.entries).filter((e) => isPending(e) && keep(e, false)).sort((a, b) => b.deliveredAt - a.deliveredAt);
+  const today = Math.min(PORTION_SIZE, sessionItems(toCheck, "all").filter((i) => !i.s.verdict).length);
   const pickGrouping = (g: Grouping) => {
     setGrouping(g);
     saveGrouping(g);
@@ -106,7 +107,11 @@ export function RecetteRoute() {
         <div className="flex w-full max-w-5xl flex-col gap-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <h1 className="text-lg font-semibold lg:text-xl">{t(asideOnly ? "recette.headingAside" : everything ? "recette.headingAll" : "recette.heading")}</h1>
+              <p className="flex flex-wrap items-baseline gap-x-3">
+                <span className="text-3xl font-semibold tabular-nums">{t("recette.today", { count: today })}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">{t("recette.overall", { count: counts.todo })}</span>
+              </p>
+              <h1 className="text-sm font-medium text-muted-foreground">{t(asideOnly ? "recette.headingAside" : everything ? "recette.headingAll" : "recette.heading")}</h1>
               <p className="text-sm text-muted-foreground">{t("recette.summary", { count: flat.length, steps: flat.reduce((n, e) => n + e.steps.length, 0) })}</p>
             </div>
             {toCheck.some((e) => e.steps.some((s) => !s.verdict)) && (

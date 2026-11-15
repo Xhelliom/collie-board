@@ -1,13 +1,15 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setPreference } from "@/i18n";
 import { useLightbox } from "@/lib/lightbox";
 import { byDelivery, dayMark, isPending, matchesQuery, prLabel, recetteCounts, recetteLoader, stepDevice, stepTarget, type RecetteEntry, type RecetteGroup } from "@/lib/recette";
 import { server } from "@/test/setup";
+
+import { nextPortion, PORTION_SIZE, RecetteSession, sessionItems } from "@/components/recette-session";
 
 import { RecetteChip, RecetteRoute } from "./recette";
 
@@ -205,7 +207,7 @@ describe("RecetteRoute", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Vérifier une à une" }));
     // Each move goes through the URL, so the router (and its loader) settles first: wait, never assume.
     const dialog = await screen.findByRole("dialog", { name: "Vérifier une à une" });
-    expect(within(dialog).getByText("Étape 1 sur 2")).toBeInTheDocument();
+    expect(within(dialog).getByText("1 / 2")).toBeInTheDocument();
     expect(within(dialog).getByText("la chronologie")).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: "Aller voir" })).toHaveAttribute("href", "/board/recette?repo=%2Fr%2Fapp");
     await userEvent.keyboard("o");
@@ -215,7 +217,7 @@ describe("RecetteRoute", () => {
     await waitFor(() => expect(within(screen.getByRole("dialog")).queryByText("Ouvrir Cartes sur le téléphone")).toBeNull());
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Téléphone" }));
     expect(await within(screen.getByRole("dialog")).findByText("Ouvrir Cartes sur le téléphone")).toBeInTheDocument();
-    expect(within(screen.getByRole("dialog")).getByText("Étape 1 sur 1")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("1 / 1")).toBeInTheDocument();
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Quitter la session" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -284,6 +286,13 @@ describe("RecetteRoute", () => {
     expect(screen.queryByText("Share a board")).toBeNull();
     expect(screen.getByText("Launch a card on dev from the editor")).toBeInTheDocument();
   });
+
+  it("la Recette met en avant la portion du jour, le total reste en petit", async () => {
+    setPreference("fr");
+    mount([{ usage: null, entries: [entry({ shots: [], steps: Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, text: `Étape ${i}`, verdict: null })) })] }]);
+    expect(await screen.findByText("5 à tester aujourd'hui")).toBeInTheDocument();
+    expect(screen.getByText("1 en tout")).toBeInTheDocument();
+  });
 });
 
 describe("RecetteChip", () => {
@@ -338,4 +347,52 @@ describe("mise de côté", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Mettre de côté" }));
     expect(body).toEqual({ aside: true });
   });
+});
+
+describe("la portion de 5", () => {
+  const steps = (n: number, verdicts: Record<number, "ok" | "ko" | "skip"> = {}) =>
+    Array.from({ length: n }, (_, i) => ({ id: `s${i}`, text: `Étape ${i}`, verdict: verdicts[i] ? { status: verdicts[i]!, by: "operator", at: 1 } : null }));
+  const items = (n: number, verdicts: Record<number, "ok" | "ko" | "skip"> = {}) => sessionItems([entry({ shots: [], steps: steps(n, verdicts) })], "all");
+
+  it("découpe : 5 étapes sans verdict, dans l'ordre ; une passée ne revient pas", () => {
+    expect(PORTION_SIZE).toBe(5);
+    expect(nextPortion(items(8))).toEqual(["c1/s0", "c1/s1", "c1/s2", "c1/s3", "c1/s4"]);
+    expect(nextPortion(items(8, { 1: "skip", 2: "ok" }))).toEqual(["c1/s0", "c1/s3", "c1/s4", "c1/s5", "c1/s6"]);
+    expect(nextPortion(items(8), ["c1/s0", "c1/s1", "c1/s2", "c1/s3", "c1/s4"])).toEqual(["c1/s5", "c1/s6", "c1/s7"]);
+    expect(nextPortion(items(3))).toHaveLength(3);
+  });
+
+  it("filtre d'appareil : la portion ne prend que les étapes du téléphone", () => {
+    const e = entry({ shots: [], steps: [
+      { id: "a", text: "Ouvrir sur le téléphone", verdict: null },
+      { id: "b", text: "Ouvrir sur le bureau", verdict: null },
+    ] });
+    expect(nextPortion(sessionItems([e], "phone"))).toEqual(["c1/a"]);
+  });
+
+  it("fin de portion : résumé, « Encore 5 » enchaîne la suivante, « J'arrête là » quitte", async () => {
+    setPreference("fr");
+    server.use(http.post("/api/cards/:id/checks/:step", () => HttpResponse.json({ ok: true, followUp: null })));
+    const onQuit = vi.fn();
+    const onStep = vi.fn();
+    const props = { device: "all" as const, stepKey: null, onDevice: vi.fn(), onStep, onQuit, onChange: async () => {} };
+    const view = render(<MemoryRouter><RecetteSession {...props} entries={[entry({ shots: [], steps: steps(7) })]} /></MemoryRouter>);
+    expect(screen.getByText("1 / 5")).toBeInTheDocument();
+    expect(screen.queryByText(/ 7/)).toBeNull(); // jamais le total
+    await userEvent.keyboard("o");
+    await waitFor(() => expect(onStep).toHaveBeenCalledWith("c1/s1"));
+    // les 5 premières sont jugées : l'écran de fin
+    view.rerender(<MemoryRouter><RecetteSession {...props} entries={[entry({ shots: [], steps: steps(7, { 0: "ok", 1: "ok", 2: "ok", 3: "ok", 4: "ko" }) })]} /></MemoryRouter>);
+    expect(screen.getByText("Portion faite : 1 OK, 0 KO, 0 passée")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Encore 5" }));
+    view.rerender(<MemoryRouter><RecetteSession {...props} entries={[entry({ shots: [], steps: steps(7, { 0: "ok", 1: "ok", 2: "ok", 3: "ok", 4: "ko" }) })]} /></MemoryRouter>);
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Étape 5")).toBeInTheDocument();
+    view.rerender(<MemoryRouter><RecetteSession {...props} entries={[entry({ shots: [], steps: steps(7, { 0: "ok", 1: "ok", 2: "ok", 3: "ok", 4: "ko", 5: "ok", 6: "skip" }) })]} /></MemoryRouter>);
+    expect(screen.queryByRole("button", { name: "Encore 5" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "J'arrête là" }));
+    expect(onQuit).toHaveBeenCalled();
+  });
+
+
 });
