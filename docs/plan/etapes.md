@@ -124,9 +124,9 @@ La consommation de chaque carte, lot, phase et projet, visible. Monitorer, sans 
 
 Que la recette se fasse : une petite portion à la fois, guidée, après un tri des étapes périmées.
 
-### Lot — Faire le tri (planned, one at a time)
+### Lot — Faire le tri (launched, one at a time)
 
-- **Trier la recette de collie-board : retirer le périmé, fusionner ce qui se teste ensemble** — backlog
+- **Trier la recette de collie-board : retirer le périmé, fusionner ce qui se teste ensemble** — review
   - after: Recette : mettre de côté les étapes anciennes jamais testées
 
   Travail sur les données du board, pas de code. Après la carte « mettre de côté les étapes anciennes ».
@@ -140,7 +140,7 @@ Que la recette se fasse : une petite portion à la fois, guidée, après un tri 
   - [ ] Le nombre « à tester » a baissé, chaque mise de côté a sa raison
   - [ ] Livrable : compte rendu avant/après
   - [ ] Aucun verdict posé
-- **Recette : mettre de côté les étapes anciennes jamais testées** — backlog
+- **Recette : mettre de côté les étapes anciennes jamais testées** — done
 
   Skill frontend-design en tête. Phase Recette guidée, principe : ne jamais montrer une montagne.
   
@@ -150,6 +150,6 @@ Que la recette se fasse : une petite portion à la fois, guidée, après un tri 
   - Une route pour qu un agent (l orchestrateur, la carte de tri) mette de côté ou remette — ce n est PAS un verdict : autorisé à un x-collie-pane, journalisé avec qui et pourquoi (note obligatoire).
   - Le compteur « N à tester » ne compte que la file active. Documenter dans skills/collie-board/SKILL.md.
 
-  - [ ] Une entrée livrée depuis plus de 30 jours sans verdict sort de « à tester » mais reste dans « Mises de côté »
-  - [ ] Mettre de côté et remettre en file : un bouton chacun
-  - [ ] Un agent peut mettre de côté avec une note ; il ne peut toujours pas poser un verdict
+  - [x] Une entrée livrée depuis plus de 30 jours sans verdict sort de « à tester » mais reste dans « Mises de côté »
+  - [x] Mettre de côté et remettre en file : un bouton chacun
+  - [x] Un agent peut mettre de côté avec une note ; il ne peut toujours pas poser un verdict
