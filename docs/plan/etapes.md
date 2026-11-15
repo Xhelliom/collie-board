@@ -136,6 +136,18 @@ Que la recette se fasse : une petite portion à la fois, guidée, après un tri 
   - [x] Les fichiers non suivis bloquent toujours le push
   - [x] Un test couvre la décision doc seule / code
 
+### Lot — Passer la recette (launched, one at a time)
+
+- **Recette : une portion de 5 à la fois, pas 165** — done
+
+  Skill frontend-design en tête. La Recette affiche « 165 à tester » et « Vérifier une à une » enchaîne tout : un grand nombre décourage (demande de l opérateur). Faire de la recette une petite portion à la fois. Dans web/src/routes/recette.tsx et web/src/components/recette-session.tsx : (1) « Vérifier une à une » ouvre une portion de 5 étapes (les plus récentes d abord, filtre d appareil respecté) ; la progression dit « 2 / 5 », jamais le total. (2) Portion finie : un écran de fin calme (« Portion faite : 4 OK, 1 KO, 0 passée ») avec deux boutons visibles « Encore 5 » et « J arrête là ». (3) En tête de la Recette, le gros chiffre devient la portion du jour (« 5 à tester aujourd hui ») ; le total reste lisible en petit (« 165 en tout »), rien n est caché. (4) Les étapes « passées » ne reviennent pas dans la portion suivante. Aucune action supprimée ; couleurs : vert = OK, rouge = KO, orange = en attente. Taille de portion : constante 5 dans le code, pas de réglage.
+
+  - [x] « Vérifier une à une » ouvre 5 étapes et la progression dit N / 5
+  - [x] Après la 5e, un écran de fin résume la portion avec « Encore 5 » et « J arrête là »
+  - [x] La Recette met en avant la portion du jour, le total reste affiché en petit
+  - [x] Le filtre téléphone/ordinateur s applique à la portion
+  - [x] Tests Vitest de la portion (découpage, fin, enchaînement)
+
 ### Lot — Faire le tri (launched, one at a time)
 
 - **Trier la recette de collie-board : retirer le périmé, fusionner ce qui se teste ensemble** — done
