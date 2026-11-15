@@ -124,17 +124,17 @@ La consommation de chaque carte, lot, phase et projet, visible. Monitorer, sans 
 
 Que la recette se fasse : une petite portion à la fois, guidée, après un tri des étapes périmées.
 
-### Lot — Push doc sans tests (planned, one at a time)
+### Lot — Push doc sans tests (launched, one at a time)
 
-- **Pre-push : ne pas lancer les tests quand on ne pousse que de la doc** — backlog
+- **Pre-push : ne pas lancer les tests quand on ne pousse que de la doc** — done
 
   Skill frontend-design non concerné (outillage). Le hook scripts/git-hooks/pre-push lance typecheck + toutes les suites (bridge, ctl, web Vitest) même quand les commits poussés ne touchent que de la doc. Sous charge, les tests web dépassent 10 min et bloquent une carte qui n a écrit qu un compte rendu (carte « Trier la recette », 15/11). Calculer les fichiers changés entre la base distante et ce qui est poussé (lignes stdin du hook : local_sha remote_sha ; branche neuve = merge-base avec origin/HEAD) ; si TOUS sont des *.md (ou sous docs/, .adr/, changes/), sauter typecheck et tests avec un message clair. Garder la vérification des fichiers non suivis. Dans le doute (calcul impossible), tout lancer comme aujourd hui.
 
-  - [ ] Un push qui ne contient que des .md passe sans typecheck ni tests, avec un message qui le dit
-  - [ ] Un push qui touche un .ts lance tout comme avant
-  - [ ] Une branche neuve est comparée à sa base, pas à rien : si le calcul échoue, tout est lancé
-  - [ ] Les fichiers non suivis bloquent toujours le push
-  - [ ] Un test couvre la décision doc seule / code
+  - [x] Un push qui ne contient que des .md passe sans typecheck ni tests, avec un message qui le dit
+  - [x] Un push qui touche un .ts lance tout comme avant
+  - [x] Une branche neuve est comparée à sa base, pas à rien : si le calcul échoue, tout est lancé
+  - [x] Les fichiers non suivis bloquent toujours le push
+  - [x] Un test couvre la décision doc seule / code
 
 ### Lot — Faire le tri (launched, one at a time)
 
