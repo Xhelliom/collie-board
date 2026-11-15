@@ -44,6 +44,14 @@ describe.skipIf(!Bun.which("bash"))("push-is-doc-only.sh", () => {
     const head = commit("bridge/x.ts");
     expect(run(`refs/heads/b ${head} refs/heads/b ${base}\n`)).toBe(1);
   });
+  it("refuses a push renaming a .ts into a .md (the .ts disappears)", () => {
+    const { git, commit } = repo();
+    const base = commit("bridge/x.ts");
+    git("mv", "bridge/x.ts", "bridge/x.md");
+    git("commit", "-q", "-m", "mv");
+    const head = git("rev-parse", "HEAD");
+    expect(run(`refs/heads/b ${head} refs/heads/b ${base}\n`)).toBe(1);
+  });
   it("compares a new branch with its base (origin/HEAD), not with nothing", () => {
     const { git, commit } = repo();
     const base = commit("a.ts");

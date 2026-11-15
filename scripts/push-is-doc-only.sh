@@ -13,7 +13,7 @@ while read -r _ local_sha _ remote_sha; do
   else
     base="$remote_sha"
   fi
-  files="$(git diff --name-only "$base" "$local_sha" 2>/dev/null)" || exit 1
+  files="$(git diff --no-renames --name-only "$base" "$local_sha" 2>/dev/null)" || exit 1
   while IFS= read -r f; do
     [ -z "$f" ] && continue
     case "$f" in *.md | docs/* | .adr/* | changes/*) ;; *) exit 1 ;; esac
