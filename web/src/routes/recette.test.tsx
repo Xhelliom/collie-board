@@ -291,7 +291,7 @@ describe("RecetteRoute", () => {
     setPreference("fr");
     mount([{ usage: null, entries: [entry({ shots: [], steps: Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, text: `Étape ${i}`, verdict: null })) })] }]);
     expect(await screen.findByText("5 à tester aujourd'hui")).toBeInTheDocument();
-    expect(screen.getByText("1 en tout")).toBeInTheDocument();
+    expect(screen.getByText("8 en tout")).toBeInTheDocument();
   });
 });
 

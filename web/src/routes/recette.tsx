@@ -80,7 +80,8 @@ export function RecetteRoute() {
   const gallery = flat.flatMap((e) => e.shots.map((s) => deliverableUrl(e.cardId, s)));
   // The session walks what is still to check under the same filters, whatever the history switch says.
   const toCheck = groups.flatMap((g) => g.entries).filter((e) => isPending(e) && keep(e, false)).sort((a, b) => b.deliveredAt - a.deliveredAt);
-  const today = Math.min(PORTION_SIZE, sessionItems(toCheck, "all").filter((i) => !i.s.verdict).length);
+  const overall = sessionItems(toCheck, "all").filter((i) => !i.s.verdict).length;
+  const today = Math.min(PORTION_SIZE, overall);
   const pickGrouping = (g: Grouping) => {
     setGrouping(g);
     saveGrouping(g);
@@ -109,7 +110,7 @@ export function RecetteRoute() {
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <p className="flex flex-wrap items-baseline gap-x-3">
                 <span className="text-3xl font-semibold tabular-nums">{t("recette.today", { count: today })}</span>
-                <span className="text-xs tabular-nums text-muted-foreground">{t("recette.overall", { count: counts.todo })}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">{t("recette.overall", { count: overall })}</span>
               </p>
               <h1 className="text-sm font-medium text-muted-foreground">{t(asideOnly ? "recette.headingAside" : everything ? "recette.headingAll" : "recette.heading")}</h1>
               <p className="text-sm text-muted-foreground">{t("recette.summary", { count: flat.length, steps: flat.reduce((n, e) => n + e.steps.length, 0) })}</p>
