@@ -1,2 +1,3 @@
 {"v":1,"hlc":"1794750990879.0000.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"fold_in_cap":0,"lead_agent":null,"phase_id":"04f1bfba-3447-4964-806a-9de7f43c60ee","name":"Passer la recette","position":2,"launched_at":null,"max_parallel":1,"integration":"card","lot_branch":null,"lot_base":null,"created_at":1794750984952,"created_by":"stephane.wetterwald@gmail.com","created_pair":"49d81004837e","finished_at":null}}
 {"v":1,"hlc":"1794750990887.0001.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1794750984992}}
+{"v":1,"hlc":"1794753037090.0000.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"finished_at":1794753034689}}
