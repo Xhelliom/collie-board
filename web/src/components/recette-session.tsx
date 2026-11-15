@@ -30,6 +30,15 @@ export function sessionItems(entries: readonly RecetteEntry[], device: SessionDe
 
 const keyOf = (i: Item) => `${i.e.cardId}/${i.s.id}`;
 
+/** A portion is this many steps: never a setting, so the figure stays small. */
+export const PORTION_SIZE = 5;
+
+/** The next portion: the newest steps still without a verdict (a « passée » has one, so it never comes
+ * back), not in `taken`. Pure. */
+export function nextPortion(items: readonly Item[], taken: readonly string[] = []): string[] {
+  return items.filter((i) => !i.s.verdict && !taken.includes(keyOf(i))).slice(0, PORTION_SIZE).map(keyOf);
+}
+
 export function RecetteSession({
   entries,
   device,
@@ -54,9 +63,20 @@ export function RecetteSession({
     entries.filter((e) => cards.has(e.cardId)),
     device,
   );
-  const atKey = items.findIndex((i) => keyOf(i) === stepKey);
-  const index = atKey >= 0 ? atKey : items.findIndex((i) => !i.s.verdict);
-  const item = index >= 0 ? items[index]! : null;
+  // The portion: its keys are fixed when it opens (and when the device changes), steps judged keep their place.
+  const [portion, setPortion] = useState(() => ({ device, keys: nextPortion(items), taken: [] as string[] }));
+  if (portion.device !== device) setPortion({ device, keys: nextPortion(items), taken: [] });
+  const shown = portion.keys.flatMap((k) => items.filter((i) => keyOf(i) === k));
+  const atKey = shown.findIndex((i) => keyOf(i) === stepKey);
+  const index = atKey >= 0 ? atKey : shown.findIndex((i) => !i.s.verdict);
+  const item = index >= 0 ? shown[index]! : null;
+  const total = portion.keys.length;
+  const more = nextPortion(items, portion.taken.concat(portion.keys)).length > 0;
+  const again = () => {
+    setPortion({ device, keys: nextPortion(items, portion.taken.concat(portion.keys)), taken: portion.taken.concat(portion.keys) });
+    setTally({ ok: 0, ko: 0, skip: 0 });
+    onStep(null);
+  };
   const [tally, setTally] = useState({ ok: 0, ko: 0, skip: 0 });
   const quitRef = useRef<HTMLButtonElement>(null);
   useEffect(() => quitRef.current?.focus(), []);
@@ -70,9 +90,9 @@ export function RecetteSession({
             {t("recette.session.quit")}
           </button>
           <div className="flex min-w-[10rem] flex-1 flex-col gap-1.5">
-            <span className="text-xs tabular-nums text-muted-foreground">{t("recette.session.progress", { n: index + 1 > 0 ? index + 1 : items.length, total: items.length })}</span>
-            <span className="h-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={items.length} aria-valuenow={items.filter((i) => i.s.verdict).length}>
-              <span className="block h-full rounded-full bg-status-done" style={{ width: `${items.length ? (items.filter((i) => i.s.verdict).length / items.length) * 100 : 0}%` }} />
+            <span className="text-xs tabular-nums text-muted-foreground">{t("recette.session.progress", { n: index >= 0 ? index + 1 : total, total })}</span>
+            <span className="h-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={total - shown.filter((i) => !i.s.verdict).length}>
+              <span className="block h-full rounded-full bg-status-done" style={{ width: `${total ? ((total - shown.filter((i) => !i.s.verdict).length) / total) * 100 : 0}%` }} />
             </span>
           </div>
           <span className="flex items-center gap-3 text-xs tabular-nums" aria-label={t("recette.session.tally")}>
@@ -96,21 +116,32 @@ export function RecetteSession({
           onJudged={(status) => {
             setTally((x) => ({ ...x, [status]: x[status] + 1 }));
             if (status === "ko") return onStep(keyOf(item)); // pinned: the optional note is offered here
-            const next = [...items.slice(index + 1), ...items.slice(0, index)].find((i) => !i.s.verdict);
+            const next = [...shown.slice(index + 1), ...shown.slice(0, index)].find((i) => !i.s.verdict);
             onStep(next ? keyOf(next) : "done");
           }}
           onNext={() => {
-            const next = [...items.slice(index + 1), ...items.slice(0, index)].find((i) => !i.s.verdict);
+            const next = [...shown.slice(index + 1), ...shown.slice(0, index)].find((i) => !i.s.verdict);
             onStep(next ? keyOf(next) : "done");
           }}
         />
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 p-6 text-center">
           <Check className="size-8 text-status-done" aria-hidden />
-          <p className="text-lg font-semibold">{t("recette.session.done")}</p>
-          <button type="button" onClick={onQuit} className={cn(buttonVariants({ variant: "secondary" }), FOCUS)}>
-            {t("recette.session.quit")}
-          </button>
+          <p className="text-lg font-semibold">
+            {total === 0
+              ? t("recette.session.done")
+              : t("recette.session.portionDone", { ok: tally.ok, ko: tally.ko, skip: t("recette.session.passed", { count: tally.skip }) })}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {more && (
+              <button type="button" onClick={again} className={cn(buttonVariants({ variant: "brand" }), FOCUS)}>
+                {t("recette.session.again", { count: PORTION_SIZE })}
+              </button>
+            )}
+            <button type="button" onClick={onQuit} className={cn(buttonVariants({ variant: "secondary" }), FOCUS)}>
+              {t("recette.session.stop")}
+            </button>
+          </div>
         </div>
       )}
     </div>
