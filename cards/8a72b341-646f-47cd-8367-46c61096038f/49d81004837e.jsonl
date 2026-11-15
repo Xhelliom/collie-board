@@ -3,3 +3,7 @@
 {"v":1,"hlc":"1794750984948.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Recette : une portion de 5 à la fois, pas 165","status":"backlog"},"ts":1794750984917}}
 {"v":1,"hlc":"1794750990887.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"8287226c-1c05-4aec-b692-421bd70b74b5"}}
 {"v":1,"hlc":"1794750990875.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794751001130.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/recette-une-portion-de-5-a-la-fois-pas-165"}}
+{"v":1,"hlc":"1794751001130.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794751001130.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794750996073}}
+{"v":1,"hlc":"1794751001130.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.template","payload":{"templateId":"0971bbc3-7bd3-4786-9c53-ba347970f9d4","name":"Implementer","key":"implementer","kind":"claude","args":["--model","sonnet"],"model":"sonnet"},"ts":1794750999651}}
