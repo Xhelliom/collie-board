@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.342.0] - 2026-11-15
+
+### Changed
+
+- Recette : « Vérifier une à une » ouvre une portion de 5 étapes (progression « N / 5 »), écran de fin avec « Encore 5 » / « J'arrête là » (5abe830)
+- Recette : le chiffre du haut devient la portion du jour, le total reste en petit (5abe830)
+
 ## [0.341.1] - 2026-11-15
 
 ### Changed
