@@ -34,3 +34,4 @@
 {"v":1,"hlc":"1794749384163.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"review.created","payload":{"reviewId":"132c80f7-1bb8-4adf-b598-b6f28cd16a8b","verdict":"complete"},"ts":1794749384079}}
 {"v":1,"hlc":"1794749398895.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
 {"v":1,"hlc":"1794749398895.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1794749398850}}
+{"v":1,"hlc":"1794749638520.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.gate","payload":{"runId":"5bea4785-4251-487a-9b12-93c04df190f6","command":"bun run check","ok":true},"ts":1794749629499}}
