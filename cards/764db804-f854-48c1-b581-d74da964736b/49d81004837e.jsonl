@@ -3,3 +3,10 @@
 {"v":1,"hlc":"1794748299006.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Pre-push : ne pas lancer les tests quand on ne pousse que de la doc","status":"backlog"},"ts":1794748292046}}
 {"v":1,"hlc":"1794748299006.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"5bea4785-4251-487a-9b12-93c04df190f6"}}
 {"v":1,"hlc":"1794748778649.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794748790579.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/pre-push-ne-pas-lancer-les-tests-quand-on-ne-pou"}}
+{"v":1,"hlc":"1794748790580.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794748790580.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794748780959}}
+{"v":1,"hlc":"1794748790580.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.template","payload":{"templateId":"0971bbc3-7bd3-4786-9c53-ba347970f9d4","name":"Implementer","key":"implementer","kind":"claude","args":["--model","sonnet"],"model":"sonnet"},"ts":1794748781427}}
+{"v":1,"hlc":"1794748790580.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794748790580.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794748786052}}
+{"v":1,"hlc":"1794748790580.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3622},"ts":1794748786454}}
