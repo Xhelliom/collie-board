@@ -11,3 +11,4 @@
 {"v":1,"hlc":"1794701389444.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794701389444.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794701381088}}
 {"v":1,"hlc":"1794701389444.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":4440},"ts":1794701382450}}
+{"v":1,"hlc":"1794701848333.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.filed","payload":{"sessionId":"c6271ff1-a1f3-4795-946f-732c55a2ab6a","cardId":"8cd559be-7ef7-40bb-bc03-0773e24cc8ea","title":"Recette : la carte qui refait un écran relit les étapes en attente qui le décrivent"},"ts":1794701848276}}
