@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.341.0] - 2026-11-15
+
+### Added
+
+- Recette : mise de côté d'une entrée (bouton, remise en file, filtre « Mises de côté »), hors du compteur « à tester » (ef690e5)
+- Recette : mise de côté d'office après 30 jours sans verdict, seuil réglable par dépôt (ef690e5)
+- Un agent peut mettre de côté ou remettre en file avec une note (ce n'est pas un verdict) (ef690e5)
+
 ## [0.340.2] - 2026-11-14
 
 ### Fixed
