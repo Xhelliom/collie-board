@@ -235,6 +235,9 @@ describe("the worker is asked for its recette", () => {
     expect(prompt).toContain(manualChecksPrompt(card.id));
     expect(prompt).toContain(`/api/cards/${card.id}`);
     expect(manualChecksPrompt(card.id)).toContain("Purely internal work");
+    expect(manualChecksPrompt(card.id)).toContain("GET /api/recette?repo=");
+    expect(manualChecksPrompt(card.id)).toContain("ANOTHER card");
+    expect(manualChecksPrompt(card.id)).toContain("Never a verdict");
   });
 });
 
