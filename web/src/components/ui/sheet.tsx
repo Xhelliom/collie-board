@@ -44,6 +44,8 @@ interface SheetShellProps {
   footer?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  /** What takes focus on open instead of the panel — a search field, so the phone's keyboard comes up. */
+  initialFocus?: React.RefObject<HTMLElement | null>;
 }
 
 function SheetShell({
@@ -55,6 +57,7 @@ function SheetShell({
   footer,
   children,
   className,
+  initialFocus,
 }: SheetShellProps) {
   const t = useT();
   const atBottom = direction === "bottom";
@@ -94,7 +97,7 @@ function SheetShell({
           // itself instead, which is what the hand-rolled version did.
           onOpenAutoFocus={(e) => {
             e.preventDefault();
-            (e.currentTarget as HTMLElement | null)?.focus();
+            (initialFocus?.current ?? (e.currentTarget as HTMLElement | null))?.focus();
           }}
           // A press or a focus on a toast is not "outside" in the sense that should dismiss: the
           // toaster floats above the sheet, and its buttons belong to the toast. The overlay still is.
@@ -172,6 +175,7 @@ interface BottomSheetProps {
   footer?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  initialFocus?: React.RefObject<HTMLElement | null>;
 }
 
 // A bottom sheet on a phone, the SAME sheet entering from the right on a wide screen. Not a second
@@ -182,7 +186,7 @@ interface BottomSheetProps {
 //
 // The breakpoint is a matchMedia read, not a CSS class, because `direction` is a prop Vaul uses to
 // pick the drag axis and the enter/exit transform — CSS can't switch that.
-export function BottomSheet({ open, onClose, title, footer, children, className }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, title, footer, children, className, initialFocus }: BottomSheetProps) {
   const desktop = useIsDesktop();
   return (
     <SheetShell
@@ -191,6 +195,7 @@ export function BottomSheet({ open, onClose, title, footer, children, className 
       direction={desktop ? "right" : "bottom"}
       title={title}
       footer={footer}
+      initialFocus={initialFocus}
       // No top border: the panel already reads as a separate surface against the dimmed backdrop, and
       // a hairline there drew as a bright seam under the rounded corners rather than an edge.
       className={cn(
