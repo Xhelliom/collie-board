@@ -191,6 +191,8 @@ export interface UpdateInfo {
   releaseAvailable: boolean;
   /** The running bridge PROCESS is behind the on-disk code — a `systemctl restart` picks it up. */
   bridgeStale: boolean;
+  /** The restart command to show — absent from an older bridge (then the Herdr action). */
+  restartCommand?: string;
   /** When the upstream check last ran (epoch ms), or null if it hasn't. */
   checkedAt: number | null;
 }

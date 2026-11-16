@@ -31,4 +31,12 @@ Or just restart the bridge to pick up an already-built change:
 ```
 herdr plugin action invoke restart --plugin herdr.collie-board
 ```
+
+Under herdr-core alone (`hc`), there are no plugin actions — that command answers
+`server_not_running`. Run the plugin's own script by its path instead (Settings → About shows the full
+path for your machine):
+
+```
+bash <plugin checkout>/scripts/collie-board-ctl.sh update    # or: restart
+```
 EOF

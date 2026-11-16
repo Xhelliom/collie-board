@@ -19,13 +19,13 @@ export const about = defineMessages({
   "about.version.current": { en: "Version {current}, build {build} — up to date.", fr: "Version {current}, build {build} — à jour." },
   "about.version.update": { en: "Version {current}, build {build}. Version {latest} is out.", fr: "Version {current}, build {build}. La version {latest} est sortie." },
   "about.version.update.fix": {
-    en: "Update from Herdr: <c>herdr plugin action invoke update --plugin herdr.collie-board</c>",
-    fr: "Mettez à jour depuis Herdr : <c>herdr plugin action invoke update --plugin herdr.collie-board</c>",
+    en: "Update it: <c>{command}</c>",
+    fr: "Mettez-le à jour : <c>{command}</c>",
   },
   "about.version.stale": { en: "Version {current}, build {build}. The bridge code changed on disk since it started.", fr: "Version {current}, build {build}. Le code du pont a changé sur le disque depuis son démarrage." },
   "about.version.stale.fix": {
-    en: "Restart it: <c>herdr plugin action invoke restart --plugin herdr.collie-board</c>",
-    fr: "Redémarrez-le : <c>herdr plugin action invoke restart --plugin herdr.collie-board</c>",
+    en: "Restart it: <c>{command}</c>",
+    fr: "Redémarrez-le : <c>{command}</c>",
   },
 
   "about.engine": { en: "herdr engine", fr: "Moteur herdr" },

@@ -45,6 +45,7 @@ import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from
 import { paneResolveOpts } from "./opencode-store.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
 import { handleArtifactFile, paneArtifactsResponse, worktreeForPane } from "./artifacts.ts";
+import { ctlCommand } from "./ctl-command.ts";
 import type {
   ActionResponse,
   AgentView,
@@ -284,7 +285,7 @@ export function startServer(opts: {
           const up = updateMonitor.status();
           const lead = leadPaneId();
           return {
-            version: { current: up.current, build: await buildId(), latest: up.latest, releaseAvailable: up.releaseAvailable, bridgeStale: up.bridgeStale },
+            version: { current: up.current, build: await buildId(), latest: up.latest, releaseAvailable: up.releaseAvailable, bridgeStale: up.bridgeStale, restart: ctlCommand("restart", localEngine()), update: ctlCommand("update", localEngine()) },
             engine: localEngine(),
             hc: { reachable: h instanceof CompositeMux && h.hcReachable, socket: hcSocketPath() },
             service: readService(),
@@ -343,7 +344,7 @@ export function startServer(opts: {
             copilotPaneId: rt.isPrimary ? copilot.paneId : null,
             leadPaneId: rt.isPrimary ? leadPaneId() : null,
             notifications: { snoozedUntil: snooze.until(), count: notifyLog.count() },
-            update: updateMonitor.status(),
+            update: { ...updateMonitor.status(), restartCommand: ctlCommand("restart", localEngine()) },
             ts: Date.now(),
           } satisfies SnapshotResponse, req.headers.get("accept-encoding")),
           await buildId(),

@@ -227,6 +227,8 @@ export interface UpdateStatus {
   releaseAvailable: boolean;
   /** The running process is behind the on-disk bridge source — needs `systemctl --user restart collie-board`. */
   bridgeStale: boolean;
+  /** The restart command to show: the Herdr action, or the ctl script under herdr-core (bridge/ctl-command.ts). */
+  restartCommand?: string;
   /** When the upstream check last completed (epoch ms), or null if it hasn't run yet. */
   checkedAt: number | null;
 }

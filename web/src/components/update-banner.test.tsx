@@ -37,6 +37,11 @@ describe("updateNotice", () => {
     });
   });
 
+  it("shows the bridge's own restart command when it gives one (herdr-core has no plugin actions)", () => {
+    const restartCommand = "bash '/opt/collie/scripts/collie-board-ctl.sh' restart";
+    expect(updateNotice(someUpdate({ bridgeStale: true, restartCommand }))?.command).toBe(restartCommand);
+  });
+
   it("names the available release and links to it, with no command (the release page carries them)", () => {
     expect(updateNotice(someUpdate({ releaseAvailable: true, latest: "0.10.3" }))).toEqual({
       line: "Collie 0.10.3 available",

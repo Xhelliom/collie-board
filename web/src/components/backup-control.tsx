@@ -20,7 +20,7 @@ import { boardErrorMessage } from "@/lib/board";
 // Read-only devices get neither: both routes are write-gated on the bridge, so say why rather than
 // let the tap 403.
 
-export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
+export function BackupControl({ device, restartCommand }: { device: DeviceAuth | undefined; restartCommand?: string }) {
   const t = useT();
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -170,7 +170,7 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
           </p>
           {restored.restartRequired && (
             <p>
-              <Rich id="settings.backup.restart" params={{ command: "herdr plugin action invoke restart --plugin herdr.collie-board" }} />
+              <Rich id="settings.backup.restart" params={{ command: restartCommand ?? "herdr plugin action invoke restart --plugin herdr.collie-board" }} />
             </p>
           )}
           <Button variant="outline" size="sm" onClick={() => location.reload()}>
