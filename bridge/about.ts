@@ -21,7 +21,7 @@ export interface AboutRow {
 }
 
 export interface AboutFacts {
-  version: { current: string; build: string | null; latest: string | null; releaseAvailable: boolean; bridgeStale: boolean };
+  version: { current: string; build: string | null; latest: string | null; releaseAvailable: boolean; bridgeStale: boolean; restart: string; update: string };
   engine: MachineEngine | null;
   hc: { reachable: boolean; socket: string };
   /** null off Linux: no systemd to ask. */
@@ -44,9 +44,9 @@ export function aboutRows(f: AboutFacts): AboutRow[] {
   const peersUp = f.peers.filter((p) => p.state === "connected").length;
   return [
     v.bridgeStale
-      ? { id: "version", state: "todo", key: "stale", vars: vv }
+      ? { id: "version", state: "todo", key: "stale", vars: { ...vv, command: v.restart } }
       : v.releaseAvailable
-        ? { id: "version", state: "todo", key: "update", vars: { ...vv, latest: v.latest ?? "?" } }
+        ? { id: "version", state: "todo", key: "update", vars: { ...vv, latest: v.latest ?? "?", command: v.update } }
         : { id: "version", state: "ok", key: "current", vars: vv },
     !f.engine
       ? { id: "engine", state: "down", key: "none" }

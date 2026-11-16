@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { aboutRows, readService, type AboutFacts } from "./about.ts";
 
 const healthy: AboutFacts = {
-  version: { current: "1.0.0", build: "abc", latest: "1.0.0", releaseAvailable: false, bridgeStale: false },
+  version: { current: "1.0.0", build: "abc", latest: "1.0.0", releaseAvailable: false, bridgeStale: false, restart: "R", update: "U" },
   engine: { engine: "hc", hc: { version: "0.3.0", generation: 2 } },
   hc: { reachable: true, socket: "/run/user/1000/herdr-core/default.sock" },
   service: { systemd: true, enabled: true, linger: true },

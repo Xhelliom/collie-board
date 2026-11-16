@@ -24,6 +24,8 @@ loaded into memory at boot, so finish with:
 herdr plugin action invoke restart --plugin herdr.collie-board
 ```
 
+(Under herdr-core alone, see [Under herdr-core](#under-herdr-core-hc) below.)
+
 The format, version `1`:
 
 ```jsonc
@@ -98,6 +100,21 @@ How it advances depends on how you installed, because `herdr plugin install` doe
 
 Your `.env` and serve state live outside the checkout, so they survive either path. If you pinned a
 version with `--ref`, keep using `herdr plugin install --ref …` — `update` always goes to the latest.
+
+### Under herdr-core (`hc`)
+
+herdr-core has no plugin system: with only `hc` running, every `herdr plugin action invoke …` above
+fails with `server_not_running: no herdr server is running at ~/.config/herdr/herdr.sock`. Run the
+plugin's script by its absolute path instead — it needs no Herdr server and runs from any directory:
+
+```bash
+bash <plugin checkout>/scripts/collie-board-ctl.sh restart   # or: update, stop, start
+```
+
+The checkout is the plugin's directory (`herdr plugin config-dir herdr.collie-board` is its *config*
+dir, not this one). You don't have to look it up: when the bridge runs on herdr-core, the restart
+notice in the footer, Settings → About and the backup restore all print this command with the full
+path already filled in.
 
 **The in-app "a new release is out" banner checks the repo the plugin was installed from**: the
 GitHub `origin` of its checkout — `Xhelliom/collie-board` for a `herdr plugin install`, on Windows as

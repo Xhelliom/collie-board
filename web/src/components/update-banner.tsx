@@ -34,7 +34,7 @@ export function updateNotice(update: UpdateInfo | undefined): UpdateNotice | nul
     // No release page for "restart needed" — show the Herdr restart action to copy.
     return {
       line: t("update.restart"),
-      command: "herdr plugin action invoke restart --plugin herdr.collie-board",
+      command: update.restartCommand ?? "herdr plugin action invoke restart --plugin herdr.collie-board",
     };
   }
   // Guard on `latest` too: without a version string there's nothing meaningful to name. The release

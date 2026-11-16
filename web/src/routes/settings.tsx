@@ -190,7 +190,7 @@ export function SettingsRoute() {
             {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
             <UpdateCheckControl />
 
-            <BackupControl device={root?.device} />
+            <BackupControl device={root?.device} restartCommand={root?.update?.restartCommand} />
 
             <ConnectionInfo bridge={root?.bridge} device={root?.device} build={serverBuild} />
 
