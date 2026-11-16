@@ -31,10 +31,19 @@ export const AGENT_GROUPS: readonly AgentGroup[] = [
  * order (status → space → pane). Panes the bridge never witnessed settle carry no `statusSince` and
  * fall to the bottom in that same incoming order — sort is stable, so two renders of an unchanged
  * herd give the same list.
+ *
+ * "Needs you" reads the other way: oldest wait first (after the orchestrators), so a long wait never
+ * sinks under fresh ones. A lower bound (`statusSinceAtLeast`) counts as its date; no date
+ * at all goes last.
  */
 export function groupMembers(agents: AgentView[], g: AgentGroup): AgentView[] {
   const members = agents.filter((a) => g.match(a.status));
   const rank = (a: AgentView) => (isOrchestrator(a) ? 0 : 1);
+  if (g.key === "needs") {
+    // `|| 0`: two undated panes give Infinity - Infinity = NaN, which must read as a tie.
+    const since = (a: AgentView) => a.statusSince ?? a.statusSinceAtLeast ?? Infinity;
+    return members.sort((a, b) => rank(a) - rank(b) || since(a) - since(b) || 0);
+  }
   if (g.key !== "other") return members.sort((a, b) => rank(a) - rank(b));
   return members.sort((a, b) => rank(a) - rank(b) || (b.statusSince ?? 0) - (a.statusSince ?? 0));
 }
