@@ -172,3 +172,18 @@ export function proposeMilestoneName(titles: string[]): string | null {
   const name = theme.join(" · ");
   return name[0].toUpperCase() + name.slice(1);
 }
+
+/** An open phase whose every step is done: it only waits for the operator to validate it. */
+export const toValidate = (p: ProjectPhase) => Boolean(p.phase && !p.phase.closedAt && p.steps.length > 0 && p.done === p.steps.length);
+const unfinished = (p: ProjectPhase) => p.steps.some((s) => s.status !== "done");
+/** Work is going on in it: one of its lots is launched, or one of its cards is in flight. */
+export const busy = (p: ProjectPhase, live: ReadonlySet<string>) => p.lots.some((l) => live.has(l.lot.id)) || p.steps.some((s) => stepGroup(s) === "flight");
+
+/** The phases detailed at the top, in the roadmap's order: every one with work going on; with none, the
+ *  first with work left, else the first to validate. `live` holds the ids of the lots running. Pure. */
+export function currentPhases(sections: readonly ProjectPhase[], live: ReadonlySet<string>): ProjectPhase[] {
+  const working = sections.filter((p) => busy(p, live));
+  if (working.length > 0) return working;
+  const one = sections.find((p) => p.phase && unfinished(p)) ?? sections.find(unfinished) ?? sections.find(toValidate);
+  return one ? [one] : [];
+}
