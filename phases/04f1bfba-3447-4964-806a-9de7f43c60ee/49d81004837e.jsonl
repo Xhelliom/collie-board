@@ -1,2 +1,3 @@
 {"v":1,"hlc":"1794692303570.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Recette guidée","goal":"Que la recette se fasse : une petite portion à la fois, guidée, après un tri des étapes périmées.","position":53,"roadmap_item_id":"d01d4a6f","closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794692301972}}
 {"v":1,"hlc":"1794692303570.0001.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"pipeline_id":"ea6ec2d6-c4c0-41e7-9230-58f18b60c3d1"}}
+{"v":1,"hlc":"1794827773340.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794827767621}}
