@@ -27,6 +27,7 @@ import {
   fetchPhases,
   fetchOrchestratorMemory,
   fetchRoadmap,
+  fetchRepos,
   type CardCounts,
   type CardDetail,
   type CardView,
@@ -249,14 +250,18 @@ async function loadProject(request: Request | undefined): Promise<ProjectData> {
       ]);
       return { orchestrator, orchestratorEntries, orchestratorMemory, roadmap: await roadmap };
     });
-  const [base, phases, lots, orch, templates, flows] = await Promise.all([
+  // Read once per visit, hidden repos included. null = the list is not loaded: never call the repo unknown on that.
+  const knownRepos = settledRead("repos", repo, () => fetchRepos({ all: true }, signal).then((r) => r.repos.map((x) => x.path)));
+  const [base, phases, lots, orch, templates, flows, known] = await Promise.all([
     loadBoard(request, true, false, repo),
     fetchPhases(repo, signal).then((r) => r.phases, () => []),
     fetchLots(repo, signal).then((r) => r.runs, () => []),
     orchestratorLayer,
     settledRead("templates", repo, () => fetchTemplates(signal)),
     settledRead("flows", repo, () => fetchFlows(signal).then((r) => r.flows)),
+    knownRepos,
   ]);
+  if (known && !known.includes(repo)) throw new Response(repo, { status: 404, statusText: "Not Found" });
   return { ...base, phases, lots, ...orch, templates, flows };
 }
 

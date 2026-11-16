@@ -77,6 +77,36 @@ describe("project loader", () => {
   });
 });
 
+describe("project loader, which repo", () => {
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  function stubRepos(repos: () => Promise<Response>) {
+    vi.stubGlobal("fetch", (url: string) => (url.includes("/api/repos") ? repos() : Promise.resolve(json({ cards: [] }))));
+  }
+  const load = (repo: string) => projectLoader({ request: new Request(`http://x/board/project?repo=${repo}`) });
+
+  it("an unknown repo throws a 404 for the route's error screen", async () => {
+    stubRepos(() => Promise.resolve(json({ repos: [{ path: "/r" }] })));
+    await expect(load("/nope")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("a known repo whose list arrives late waits for it, and never errors", async () => {
+    let release!: () => void;
+    stubRepos(() => new Promise((r) => (release = () => r(json({ repos: [{ path: "/r" }] })))));
+    let settled = false;
+    const pending = load("/r").finally(() => (settled = true));
+    await vi.waitFor(() => expect(release).toBeDefined());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(settled).toBe(false); // still loading, not an error
+    release();
+    await expect(pending).resolves.toHaveProperty("phases");
+  });
+
+  it("a list that cannot be read never makes the repo unknown", async () => {
+    stubRepos(() => Promise.resolve(new Response("down", { status: 500 })));
+    await expect(load("/r")).resolves.toHaveProperty("phases");
+  });
+});
+
 // Audit perf #7: a poll tick on the project page follows the cards, facts, lots and orchestrator — not what only moves on an action.
 describe("project loader, poll tick", () => {
   it("asks again for the roadmap and memory only when the orchestrator's state says they moved", async () => {
@@ -90,6 +120,7 @@ describe("project loader, poll tick", () => {
       if (url.includes("/api/roadmap")) return Promise.resolve(json({ roadmap: { repoPath: "/r", vision: "", items: [], revision: orch.roadmapRevision } }));
       if (url.includes("/api/templates")) return Promise.resolve(json({ templates: [] }));
       if (url.includes("/api/flows")) return Promise.resolve(json({ flows: [] }));
+      if (url.includes("/api/repos")) return Promise.resolve(json({ repos: [{ path: "/r" }] }));
       return Promise.resolve(json({ cards: [], facts: [], phases: [], runs: [], entries: [], available: true }));
     });
     const load = () => projectLoader({ request: new Request("http://x/project?repo=/r") });
