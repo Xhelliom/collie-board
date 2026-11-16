@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794864642325.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Page Projet : toutes les phases où un lot tourne sont en haut","status":"backlog"},"ts":1794864640133}}
 {"v":1,"hlc":"1794864649649.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"360f2aed-f63e-4b40-adda-2d021331282c"}}
 {"v":1,"hlc":"1794868697123.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794868707749.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/page-projet-toutes-les-phases-ou-un-lot-tourne-s"}}
+{"v":1,"hlc":"1794868707749.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794868707750.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794868700885}}
+{"v":1,"hlc":"1794868707750.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794868707750.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794868706777}}
+{"v":1,"hlc":"1794868707750.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2715},"ts":1794868707652}}
