@@ -31,7 +31,7 @@ import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-mil
 import { boardErrorMessage, CARD_STATUS_LABEL, cardPath, deletePhase, loadRepoScope, orchestratorPath, repoName, reposOf, type CardView } from "@/lib/board";
 import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
 import { getLocale, useT, type MessageKey } from "@/i18n";
-import { projectOf, proposeMilestoneName, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
+import { busy, currentPhases, projectOf, proposeMilestoneName, stepGroup, toValidate, type ProjectPhase, type StepGroup } from "@/lib/project";
 import { lotHold } from "@/lib/lot-hold";
 import { haltSentence } from "@/lib/halt-sentence";
 import { saveLastProject } from "@/lib/quick-access";
@@ -82,9 +82,6 @@ const LINE = "flex flex-wrap items-center gap-x-3 gap-y-2";
 const TEXT = "min-w-0 flex-1 basis-60 text-sm leading-snug";
 const TAG = "rounded-sm px-2 py-0.5 text-xs font-semibold";
 
-/** An open phase whose every step is done: it only waits for the operator to validate it. */
-const toValidate = (p: ProjectPhase) => Boolean(p.phase && !p.phase.closedAt && p.steps.length > 0 && p.done === p.steps.length);
-const unfinished = (p: ProjectPhase) => p.steps.some((s) => s.status !== "done");
 const tally = (steps: CardView[]) => {
   const n: Record<StepGroup, number> = { done: 0, flight: 0, waiting: 0, todo: 0 };
   for (const s of steps) n[stepGroup(s)]++;
@@ -205,15 +202,11 @@ export function ProjectRoute() {
   const phased = v.phases.some((p) => p.phase);
   const loose = phased ? v.phases.find((p) => p.key === "loose") : undefined;
   const sections = v.phases.filter((p) => p !== loose);
-  // The phase in progress: the one a lot runs in, else the first with work left, else the first to validate.
+  // The phases in progress: every one a lot runs in or a card works in, else the first with work left.
   const live = new Set(running.map((l) => l.lot.id));
-  const current =
-    sections.find((p) => p.lots.some((l) => live.has(l.lot.id))) ??
-    sections.find((p) => p.phase && unfinished(p)) ??
-    sections.find(unfinished) ??
-    sections.find(toValidate) ??
-    null;
-  const following = sections.filter((p) => p !== current);
+  const currents = currentPhases(sections, live);
+  const current = currents[0] ?? null;
+  const following = sections.filter((p) => !currents.includes(p));
   const deliverables = useMemo(() => recentDeliverables(cards, data.facts), [cards, data.facts]);
 
   // ── What waits for you: halted lots in one sentence, the lot ready to go, cards to read, phases to validate.
@@ -615,44 +608,49 @@ export function ProjectRoute() {
               </div>
             ) : (
               <>
-                {/* 2. The phase in progress: its ring, its gestures, its figures, then its lots in order. */}
-                {current ? (
-                  <section id={`phase-${current.key}`} aria-label={current.title || t("project.noPhase")} className={cn(PANEL, "gap-4")}>
-                    {/* One grid: on a phone the goal and the figures run under the ring, beside it on a wide screen. */}
-                    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 gap-y-3 sm:gap-x-5">
-                      <div className="sm:row-span-3 sm:self-center">
-                        <PhaseRing p={current} />
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="text-xs text-muted-foreground">{t("project.current.label")}</span>
-                          <h2 className="text-[17px] font-semibold leading-snug">{current.title || t("project.noPhase")}</h2>
+                {/* 2. The phases in progress (each one work runs in): its ring, its gestures, its figures, then its lots in order. */}
+                {currents.length > 0 ? (
+                  currents.map((p) => (
+                    <section key={p.key} id={`phase-${p.key}`} aria-label={p.title || t("project.noPhase")} className={cn(PANEL, "gap-4")}>
+                      {/* One grid: on a phone the goal and the figures run under the ring, beside it on a wide screen. */}
+                      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 gap-y-3 sm:gap-x-5">
+                        <div className="sm:row-span-3 sm:self-center">
+                          <PhaseRing p={p} />
                         </div>
-                        {phaseButton(current)}
-                        {phaseMenu(current)}
+                        <div className="flex items-start gap-2">
+                          <div className="flex min-w-0 flex-1 flex-col">
+                            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {t("project.current.label")}
+                              {busy(p, live) && <StatusSignal status="working" label={t("project.current.working")} />}
+                            </span>
+                            <h2 className="text-[17px] font-semibold leading-snug">{p.title || t("project.noPhase")}</h2>
+                          </div>
+                          {phaseButton(p)}
+                          {phaseMenu(p)}
+                        </div>
+                        {p.goal && <p className="col-span-2 text-sm leading-snug text-muted-foreground sm:col-span-1 sm:col-start-2">{p.goal}</p>}
+                        <div className="col-span-2 sm:col-span-1 sm:col-start-2">{figures(p)}</div>
                       </div>
-                      {current.goal && <p className="col-span-2 text-sm leading-snug text-muted-foreground sm:col-span-1 sm:col-start-2">{current.goal}</p>}
-                      <div className="col-span-2 sm:col-span-1 sm:col-start-2">{figures(current)}</div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex flex-wrap items-center gap-x-3">
-                        <h3 className="min-w-0 flex-1 text-[13px] font-medium text-muted-foreground">{t("project.current.lots")}</h3>
-                        {(filter !== "all" || mineOnly) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              pick("all");
-                              pickMine(false);
-                            }}
-                            className={cn(LINK, "min-h-11 sm:min-h-0")}
-                          >
-                            {t("project.filter.clear")}
-                          </button>
-                        )}
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap items-center gap-x-3">
+                          <h3 className="min-w-0 flex-1 text-[13px] font-medium text-muted-foreground">{t("project.current.lots")}</h3>
+                          {(filter !== "all" || mineOnly) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                pick("all");
+                                pickMine(false);
+                              }}
+                              className={cn(LINK, "min-h-11 sm:min-h-0")}
+                            >
+                              {t("project.filter.clear")}
+                            </button>
+                          )}
+                        </div>
+                        {body(p)}
                       </div>
-                      {body(current)}
-                    </div>
-                  </section>
+                    </section>
+                  ))
                 ) : (
                   v.total === 0 && <p className="px-1 text-sm text-muted-foreground">{t("project.allValidated")}</p>
                 )}
