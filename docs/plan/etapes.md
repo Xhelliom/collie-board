@@ -92,7 +92,7 @@ Solder les correctifs nés des derniers lots : copilote, redémarrage sous hc, r
 
 ### Lot — Recette et projet (launched, one at a time)
 
-- **Header : choisir le projet avec une recherche (combobox shadcn)** — done
+- **Header : choisir le projet avec une recherche** — done
 
   Skill frontend-design en tête. Demande opérateur (16/11, passée par l orchestrateur CrewDesign). Le choix du projet dans le header est un <select> natif (web/src/components/board-tabs.tsx). Avec une vingtaine de projets, il faut pouvoir taper pour filtrer. SANS NOUVELLE DÉPENDANCE (décision opérateur 16/11 : ni cmdk, ni Radix, ni UI SDK) : un bouton qui ouvre la liste des projets avec un champ de recherche en tête, focalisé, qui filtre à la frappe (insensible à la casse et aux accents). Sur ordinateur, un panneau ancré sous le bouton ; sur téléphone, le BottomSheet maison (web/src/components/ui/sheet.tsx, Vaul — ADR 0003). Accessibilité combobox ARIA (role combobox/listbox, aria-activedescendant). Garder les projets masqués/listés comme aujourd hui. Aucune action ni option retirée du sélecteur actuel.
 
