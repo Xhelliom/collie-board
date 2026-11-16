@@ -13,6 +13,8 @@ export const board = defineMessages({
   "settings.repo.pick": { en: "Pick a repo to set it up.", fr: "Choisis un dépôt pour le régler." },
   "repo.label": { en: "Repository", fr: "Dépôt" },
   "repo.all": { en: "All projects", fr: "Tous les projets" },
+  "repo.search": { en: "Search a project", fr: "Chercher un projet" },
+  "repo.none": { en: "No project matches", fr: "Aucun projet ne correspond" },
   "tile.from": { en: "from “{source}”", fr: "issue de « {source} »" },
   "tile.after": { en: "after “{title}”", fr: "après « {title} »" },
   "tile.offPhase": { en: "No phase", fr: "Hors phase" },

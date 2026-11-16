@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
-import { BookOpen, ChevronDown, FileCode, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, Milestone, MoreHorizontal, Settings } from "lucide-react";
+import { BookOpen, Check, ChevronDown, FileCode, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, Milestone, MoreHorizontal, Settings } from "lucide-react";
 
 import { useT, type MessageKey } from "@/i18n";
 import { AddProjectSheet } from "@/components/add-project-sheet";
+import { BottomSheet } from "@/components/ui/sheet";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { loadRepoScope, repoName, saveRepoScope, withListedRepos } from "@/lib/board";
 import { pageTab, usePageTabs } from "@/lib/docs";
 import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
@@ -205,6 +207,18 @@ function MoreMenu({ items, label }: { items: TabItem[]; label: string }) {
 const ADD = "+add";
 const UNLIST = "+unlist";
 
+/** Case- and accent-insensitive search key: « Écran » matches « ecr ». Pure, exported for the test. */
+export function fold(s: string): string {
+  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+interface PickItem {
+  value: string;
+  label: string;
+  /** An action, not a project: never filtered out, so « Add a project » stays at hand when nothing matches. */
+  action?: boolean;
+}
+
 /** The header's title on every repo view: the project's name IS the repo picker — touch it to change
  *  project, to see all of them, to add one or take a hand-added one off the list. `subtitle` is the
  *  view's own second line. */
@@ -215,13 +229,35 @@ export function RepoTitle({ repos = [], subtitle }: { repos?: RepoOption[]; subt
   const [params] = useSearchParams();
   const repo = params.get("repo") ?? loadRepoScope();
   const [adding, setAdding] = useState(false);
+  const [open, setOpen] = useState(false);
+  const desktop = useIsDesktop();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const listed = useListedRepos();
   // The repos with cards, then the ones the operator added by hand — never every repo the bridge knows.
   const all = withListedRepos(repos, listed);
   // The scope stays selectable even when nothing in the current list uses it any more.
   const options = repo && !all.some((r) => r.path === repo) ? [{ path: repo, name: repoName(repo) }, ...all] : all;
+  const items: PickItem[] = [
+    { value: "", label: t("repo.all") },
+    ...options.map((r) => ({ value: r.path, label: r.name })),
+    { value: ADD, label: `${t("project.add")}…`, action: true },
+    ...(repo && listed.includes(repo) ? [{ value: UNLIST, label: t("project.unlist"), action: true }] : []),
+  ];
+  const name = repo ? repoName(repo) : t("repo.all");
+
+  // The anchored panel closes on a press outside it; the sheet has its own overlay for that.
+  useEffect(() => {
+    if (!open || !desktop) return;
+    const close = (e: PointerEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open, desktop]);
 
   function pick(next: string) {
+    setOpen(false);
     if (next === ADD) return setAdding(true);
     // Takes the repo off the hand-made list only: its cards, if any, keep it listed through them.
     if (next === UNLIST) return void (repo && setRepoListed(repo, false).catch(() => {}));
@@ -230,30 +266,134 @@ export function RepoTitle({ repos = [], subtitle }: { repos?: RepoOption[]; subt
     void navigate(`${pathname}${value ? `?repo=${encodeURIComponent(value)}` : ""}`, { replace: true });
   }
 
+  const picker = open && <RepoPicker items={items} current={repo ?? ""} onPick={pick} onClose={() => setOpen(false)} inputRef={inputRef} />;
+
   return (
-    <div className="min-w-0">
-      <label className="relative flex min-w-0 items-center gap-1 rounded-md hover:text-foreground/80 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring">
-        <span className="truncate text-[17px] font-semibold tracking-[-0.01em]">{repo ? repoName(repo) : t("repo.all")}</span>
-        <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        {/* The native picker over the title: the phone's own wheel, nothing to hand-roll. */}
-        <select
-          aria-label={t("repo.label")}
-          value={repo ?? ""}
-          onChange={(e) => pick(e.target.value)}
-          className="absolute inset-0 cursor-pointer appearance-none opacity-0"
-        >
-          <option value="">{t("repo.all")}</option>
-          {options.map((r) => (
-            <option key={r.path} value={r.path}>
-              {r.name}
-            </option>
-          ))}
-          <option value={ADD}>{t("project.add")}…</option>
-          {repo && listed.includes(repo) && <option value={UNLIST}>{t("project.unlist")}</option>}
-        </select>
-      </label>
+    <div ref={boxRef} className="relative min-w-0">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${t("repo.label")}, ${name}`}
+        onClick={() => setOpen((o) => !o)}
+        className="flex min-w-0 max-w-full cursor-pointer items-center gap-1 rounded-md hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="truncate text-[17px] font-semibold tracking-[-0.01em]">{name}</span>
+        <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && desktop && "rotate-180")} aria-hidden="true" />
+      </button>
       {subtitle && <div className="truncate text-sm text-muted-foreground">{subtitle}</div>}
+      {desktop ? (
+        picker && (
+          <div className="absolute left-0 top-full z-30 mt-1 flex max-h-[min(28rem,70vh)] w-80 flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-(--shadow-3)">
+            {picker}
+          </div>
+        )
+      ) : (
+        // Full screen on a phone: the keyboard takes half of it, the list needs the rest.
+        <BottomSheet open={open} onClose={() => setOpen(false)} title={t("repo.label")} initialFocus={inputRef} className="h-dvh max-h-dvh rounded-none pt-[env(safe-area-inset-top)]">
+          {picker}
+        </BottomSheet>
+      )}
       <AddProjectSheet open={adding} onClose={() => setAdding(false)} exclude={all.map((r) => r.path)} />
     </div>
+  );
+}
+
+/** The search field and the list it filters — ARIA combobox: focus stays in the field, the arrows move
+ *  `aria-activedescendant`, Enter picks, Escape closes. */
+function RepoPicker({
+  items,
+  current,
+  onPick,
+  onClose,
+  inputRef,
+}: {
+  items: PickItem[];
+  current: string;
+  onPick: (value: string) => void;
+  onClose: () => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  const t = useT();
+  const id = useId();
+  const [query, setQuery] = useState("");
+  const q = fold(query.trim());
+  const shown = items.filter((i) => i.action || fold(i.label).includes(q));
+  const [active, setActive] = useState(() => Math.max(0, items.findIndex((i) => i.value === current)));
+  const at = Math.min(active, shown.length - 1);
+  const optId = (i: number) => `${id}-o${i}`;
+  const empty = !shown.some((i) => !i.action);
+
+  useEffect(() => {
+    document.getElementById(optId(at))?.scrollIntoView?.({ block: "nearest" });
+  });
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      setActive((at + step + shown.length) % shown.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (shown[at]) onPick(shown[at].value);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    }
+  }
+
+  return (
+    <>
+      <div className="sticky top-0 z-10 bg-inherit p-2">
+        <input
+          ref={inputRef}
+          autoFocus
+          type="text"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls={`${id}-list`}
+          aria-autocomplete="list"
+          aria-activedescendant={shown.length ? optId(at) : undefined}
+          aria-label={t("repo.search")}
+          placeholder={t("repo.search")}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          enterKeyHint="go"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActive(0);
+          }}
+          onKeyDown={onKeyDown}
+          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring lg:text-sm"
+        />
+      </div>
+      {empty && <p className="px-4 pt-1 text-sm text-muted-foreground">{t("repo.none")}</p>}
+      <ul id={`${id}-list`} role="listbox" aria-label={t("repo.label")} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1">
+        {shown.map((item, i) => (
+          <li
+            key={item.value}
+            id={optId(i)}
+            role="option"
+            aria-selected={i === at}
+            // Keep focus in the field: the list is driven from it.
+            onMouseDown={(e) => e.preventDefault()}
+            onPointerMove={() => i !== at && setActive(i)}
+            onClick={() => onPick(item.value)}
+            className={cn(
+              "flex h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 text-sm lg:h-10",
+              i === at && "bg-muted",
+              item.action ? "text-muted-foreground" : "font-medium",
+              item.action && (i === 0 || !shown[i - 1]!.action) && "mt-1",
+            )}
+          >
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            {!item.action && item.value === current && <Check className="size-4 shrink-0" aria-hidden="true" />}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

@@ -346,11 +346,12 @@ describe("?status= from the URL", () => {
 });
 
 describe("board filters — header", () => {
-  it("shows no repo chip (the tabs select says it) and a removable phase chip; an empty phase is named", async () => {
+  it("shows no repo chip (the header's picker says it) and a removable phase chip; an empty phase is named", async () => {
     const repo = "/home/me/collie-board";
     const phase = { id: "p1", repoPath: repo, name: "Lot 6" } as Phase;
     await mount([{ ...card("Alpha", "backlog", 0), repoPath: repo }], `/board?repo=${encodeURIComponent(repo)}&phase=p1`, [phase]);
-    expect(screen.queryAllByRole("button", { name: /collie-board/ })).toHaveLength(0);
+    // The header's picker names it; no chip does.
+    expect(screen.queryAllByRole("button", { name: /collie-board/ }).filter((b) => b.getAttribute("aria-haspopup") !== "listbox")).toHaveLength(0);
     expect(screen.getByRole("button", { name: /Lot 6/ })).toBeTruthy();
     expect(screen.getByText(/Aucune carte.*dans la phase « Lot 6 »/)).toBeTruthy();
     expect(screen.queryByText(/Le board est vide/i)).toBeNull();

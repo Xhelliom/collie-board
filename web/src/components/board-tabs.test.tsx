@@ -7,7 +7,16 @@ import { describe, expect, it } from "vitest";
 import { __setListedRepos } from "@/lib/listed-repos";
 import { server } from "@/test/setup";
 
-import { BoardTabs, RepoTitle, boardTabFor, visibleTabs } from "./board-tabs";
+import { BoardTabs, RepoTitle, boardTabFor, fold, visibleTabs } from "./board-tabs";
+
+const openPicker = async () => {
+  await userEvent.click(screen.getByRole("button", { name: /^Repository,/ }));
+  return screen.findByRole("combobox", { name: "Search a project" });
+};
+const choose = async (name: string) => {
+  await openPicker();
+  await userEvent.click(screen.getByRole("option", { name }));
+};
 
 describe("BoardTabs and RepoTitle", () => {
   it("knows which view it is on", () => {
@@ -50,13 +59,12 @@ describe("BoardTabs and RepoTitle", () => {
       { initialEntries: ["/board/project?repo=%2Fr%2Fapp"] },
     );
     render(<RouterProvider router={router} />);
-    const select = screen.getByRole("combobox", { name: "Repository" });
-    expect(select).toHaveValue("/r/app");
-    await userEvent.selectOptions(select, "/r/web");
+    expect(screen.getByRole("button", { name: "Repository, app" })).toBeInTheDocument();
+    await choose("web");
     expect(router.state.location.pathname).toBe("/board/project");
     expect(router.state.location.search).toBe("?repo=%2Fr%2Fweb");
     expect(router.state.historyAction).toBe("REPLACE");
-    await userEvent.selectOptions(select, "");
+    await choose("All projects");
     expect(router.state.location.search).toBe("");
   });
 
@@ -66,9 +74,9 @@ describe("BoardTabs and RepoTitle", () => {
       initialEntries: ["/board/project"],
     });
     render(<RouterProvider router={router} />);
-    const select = screen.getByRole("combobox", { name: "Repository" });
-    expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["All projects", "app", "grive", "Add a project…"]);
-    await userEvent.selectOptions(select, "/r/grive");
+    await openPicker();
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["All projects", "app", "grive", "Add a project…"]);
+    await userEvent.click(screen.getByRole("option", { name: "grive" }));
     expect(router.state.location.search).toBe("?repo=%2Fr%2Fgrive");
   });
 
@@ -95,7 +103,7 @@ describe("BoardTabs and RepoTitle", () => {
       initialEntries: ["/board"],
     });
     render(<RouterProvider router={router} />);
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Repository" }), "+add");
+    await choose("Add a project…");
     await userEvent.click(await screen.findByRole("button", { name: /\/r\/scan/ }));
     expect(screen.queryByRole("button", { name: /\/r\/grive/ })).toBeNull();
     expect(posted).toEqual({ path: "/r/scan", listed: true });
@@ -113,8 +121,38 @@ describe("BoardTabs and RepoTitle", () => {
       }),
     );
     render(<RouterProvider router={createMemoryRouter([{ path: "*", element: <RepoTitle repos={[{ path: "/r/app", name: "app" }]} /> }], { initialEntries: ["/board/project?repo=%2Fr%2Fgrive"] })} />);
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Repository" }), "+unlist");
+    await choose("Remove from the list");
     expect(posted).toEqual({ path: "/r/grive", listed: false });
     await waitFor(() => expect(screen.queryByRole("option", { name: "Remove from the list" })).toBeNull());
+  });
+
+  it("filters as you type, ignoring case and accents, and picks with the arrows and Enter", async () => {
+    expect(fold("Écran Été")).toBe("ecran ete");
+    const router = createMemoryRouter(
+      [{ path: "*", element: <RepoTitle repos={[{ path: "/r/ecran", name: "Écran" }, { path: "/r/eclair", name: "eclair" }, { path: "/r/web", name: "web" }]} /> }],
+      { initialEntries: ["/board/prs"] },
+    );
+    render(<RouterProvider router={router} />);
+    const input = await openPicker();
+    expect(input).toHaveFocus();
+    await userEvent.type(input, "ECR");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Écran", "Add a project…"]);
+    await userEvent.clear(input);
+    await userEvent.type(input, "écl");
+    expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "eclair" }).id);
+    await userEvent.keyboard("{ArrowDown}{ArrowUp}");
+    expect(screen.getByRole("option", { name: "eclair" })).toHaveAttribute("aria-selected", "true");
+    await userEvent.keyboard("{Enter}");
+    expect(router.state.location.pathname).toBe("/board/prs");
+    expect(router.state.location.search).toBe("?repo=%2Fr%2Feclair");
+  });
+
+  it("closes on Escape without changing project", async () => {
+    const router = createMemoryRouter([{ path: "*", element: <RepoTitle repos={[{ path: "/r/app", name: "app" }]} /> }], { initialEntries: ["/board?repo=%2Fr%2Fapp"] });
+    render(<RouterProvider router={router} />);
+    await openPicker();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("combobox")).toBeNull());
+    expect(router.state.location.search).toBe("?repo=%2Fr%2Fapp");
   });
 });
