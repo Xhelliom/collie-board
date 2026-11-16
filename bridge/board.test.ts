@@ -3037,6 +3037,31 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     expect(store.listEvents(card.id).filter((e) => e.type === "copilot.review_failed")).toHaveLength(1);
   });
 
+  // reviewNow, reformulate and refine run once per operator tap and never re-arm themselves; a
+  // reviewNow that fails joins the poll's series instead of opening a second one.
+  it("an unreachable copilot: reviewNow, reformulate and refine try once per call and never loop", async () => {
+    const store = db();
+    const card = filed(store, { wrapupPending: false });
+    let asked = 0;
+    const copilot = { enabled: true, observe() {}, async ask() { asked++; return null; } } as unknown as Copilot;
+    let now = 0;
+    const coordinator = new CopilotCoordinator(store, copilot, cfg, () => now);
+    const poll = async () => (coordinator.update(snapshot([]), async () => "stat"), await settle());
+
+    await poll(); // the series opens
+    await coordinator.reviewNow(card.id, async () => "stat");
+    await coordinator.reviewNow(card.id, async () => "stat");
+    expect(asked).toBe(3);
+    for (let i = 0; i < 10; i++) await poll(); // the taps pushed the wait out, not cut it short
+    expect(asked).toBe(3);
+    expect(store.listEvents(card.id).filter((e) => e.type === "copilot.review_failed")).toHaveLength(1);
+
+    await coordinator.reformulate(card.id, "dump");
+    await coordinator.refine(card.id, "say json");
+    await settle();
+    expect(asked).toBe(5);
+  });
+
   it("waits for the closing note first — reviewing early loses the account of what was left undone", async () => {
     const store = db();
     filed(store, { wrapupPending: true });
