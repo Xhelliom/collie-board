@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { useT } from "@/i18n";
 import { ago } from "@/lib/agents-page";
 import { agentIdentity, type AgentIdentity } from "@/lib/agent-identity";
+import { AGE_TONE_CLASS, ageTone } from "@/lib/status-age";
 import { cardPath } from "@/lib/board";
 import type { AgentView } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,7 @@ export function AgentLine({ agent, onOpen, compact = false, current = false }: {
   const t = useT();
   const id = agentIdentity(agent, t("agents.orchestrator"));
   const said = useStateSaid(id);
+  const loud = ageTone(agent.status, id.since);
   const wide = compact ? "hidden" : "hidden lg:block";
   return (
     <div
@@ -94,14 +96,14 @@ export function AgentLine({ agent, onOpen, compact = false, current = false }: {
         <AgentDetail id={id} />
         {/* Phone: the third, discreet line. */}
         <span className={cn("flex min-w-0 gap-1 text-xs text-muted-foreground", !compact && "lg:hidden")}>
-          <span className={cn("shrink-0", id.state !== "idle" && STATE_TONE[id.state])}>{said}</span>
+          <span className={cn("shrink-0", loud ? AGE_TONE_CLASS[loud] : id.state !== "idle" && STATE_TONE[id.state])}>{said}</span>
           {id.model && <span aria-hidden="true">·</span>}
           <ModelEffort id={id} />
           {compact && id.machine && <span className="shrink-0">· {id.machine}</span>}
         </span>
       </span>
       {!compact && <MachineChip machine={id.machine} className="justify-self-start" />}
-      <span className={cn("min-w-0 truncate text-[13px]", wide, STATE_TONE[id.state])}>{said}</span>
+      <span className={cn("min-w-0 truncate text-[13px] lg:justify-self-start", wide, loud ? AGE_TONE_CLASS[loud] : STATE_TONE[id.state])}>{said}</span>
       <span className={cn("min-w-0 text-xs text-muted-foreground", wide)}>
         <ModelEffort id={id} className="block" />
       </span>
