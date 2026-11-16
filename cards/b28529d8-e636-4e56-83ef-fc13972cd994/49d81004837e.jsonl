@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794666561130.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Espacer aussi reviewNow, reformulate et refine du copilote","status":"backlog"},"ts":1794666555014}}
 {"v":1,"hlc":"1794864642325.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"7bbdc550-febc-415a-b2a6-7adbb282312b"}}
 {"v":1,"hlc":"1794864649647.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"07b81ae3-b832-454d-a274-66a421ce37f9"}}
+{"v":1,"hlc":"1794865546409.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
