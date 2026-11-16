@@ -62,6 +62,7 @@ export const spaces = defineMessages({
   "agents.state.doneAgo": { en: "done {duration} ago", fr: "fini il y a {duration}" },
   "agents.state.idle": { en: "resting", fr: "au repos" },
   "agents.state.idleFor": { en: "resting for {duration}", fr: "au repos depuis {duration}" },
+  "agents.state.atLeast": { en: "at least {duration}", fr: "au moins {duration}" },
   "agents.effort.low": { en: "low", fr: "faible" },
   "agents.effort.medium": { en: "medium", fr: "moyen" },
   "agents.effort.high": { en: "high", fr: "élevé" },

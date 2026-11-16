@@ -32,6 +32,9 @@ describe("agentIdentity", () => {
   it("state, its word and its age", () => {
     expect(id({ status: "blocked", statusSince: 5 })).toMatchObject({ state: "needs", word: "needs", since: 5 });
     expect(id({ status: "done" })).toMatchObject({ state: "idle", word: "done", since: null });
+    expect(id({ status: "done", statusSinceAtLeast: 7 })).toMatchObject({ since: 7, sinceAtLeast: true });
+    expect(id({ status: "done", statusSince: 5, statusSinceAtLeast: 7 })).toMatchObject({ since: 5 });
+    expect(id({ status: "done", statusSince: 5 }).sinceAtLeast).toBeUndefined();
     expect(id({ status: "idle", peer: "dev" })).toMatchObject({ state: "idle", word: "idle", machine: "dev" });
   });
 });

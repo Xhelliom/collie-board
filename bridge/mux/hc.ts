@@ -113,6 +113,8 @@ export interface HcTerminal {
   turn?: number;
   foreground?: { pid: number; name: string; argv: string[]; cwd: string } | null;
   status?: { state: string; app?: string; kind?: string | null; msg?: string } | null;
+  /** When that status word last changed (epoch ms), kept by the hc core across bridge restarts. */
+  status_ms?: number | null;
 }
 
 /** OSC 7501 state → ours. `error` needs the human as much as a question does. */
@@ -150,6 +152,7 @@ export function toWirePane(t: HcTerminal): WirePane {
     ...(t.foreground ? { foreground_cwd: t.foreground.cwd } : {}),
     agent: hcAgent(t),
     agent_status: hcStatus(t.status?.state),
+    ...(typeof t.status_ms === "number" ? { status_ms: t.status_ms } : {}),
     label: t.labels?.[NAME_LABEL] || t.name || null,
     revision: t.turn ?? 0,
   };

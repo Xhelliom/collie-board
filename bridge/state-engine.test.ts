@@ -17,6 +17,7 @@ interface FakePane {
   cwd: string;
   agent?: string | null;
   agent_status: AgentStatus;
+  status_ms?: number;
   label?: string | null;
   revision: number;
   agent_session?: { source?: string; agent?: string; kind?: string; value?: string } | null;
@@ -165,6 +166,28 @@ describe("StateEngine — statusSince", () => {
 
     await poll(); // status held — the stamp must not creep forward
     expect(engine.current().agents[0]!.statusSince).toBe(since);
+    expect(engine.current().agents[0]!.statusSinceAtLeast).toBeUndefined(); // exact wins, no bound beside it
+  });
+
+  test("a pane never seen switching carries its first sighting as a lower bound, and only that", async () => {
+    const { herdr, engine, poll } = makeEngine();
+    herdr.panes = [pane("w1:p1", "w1", "idle", "claude")];
+    const before = Date.now();
+    await poll();
+    const bound = engine.current().agents[0]!.statusSinceAtLeast!;
+    expect(bound).toBeGreaterThanOrEqual(before);
+    expect(engine.current().agents[0]!.statusSince).toBeUndefined();
+
+    await poll(); // held — the bound is the FIRST sighting, it never creeps forward
+    expect(engine.current().agents[0]!.statusSinceAtLeast).toBe(bound);
+  });
+
+  test("an engine that dates the status itself (hc status_ms) gives the exact instant at first sighting", async () => {
+    const { herdr, engine, poll } = makeEngine();
+    herdr.panes = [{ ...pane("w1:p1", "w1", "working", "claude"), status_ms: 1234 }];
+    await poll();
+    expect(engine.current().agents[0]!.statusSince).toBe(1234);
+    expect(engine.current().agents[0]!.statusSinceAtLeast).toBeUndefined();
   });
 
   test("drops the stamp with the pane, so a reused id starts unstamped", async () => {

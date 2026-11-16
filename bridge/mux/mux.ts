@@ -61,6 +61,8 @@ export interface WirePane {
   foreground_cwd?: string;
   agent?: string | null;
   agent_status: AgentStatus;
+  /** hc only: when `agent_status` last changed (epoch ms) — the engine's own clock, so it survives a bridge restart. */
+  status_ms?: number;
   /** User-set pane label (herdr `pane.rename`). Present only once set — the key disappears when
    *  cleared with `label: null`, so absent/null both read as "no label". */
   label?: string | null;

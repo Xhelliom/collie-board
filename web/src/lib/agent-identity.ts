@@ -32,6 +32,8 @@ export interface AgentIdentity {
   word: StateWord;
   /** When the current state began (epoch ms); null when the bridge never saw it start. */
   since: number | null;
+  /** `since` is only a lower bound (the bridge first saw it already in that state) — say « au moins ». */
+  sinceAtLeast?: boolean;
   /** The paired peer it runs on; null on this machine. */
   machine: string | null;
   model: string | null;
@@ -50,7 +52,8 @@ export function agentIdentity(a: AgentView, orch: string): AgentIdentity {
     detail: role === "orch" ? projectOf(a.cwd) : role === "terminal" ? null : (a.said ?? null),
     state,
     word: state === "idle" && a.status === "done" ? "done" : state,
-    since: a.statusSince ?? null,
+    since: a.statusSince ?? a.statusSinceAtLeast ?? null,
+    ...(a.statusSince === undefined && a.statusSinceAtLeast !== undefined ? { sinceAtLeast: true } : {}),
     machine: a.peer ?? null,
     model: a.model ?? null,
     // An effort with no model would float on its own: the pair goes together or not at all.
