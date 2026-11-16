@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.345.2] - 2026-11-16
+
+### Fixed
+
+- L'alerte « copilote en panne » part aussi quand une seule carte attend sa revue : elle compte les échecs d'affilée tenus par le copilote, plus les entrées du journal. (d303b20)
+
 ## [0.345.1] - 2026-11-16
 
 ### Fixed
