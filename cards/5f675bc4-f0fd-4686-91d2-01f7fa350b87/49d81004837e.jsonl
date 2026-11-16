@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794836209892.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"78f6d20e-d551-4342-90d7-75d3d4750a61"}}
 {"v":1,"hlc":"1794836209892.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Afficher « en attente depuis 3 h » sur les cartes et les agents","status":"backlog"},"ts":1794836200816}}
 {"v":1,"hlc":"1794836209894.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"ed9b0ebb-051d-4c5e-b28a-90d36e89abbc"}}
+{"v":1,"hlc":"1794836949980.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
