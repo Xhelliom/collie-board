@@ -90,37 +90,37 @@ Solder les correctifs nés des derniers lots : copilote, redémarrage sous hc, r
   - [x] Le journal garde au plus un `copilot.review_failed` par série
   - [x] Un test couvre le cas d'une seule carte
 
-### Lot — Recette et projet (planned, one at a time)
+### Lot — Recette et projet (launched, one at a time)
 
-- **Header : choisir le projet avec une recherche (combobox shadcn)** — backlog
+- **Header : choisir le projet avec une recherche (combobox shadcn)** — done
 
   Skill frontend-design en tête. Demande opérateur (16/11, passée par l orchestrateur CrewDesign). Le choix du projet dans le header est un <select> natif (web/src/components/board-tabs.tsx). Avec une vingtaine de projets, il faut pouvoir taper pour filtrer. SANS NOUVELLE DÉPENDANCE (décision opérateur 16/11 : ni cmdk, ni Radix, ni UI SDK) : un bouton qui ouvre la liste des projets avec un champ de recherche en tête, focalisé, qui filtre à la frappe (insensible à la casse et aux accents). Sur ordinateur, un panneau ancré sous le bouton ; sur téléphone, le BottomSheet maison (web/src/components/ui/sheet.tsx, Vaul — ADR 0003). Accessibilité combobox ARIA (role combobox/listbox, aria-activedescendant). Garder les projets masqués/listés comme aujourd hui. Aucune action ni option retirée du sélecteur actuel.
 
-  - [ ] Taper quelques lettres filtre la liste des projets (nom insensible à la casse et aux accents)
-  - [ ] Clavier : flèches + Entrée choisissent, Échap ferme
-  - [ ] Sur téléphone, la liste s’ouvre en plein écran avec le clavier
-  - [ ] Mêmes projets proposés qu’avant, même navigation après le choix
-- **Page Projet : toutes les phases où un lot tourne sont en haut** — backlog
+  - [x] Taper quelques lettres filtre la liste des projets (nom insensible à la casse et aux accents)
+  - [x] Clavier : flèches + Entrée choisissent, Échap ferme
+  - [x] Sur téléphone, la liste s’ouvre en plein écran avec le clavier
+  - [x] Mêmes projets proposés qu’avant, même navigation après le choix
+- **Page Projet : toutes les phases où un lot tourne sont en haut** — done
 
   Skill frontend-design en tête. Constat opérateur (16/11, projet CrewDesign, capture /home/swetterwald/.local/state/collie-board/uploads/t73-mwjs1i9g-b61cb43a.png) : deux phases ont chacune un lot en cours ; la page Projet (web/src/routes/project.tsx ~l.208, `current` = UNE phase) ne détaille que la première, l autre est rangée sous « Phases suivantes » et rien ne dit qu on y travaille. Corriger : chaque phase où un lot tourne est détaillée en haut comme phase en cours (même rendu que `current` : anneau, chiffres, lots), dans l ordre de la roadmap ; s il n y en a aucune, la règle actuelle reste. Dans « Phases suivantes », une phase qui a du travail en cours (lot lancé ou carte working) n arrive plus : elle est en haut. Couleur bleu = travail, signal animé comme ailleurs. Aucune action retirée.
 
-  - [ ] Deux phases avec un lot lancé : les deux sont détaillées en haut, dans l ordre de la roadmap
-  - [ ] Une seule ou aucune : rendu inchangé
-  - [ ] Aucune phase avec du travail en cours ne reste sous « Phases suivantes »
-  - [ ] Test Vitest du choix des phases en cours
-- **Recette : la carte qui refait un écran relit les étapes en attente qui le décrivent** — backlog
+  - [x] Deux phases avec un lot lancé : les deux sont détaillées en haut, dans l ordre de la roadmap
+  - [x] Une seule ou aucune : rendu inchangé
+  - [x] Aucune phase avec du travail en cours ne reste sous « Phases suivantes »
+  - [x] Test Vitest du choix des phases en cours
+- **Recette : la carte qui refait un écran relit les étapes en attente qui le décrivent** — done
 
   Constat du tri de la recette du 15/11 (docs/dev/recette-tri-2026-11-15.md) : 26 des 29 étapes périmées l étaient parce qu une carte livrée plus tard a refait l écran (Troupeau → Agents, Documents en explorateur, Recette en chronologie, boutons renommés) sans toucher aux recettes en attente qui le décrivaient.
   
   À faire : dans la consigne de fin de carte (manualChecksPrompt, bridge/recette.ts), ajouter une ligne : lire GET /api/recette?repo=<dépôt> ; si une entrée « à tester » d une AUTRE carte décrit un écran ou un libellé que cette carte vient de changer, réécrire ses étapes (PATCH manualChecks, mêmes règles : une ligne ≤ 100 caractères), jamais de verdict. Garder la consigne courte. Mettre à jour le test qui fige ce prompt s il existe.
 
-  - [ ] La consigne de fin de carte demande de relire les recettes en attente touchées par la carte
-  - [ ] Aucun verdict n est demandé ni permis
-  - [ ] Tests verts
-- **Afficher « dépôt inconnu » sur la page projet d'un dépôt qui n'existe pas** — backlog
+  - [x] La consigne de fin de carte demande de relire les recettes en attente touchées par la carte
+  - [x] Aucun verdict n est demandé ni permis
+  - [x] Tests verts
+- **Afficher « dépôt inconnu » sur la page projet d'un dépôt qui n'existe pas** — done
 
   Critère non couvert par la carte « page introuvable avant la page projet » : aujourd'hui, la page projet d'un dépôt inconnu s'ouvre sans erreur, car son loader ne vérifie rien. Faire vérifier le dépôt par le loader de `/board/project` (contre les dépôts connus), qui jette un 404 rendu par l'`errorElement` de `web/src/router.tsx`. Ne jamais jeter tant que la liste des dépôts n'est pas chargée : afficher un chargement à la place, sinon le bug d'origine revient.
 
-  - [ ] Une page projet d'un dépôt inconnu affiche l'écran d'erreur
-  - [ ] Une page projet d'un dépôt connu n'affiche jamais l'erreur, même quand la liste des dépôts arrive en retard
-  - [ ] Un test couvre les deux cas
+  - [x] Une page projet d'un dépôt inconnu affiche l'écran d'erreur
+  - [x] Une page projet d'un dépôt connu n'affiche jamais l'erreur, même quand la liste des dépôts arrive en retard
+  - [x] Un test couvre les deux cas
