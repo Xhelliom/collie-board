@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.343.0] - 2026-11-16
+
+### Added
+
+- Agent déjà dans son état au démarrage du bridge : `statusSinceAtLeast` (première observation), affiché « depuis au moins … ». (f897633)
+- Sous hc, `statusSince` exact dès la première observation, lu sur le `status_ms` du terminal (survit au redémarrage du bridge). (f897633)
+- API cartes : `statusSince`, depuis quand la carte est dans son statut (dérivé du journal) (8468093)
+
 ## [0.342.0] - 2026-11-15
 
 ### Changed
