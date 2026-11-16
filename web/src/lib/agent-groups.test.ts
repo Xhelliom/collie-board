@@ -55,6 +55,17 @@ describe("groupMembers", () => {
     expect(groupMembers(panes, other).map((p) => p.paneId)).toEqual(["b", "a", "c"]);
   });
 
+  it("puts the oldest wait first in 'needs you', a lower bound as its date, undated last", () => {
+    const needs = AGENT_GROUPS.find((g) => g.key === "needs")!;
+    const panes = [
+      pane("new", { status: "blocked", statusSince: 300 }),
+      pane("none", { status: "blocked" }),
+      pane("old", { status: "blocked", statusSince: 100 }),
+      pane("atLeast", { status: "blocked", statusSinceAtLeast: 200 }),
+    ];
+    expect(groupMembers(panes, needs).map((p) => p.paneId)).toEqual(["old", "atLeast", "new", "none"]);
+  });
+
   it("leaves the other groups in the order the bridge sent", () => {
     const panes = [pane("a", { status: "working", statusSince: 100 }), pane("b", { status: "working", statusSince: 300 })];
     expect(groupMembers(panes, working).map((p) => p.paneId)).toEqual(["a", "b"]);
