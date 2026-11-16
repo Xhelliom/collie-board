@@ -56,124 +56,50 @@
 - **Recette et terrain** — validated 2026-11-12, 2 steps
 - **Interface simplifiée** — validated 2026-11-13, 23 steps
 - **Les PR sans quitter Collie** — validated 2026-11-14, 6 steps
+- **Ce que coûte le travail** — validated 2026-11-16, 4 steps
 - **Bug** — validated 2026-11-14, 29 steps
+- **Recette guidée** — validated 2026-11-16, 4 steps
 
-## Phase 51 — Ce que coûte le travail
+## Phase 54 — Durée des états
 
-La consommation de chaque carte, lot, phase et projet, visible. Monitorer, sans frein.
+Savoir depuis quand un agent ou une carte est dans son état, et le voir.
 
-### Lot — Voir ce que ça coûte (launched, 2 at a time)
+### Lot — Le board sait depuis quand (launched, 2 at a time)
 
-- **Le bilan d un lot dit ce qu il a consommé** — done
-  - after: Le total à chaque niveau : lot, phase, projet
+- **Agent : « depuis au moins » quand le board ne l a pas vu changer** — done
 
-  Suite de « Ce qu a consommé une carte » (bridge/cost.ts).
-  
-  Au lancement d un lot et à sa fin, relever la jauge du quota de la semaine (bridge/usage.ts, usageTracker / weekPercent de bridge/goal-routes.ts) et la journaliser sur le lot (un fait passé, durable). À la fin du lot :
-  - le message de fin de lot à l orchestrateur (bridge/orchestrator-nudge.ts, lotMessage) ajoute une ligne « Consommé : N tokens ; jauge de la semaine X % → Y % » (« inconnu » si une lecture manque — jamais une soustraction douteuse) ;
-  - le bilan exporté du lot (bridge/plan-export.ts, docs/plan/lots/<lot>.md) porte la même ligne.
-  La jauge mesure TOUT le compte (d autres sessions tournent en même temps) : le dire dans le texte (« pendant le lot »), ne pas l attribuer au lot. Tests dans les tests existants de ces deux fichiers.
+  bridge/state-engine.ts (~l.315) ne pose statusSince qu à une transition vue ; un agent déjà dans son état au démarrage du bridge n a rien, et un redémarrage efface tout. Pour ces agents, exposer statusSinceAtLeast = l instant où le bridge a vu le pane pour la première fois (première observation), sans rien persister (session éphémère). Un chiffre exact reste statusSince ; une borne basse est marquée comme telle, jamais présentée comme exacte. Si hc ou herdr donne l instant réel du dernier changement, le préférer (vérifier HERDR_API.md et le mux hc).
 
-  - [x] Le message de fin de lot cite les tokens du lot et la jauge avant/après
-  - [x] Le bilan docs/plan du lot porte la même ligne
-  - [x] Une lecture manquante donne « inconnu »
-- **Le total à chaque niveau : lot, phase, projet** — done
-  - after: Ce qu a consommé une carte : ses tokens, lus dans les transcripts
+  - [x] Un agent vu changer garde statusSince exact
+  - [x] Un agent jamais vu changer porte statusSinceAtLeast = première observation
+  - [x] Aucune écriture en base
+  - [x] Test bun de StateEngine sur les deux cas
+- **Carte : depuis quand elle est dans son statut** — done
 
-  Suite de « Ce qu a consommé une carte » (bridge/cost.ts). Skill frontend-design en tête.
-  
-  Agréger les tokens des cartes : par lot (ses cartes), par phase (ses cartes), par projet (toutes ses cartes + les conversations hors carte du dépôt : son orchestrateur — trouvé par son label, cf. bridge/orchestrator.ts). Le lead et le copilote servent tous les dépôts : les compter à part, « le board », sur la page À propos (bridge/about.ts) plutôt que de les répartir au hasard.
-  
-  Routes en lecture (nouveau fichier, pas server.ts) : GET /api/cost?repo=…[&runId=…|&phaseId=…] et une période (cette semaine / tout). Affichage : sur un lot (web/src/components/project-lots.tsx), sur une phase et en tête de la page Projet (web/src/routes/project.tsx), un chiffre court avec le détail au tap. Une part inconnue (agent non Claude) est dite : « + 2 cartes inconnues ». Documenter dans skills/collie-board/SKILL.md.
+  Une carte ne sait pas depuis quand elle est dans son statut. Le dériver, sans rien stocker de nouveau : le dernier événement card.status de son journal (bridge/db.ts recordEvent « card.status » ~l.2245), sinon createdAt. L exposer en statusSince (epoch ms) sur GET /api/cards (vue complète et summary) et GET /api/cards/:id, calculé en une requête groupée (pas une par carte : la liste grossit). Documenter le champ dans skills/collie-board/SKILL.md.
 
-  - [x] Un lot, une phase et la page Projet affichent leur total de tokens
-  - [x] L orchestrateur du projet est compté dans le projet ; lead et copilote à part sur À propos
-  - [x] Les cartes inconnues sont comptées comme telles, pas comme 0
-- **Ce qu a consommé une carte : ses tokens, lus dans les transcripts** — done
+  - [x] statusSince présent sur chaque carte des deux vues de /api/cards et sur /api/cards/:id
+  - [x] Égal à l instant du dernier changement de statut, ou à la création si aucun
+  - [x] Une seule requête pour toute la liste (test)
+  - [x] Test bun du calcul
 
-  Phase « Ce que coûte le travail » (monitorer, aucun frein).
-  
-  Le bridge sait déjà lire l usage d un transcript Claude pour la jauge de contexte (bridge/context.ts, ContextTracker ; transcripts via TranscriptStore/ClaudeTranscriptSource, cf. bridge/index.ts). Ajouter, dans un NOUVEAU fichier bridge/cost.ts (logique pure, testée en bun test) : la somme des tokens d une conversation — entrée, sortie, cache écrit, cache lu — par modèle, sur TOUTES les sessions d une carte (ses rounds, ses rôles du flux, ses relances). Mémorisée quand une session finit (event sur la carte, durable : c est un fait passé), recalculée tant qu elle vit, throttlée dans le consommateur (pas de nouveau poll : engine.onUpdate).
-  
-  Route GET /api/cards/:id/cost → {tokens:{input,output,cacheWrite,cacheRead}, byModel:[…], sessions, known:boolean}. Seulement pour les agents dont adapters/agents.toml dit context = true (Claude aujourd hui) : sinon known:false et l interface dit « inconnu », jamais 0.
-  
-  Sur la fiche d une carte (web/src/routes/ — trouver la fiche), une ligne « Consommé : 1,2 M tokens · Opus » avec le détail au tap. Skill frontend-design en tête. Documenter la route dans skills/collie-board/SKILL.md.
+### Lot — L écran le dit (planned, one at a time)
 
-  - [x] Une carte finie montre ses tokens, détaillés par modèle et par type
-  - [x] Une carte d un agent non vérifié affiche « inconnu », jamais 0
-  - [x] Test : un transcript connu donne la somme attendue
+- **Accueil : le plus ancien en attente en premier** — backlog
+  - after: Afficher « en attente depuis 3 h » sur les cartes et les agents
 
-### Lot — Correctifs du coût (launched, one at a time)
+  Skill frontend-design en tête. Sur l Accueil, dans les groupes qui attendent l opérateur (agents en attente ou bloqués, cartes bloquées/en revue), trier du plus ancien au plus récent dans l état, pour que ce qui attend depuis longtemps ne se perde pas. Les autres groupes gardent leur ordre. Utiliser statusSince / statusSinceAtLeast ; un élément sans durée passe en dernier.
 
-- **Bug : les totaux de coût ne s affichent pas (/api/cost non routé) et les cartes passées restent « inconnu »** — done
+  - [ ] Dans les groupes en attente, le plus ancien est en tête
+  - [ ] Les autres groupes ne changent pas d ordre
+  - [ ] Sans durée : en dernier
+  - [ ] Test Vitest du tri
+- **Afficher « en attente depuis 3 h » sur les cartes et les agents** — backlog
 
-  Constat de l orchestrateur après la MAJ 0.337.0 (14/11) :
-  1. GET /api/cost?repo=… répond la page web (200 text/html) : bridge/cost-routes.ts est branché dans bridge/board-routes.ts (l.487) mais « /api/cost » manque de BOARD_PREFIXES (board-routes.ts l.195), donc server.ts (l.353, isBoardPath) ne lui passe jamais la requête. Les totaux lot / phase / projet ne peuvent pas s afficher. Ajouter le préfixe, et un test qui vérifie que CHAQUE route documentée dans skills/collie-board/SKILL.md passe isBoardPath ou une autre garde de server.ts (bridge/skill.test.ts ne l a pas vu).
-  2. GET /api/cards/<id>/cost rend known:false, counted:0 pour des cartes Claude finies avant le déploiement (ex. ab9e513d : 8 sessions) : bridge/cost.ts ne mesure que les sessions vues vivantes. Rattraper au démarrage les sessions finies dont l agentSessionId est connu (le transcript est sur disque), une seule fois, journalisé comme les autres (COST_EVENT) ; une session sans agentSessionId reste « inconnu » (ne jamais deviner par dossier).
-  
-  3. AJOUT (bilan du lot « MAJ qui répare », 14/11) : même pour des sessions vivantes APRÈS le déploiement, le coût reste inconnu. Les sessions de cartes sous herdr-core ont agentSessionId null (GET /api/cards/<id> → sessions[].agentSessionId), et bridge/cost.ts (l.173) ne le trouve pas non plus dans le snapshot : sous hc, rien ne relie le pane à son transcript Claude. Trouver la source fiable de l id de conversation sous hc (ce que fait déjà resume-lost.ts pour reprendre une conversation : il retrouve le transcript d un terminal hc) et l enregistrer sur la session ; sans elle, aucune carte n a de coût.
-  4. Le bilan de fin de lot a affiché « jauge de la semaine 84 % → inconnu » : la lecture de fin de lot (usageTracker / weekPercent) a manqué. Relire la jauge à la fin (une lecture fraîche, pas le cache périmé) ; si elle échoue, le dire avec la raison dans le journal du bridge.
+  Skill frontend-design en tête. Avec statusSince (cartes) et statusSince / statusSinceAtLeast (agents) : sur les lignes de carte (web/src/components/project-row.tsx et listes de cartes) et d agent (Accueil, page Agents), afficher la durée dans l état, courte (« depuis 3 h », « depuis 2 j ») ; une borne basse s écrit « depuis plus de 3 h ». Couleurs franches, une par sens : une attente (orange) longue de plus de 1 h passe en orange plein ; un blocage (rouge) de plus de 1 h en rouge plein ; le reste en gris discret. Seuils = constantes dans le code. Le temps se met à jour au fil du polling existant, pas de nouveau minuteur. Aucune action retirée.
 
-  - [x] GET /api/cost répond du JSON et les totaux s affichent sur la page Projet
-  - [x] Une carte lancée sous herdr-core a ses tokens
-  - [x] Une carte Claude finie avant le déploiement montre ses tokens après un redémarrage
-  - [x] Le bilan de lot a la jauge de fin, ou la raison de son absence
-  - [x] Test : toute route documentée est routée
-
-## Phase 53 — Recette guidée
-
-Que la recette se fasse : une petite portion à la fois, guidée, après un tri des étapes périmées.
-
-### Lot — Push doc sans tests (launched, one at a time)
-
-- **Pre-push : ne pas lancer les tests quand on ne pousse que de la doc** — done
-
-  Skill frontend-design non concerné (outillage). Le hook scripts/git-hooks/pre-push lance typecheck + toutes les suites (bridge, ctl, web Vitest) même quand les commits poussés ne touchent que de la doc. Sous charge, les tests web dépassent 10 min et bloquent une carte qui n a écrit qu un compte rendu (carte « Trier la recette », 15/11). Calculer les fichiers changés entre la base distante et ce qui est poussé (lignes stdin du hook : local_sha remote_sha ; branche neuve = merge-base avec origin/HEAD) ; si TOUS sont des *.md (ou sous docs/, .adr/, changes/), sauter typecheck et tests avec un message clair. Garder la vérification des fichiers non suivis. Dans le doute (calcul impossible), tout lancer comme aujourd hui.
-
-  - [x] Un push qui ne contient que des .md passe sans typecheck ni tests, avec un message qui le dit
-  - [x] Un push qui touche un .ts lance tout comme avant
-  - [x] Une branche neuve est comparée à sa base, pas à rien : si le calcul échoue, tout est lancé
-  - [x] Les fichiers non suivis bloquent toujours le push
-  - [x] Un test couvre la décision doc seule / code
-
-### Lot — Passer la recette (launched, one at a time)
-
-- **Recette : une portion de 5 à la fois, pas 165** — done
-
-  Skill frontend-design en tête. La Recette affiche « 165 à tester » et « Vérifier une à une » enchaîne tout : un grand nombre décourage (demande de l opérateur). Faire de la recette une petite portion à la fois. Dans web/src/routes/recette.tsx et web/src/components/recette-session.tsx : (1) « Vérifier une à une » ouvre une portion de 5 étapes (les plus récentes d abord, filtre d appareil respecté) ; la progression dit « 2 / 5 », jamais le total. (2) Portion finie : un écran de fin calme (« Portion faite : 4 OK, 1 KO, 0 passée ») avec deux boutons visibles « Encore 5 » et « J arrête là ». (3) En tête de la Recette, le gros chiffre devient la portion du jour (« 5 à tester aujourd hui ») ; le total reste lisible en petit (« 165 en tout »), rien n est caché. (4) Les étapes « passées » ne reviennent pas dans la portion suivante. Aucune action supprimée ; couleurs : vert = OK, rouge = KO, orange = en attente. Taille de portion : constante 5 dans le code, pas de réglage.
-
-  - [x] « Vérifier une à une » ouvre 5 étapes et la progression dit N / 5
-  - [x] Après la 5e, un écran de fin résume la portion avec « Encore 5 » et « J arrête là »
-  - [x] La Recette met en avant la portion du jour, le total reste affiché en petit
-  - [x] Le filtre téléphone/ordinateur s applique à la portion
-  - [x] Tests Vitest de la portion (découpage, fin, enchaînement)
-
-### Lot — Faire le tri (launched, one at a time)
-
-- **Trier la recette de collie-board : retirer le périmé, fusionner ce qui se teste ensemble** — done
-  - after: Recette : mettre de côté les étapes anciennes jamais testées
-
-  Travail sur les données du board, pas de code. Après la carte « mettre de côté les étapes anciennes ».
-  
-  Pour chaque entrée « à tester » de GET /api/recette?repo=/home/swetterwald/git/perso/collie-board : comparer ses étapes à l interface ACTUELLE (code de web/src sur main, docs, cartes livrées plus tard qui ont refait la même fonction).
-  - Étape devenue fausse (bouton renommé, écran refait, fonction retirée) : la réécrire si la capacité existe toujours, sinon mettre l entrée de côté avec une note qui dit pourquoi (route de la carte précédente).
-  - Entrées qui se testent dans le même geste : réécrire leurs étapes pour qu elles se suivent (PATCH manualChecks, une étape = une ligne ≤ 100 caractères, verbe + où + quoi attendre) ; ne jamais fusionner deux cartes.
-  - AUCUN verdict (ok/ko) : c est le geste de l opérateur, la route le refuse d ailleurs.
-  - Publier en livrable un compte rendu : avant/après (nombre à tester), ce qui est mis de côté et pourquoi, ce qui est réécrit.
-
-  - [x] Le nombre « à tester » a baissé, chaque mise de côté a sa raison
-  - [x] Livrable : compte rendu avant/après
-  - [x] Aucun verdict posé
-- **Recette : mettre de côté les étapes anciennes jamais testées** — done
-
-  Skill frontend-design en tête. Phase Recette guidée, principe : ne jamais montrer une montagne.
-  
-  Aujourd hui GET /api/recette (bridge/recette.ts) rend toutes les étapes non validées (~160) et la page (web/src/routes/recette.tsx) les montre toutes. Ajouter un état « mise de côté » pour une entrée (carte livrée) : hors de la file active et du compteur « N à tester », mais jamais perdue — un filtre « Mises de côté » la retrouve, un bouton la remet dans la file. Durable (journal de la carte, voyage par le journal partagé comme les verdicts).
-  - Mise de côté automatique d une entrée livrée depuis plus de 30 jours sans aucun verdict (seuil réglable par dépôt, défaut 30 j).
-  - Mise de côté à la main (bouton sur l entrée) et remise en file (bouton).
-  - Une route pour qu un agent (l orchestrateur, la carte de tri) mette de côté ou remette — ce n est PAS un verdict : autorisé à un x-collie-pane, journalisé avec qui et pourquoi (note obligatoire).
-  - Le compteur « N à tester » ne compte que la file active. Documenter dans skills/collie-board/SKILL.md.
-
-  - [x] Une entrée livrée depuis plus de 30 jours sans verdict sort de « à tester » mais reste dans « Mises de côté »
-  - [x] Mettre de côté et remettre en file : un bouton chacun
-  - [x] Un agent peut mettre de côté avec une note ; il ne peut toujours pas poser un verdict
+  - [ ] La durée apparaît sur les lignes de carte et d agent
+  - [ ] Borne basse écrite « depuis plus de »
+  - [ ] Attente > 1 h en orange plein, blocage > 1 h en rouge plein
+  - [ ] Pas de nouveau setInterval
+  - [ ] Tests Vitest du format de durée et des seuils
