@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794864642325.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"7bbdc550-febc-415a-b2a6-7adbb282312b"}}
 {"v":1,"hlc":"1794864642325.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Page Projet : toutes les phases où un lot tourne sont en haut","status":"backlog"},"ts":1794864640133}}
 {"v":1,"hlc":"1794864649649.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"360f2aed-f63e-4b40-adda-2d021331282c"}}
+{"v":1,"hlc":"1794868697123.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
