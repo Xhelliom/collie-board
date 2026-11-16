@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.345.1] - 2026-11-16
+
+### Fixed
+
+- Sous herdr-core seul, la commande de redémarrage / mise à jour affichée (bandeau, À propos, restauration) est le script `collie-board-ctl.sh` par chemin absolu, au lieu de l'action Herdr qui y échoue. (90047c8)
+- Notes de release et doc de mise à jour : repli herdr-core documenté. (90047c8)
+
 ## [0.345.0] - 2026-11-16
 
 ### Changed
