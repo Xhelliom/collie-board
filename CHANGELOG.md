@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.344.0] - 2026-11-16
+
+### Added
+
+- Lignes de carte et d'agent : depuis quand dans l'état (« depuis 3 h », « depuis plus de 3 h »), attente > 1 h en orange plein, blocage > 1 h en rouge plein. (9926a3b)
+
 ## [0.343.0] - 2026-11-16
 
 ### Added
