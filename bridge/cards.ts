@@ -182,6 +182,8 @@ export interface CardView extends Card {
    * none. One card's view only — the list does not read every journal. A lot's own PR is `lotView`'s.
    */
   prUrl?: string | null;
+  /** Since when (epoch ms) the card is in its status: its last `card.status` event, else its creation. */
+  statusSince: number;
 }
 
 /** The card's most recent session, closed or not — for facts that outlive the session itself. */
@@ -388,6 +390,7 @@ export function cardViews(
   opts: { includeArchived?: boolean; copilotBusy?: ReadonlySet<string> } = {},
 ): CardView[] {
   const panes = panesById(snap);
+  const since = db.statusSince();
   return db.listCards(opts).map((card) => {
     const session = db.openSessionFor(card.id);
     const pane = session?.paneId ? panes.get(session.paneId) : undefined;
@@ -400,6 +403,7 @@ export function cardViews(
       sessionCount: sessions.length,
       copilotBusy: opts.copilotBusy?.has(card.id) ?? false,
       wrapupPending: last ? isPendingWrapup(last) : false,
+      statusSince: since.get(card.id) ?? card.createdAt,
     };
   });
 }
@@ -425,6 +429,7 @@ export function cardView(
     sessionCount: sessions.length,
     wrapupPending: last ? isPendingWrapup(last) : false,
     prUrl: prUrlOf(db, card.id),
+    statusSince: db.statusSince(card.id).get(card.id) ?? card.createdAt,
   };
 }
 

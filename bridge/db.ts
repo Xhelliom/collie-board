@@ -2247,6 +2247,22 @@ export class BoardDb {
   }
 
   /**
+   * When each card entered its current status: its newest `card.status` event, else its creation.
+   * Derived, never stored. One grouped query for the whole list — the list grows, one per card would not do.
+   * `id` narrows it to one card (the detail route).
+   */
+  statusSince(id?: string): Map<string, number> {
+    const rows = this.db
+      .query<{ id: string; since: number }, string[]>(
+        `SELECT c.id, COALESCE(MAX(e.ts), c.created_at) AS since FROM card c
+         LEFT JOIN event e ON e.card_id = c.id AND e.type = 'card.status'
+         ${id === undefined ? "" : "WHERE c.id = ?"} GROUP BY c.id`,
+      )
+      .all(...(id === undefined ? [] : [id]));
+    return new Map(rows.map((r) => [r.id, r.since]));
+  }
+
+  /**
    * Every container's children's statuses, keyed by parent. One narrow query because this runs on
    * the reconciliation hot path — every poll tick, forever. Listing *all* cards instead (which is
    * what this replaced) re-read and JSON-parsed the acceptance list of every archived card on the
