@@ -88,8 +88,14 @@ export interface AgentView {
    * Set only by an observed transition: a pane already idle/done when the bridge started has no
    * known switch-over instant and so carries no field — the UI then shows no age rather than a
    * fabricated one. Runtime state, in memory only, gone when the pane goes.
+   * Under hc the engine dates the word itself (`status_ms`), so it is exact even then.
    */
   statusSince?: number;
+  /**
+   * A LOWER BOUND, set only when `statusSince` is absent: the instant this bridge first saw the pane
+   * (already in its status). The status began at or before it — never shown as exact. In memory only.
+   */
+  statusSinceAtLeast?: number;
 }
 
 /**

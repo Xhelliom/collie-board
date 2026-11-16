@@ -28,11 +28,12 @@ export function ModelEffort({ id, className }: { id: Pick<AgentIdentity, "model"
 
 const FOR = { needs: "needsFor", working: "workingFor", done: "doneAgo", idle: "idleFor" } as const;
 
-/** « travaille depuis 12 min » — the age only when the bridge saw the state begin. */
-export function useStateSaid(id: Pick<AgentIdentity, "word" | "since">): string {
+/** « travaille depuis 12 min » — or « depuis au moins 12 min » when the bridge only knows a lower bound. */
+export function useStateSaid(id: Pick<AgentIdentity, "word" | "since" | "sinceAtLeast">): string {
   const t = useT();
   if (id.since === null) return t(`agents.state.${id.word}`);
-  const duration = ago(Date.now() - id.since, { min: t("agents.unit.min"), h: t("agents.unit.h"), d: t("agents.unit.d") });
+  const age = ago(Date.now() - id.since, { min: t("agents.unit.min"), h: t("agents.unit.h"), d: t("agents.unit.d") });
+  const duration = id.sinceAtLeast ? t("agents.state.atLeast", { duration: age }) : age;
   return t(`agents.state.${FOR[id.word]}`, { duration });
 }
 

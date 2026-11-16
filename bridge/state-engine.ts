@@ -83,6 +83,8 @@ export class StateEngine {
   // a pane first seen already idle/done stays absent rather than claiming it just switched — the UI
   // omits the age instead of inventing one. In memory only (`session` ephemeral), dropped with the pane.
   private readonly statusSince = new Map<string, number>();
+  // paneId → when this bridge first saw it, for panes with no exact `statusSince`: a lower bound only.
+  private readonly firstSeen = new Map<string, number>();
   // Last-known claude `/rename` session name per pane. Kept sticky so the name doesn't flicker away
   // when a pane momentarily hides its input box (a dialog / working spinner) — only cleared when the
   // pane itself vanishes (see the removal loop). Enriched from pane text each poll (see enrichSessionNames).
@@ -314,22 +316,33 @@ export class StateEngine {
 
       // Detect transitions against the previous poll. First sighting of a pane never fires a
       // transition (so we don't notify for agents already blocked when the bridge starts).
+      const wire = new Map(panes.map((p) => [p.pane_id, p]));
       for (const a of agents) {
         const prev = this.prevStatus.get(a.paneId);
-        if (prev !== undefined && prev !== a.status) {
+        if (prev === undefined) {
+          // The engine's own date for the word is exact — but only for the word as it sent it
+          // (a seen/screen overlay changed it here, and that change has no date).
+          const w = wire.get(a.paneId);
+          if (w?.status_ms !== undefined && w.agent_status === a.status) this.statusSince.set(a.paneId, w.status_ms);
+          else this.firstSeen.set(a.paneId, Date.now());
+        } else if (prev !== a.status) {
           this.statusSince.set(a.paneId, Date.now());
+          this.firstSeen.delete(a.paneId);
           this.sessionNameRead.delete(a.paneId);
           for (const fn of this.transitionListeners) fn(a, prev, a.status);
         }
         this.prevStatus.set(a.paneId, a.status);
         const since = this.statusSince.get(a.paneId);
+        const atLeast = this.firstSeen.get(a.paneId);
         if (since !== undefined) a.statusSince = since;
+        else if (atLeast !== undefined) a.statusSinceAtLeast = atLeast;
       }
       const live = new Set(agents.map((a) => a.paneId));
       for (const id of [...this.prevStatus.keys()]) {
         if (live.has(id)) continue;
         this.prevStatus.delete(id);
         this.statusSince.delete(id);
+        this.firstSeen.delete(id);
         this.sessionNameRead.delete(id);
         this.heldByScreen.delete(id);
         this.sessionNames.delete(id); // drop the cached name so a reused pane id starts clean
