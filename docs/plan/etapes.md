@@ -83,23 +83,23 @@ Savoir depuis quand un agent ou une carte est dans son état, et le voir.
   - [x] Une seule requête pour toute la liste (test)
   - [x] Test bun du calcul
 
-### Lot — L écran le dit (planned, one at a time)
+### Lot — L écran le dit (launched, one at a time)
 
-- **Accueil : le plus ancien en attente en premier** — backlog
+- **Accueil : le plus ancien en attente en premier** — done
   - after: Afficher « en attente depuis 3 h » sur les cartes et les agents
 
   Skill frontend-design en tête. Sur l Accueil, dans les groupes qui attendent l opérateur (agents en attente ou bloqués, cartes bloquées/en revue), trier du plus ancien au plus récent dans l état, pour que ce qui attend depuis longtemps ne se perde pas. Les autres groupes gardent leur ordre. Utiliser statusSince / statusSinceAtLeast ; un élément sans durée passe en dernier.
 
-  - [ ] Dans les groupes en attente, le plus ancien est en tête
-  - [ ] Les autres groupes ne changent pas d ordre
-  - [ ] Sans durée : en dernier
-  - [ ] Test Vitest du tri
-- **Afficher « en attente depuis 3 h » sur les cartes et les agents** — backlog
+  - [x] Dans les groupes en attente, le plus ancien est en tête
+  - [x] Les autres groupes ne changent pas d ordre
+  - [x] Sans durée : en dernier
+  - [x] Test Vitest du tri
+- **Afficher « en attente depuis 3 h » sur les cartes et les agents** — done
 
   Skill frontend-design en tête. Avec statusSince (cartes) et statusSince / statusSinceAtLeast (agents) : sur les lignes de carte (web/src/components/project-row.tsx et listes de cartes) et d agent (Accueil, page Agents), afficher la durée dans l état, courte (« depuis 3 h », « depuis 2 j ») ; une borne basse s écrit « depuis plus de 3 h ». Couleurs franches, une par sens : une attente (orange) longue de plus de 1 h passe en orange plein ; un blocage (rouge) de plus de 1 h en rouge plein ; le reste en gris discret. Seuils = constantes dans le code. Le temps se met à jour au fil du polling existant, pas de nouveau minuteur. Aucune action retirée.
 
-  - [ ] La durée apparaît sur les lignes de carte et d agent
-  - [ ] Borne basse écrite « depuis plus de »
-  - [ ] Attente > 1 h en orange plein, blocage > 1 h en rouge plein
-  - [ ] Pas de nouveau setInterval
-  - [ ] Tests Vitest du format de durée et des seuils
+  - [x] La durée apparaît sur les lignes de carte et d agent
+  - [x] Borne basse écrite « depuis plus de »
+  - [x] Attente > 1 h en orange plein, blocage > 1 h en rouge plein
+  - [x] Pas de nouveau setInterval
+  - [x] Tests Vitest du format de durée et des seuils
