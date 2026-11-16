@@ -35,6 +35,8 @@ import {
 } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { handleBoardRoute, PANE_HEADER, parseCardBody } from "./board-routes.ts";
+import { BoardNotifier, COPILOT_DOWN_AFTER } from "./board-notify.ts";
+import { NotifyLog } from "./notify-log.ts";
 import { BoardDb, pinId, type Card, type CardSession } from "./db.ts";
 import {
   adapterFor,
@@ -3034,6 +3036,25 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     now += REVIEW_RETRY_MS;
     await poll();
     expect(asked).toBe(3);
+    expect(store.listEvents(card.id).filter((e) => e.type === "copilot.review_failed")).toHaveLength(1);
+  });
+
+  it("an unreachable copilot with a single card waiting still raises « copilot down », once", async () => {
+    const store = db();
+    const card = filed(store, { wrapupPending: false });
+    const copilot = { enabled: true, observe() {}, async ask() { return null; } } as unknown as Copilot;
+    let now = 0;
+    const coordinator = new CopilotCoordinator(store, copilot, cfg, () => now);
+    const armed: string[] = [];
+    const notifier = new BoardNotifier(store, new NotifyLog(), { arm: (key) => armed.push(key), retract() {} }, () => now, () => coordinator.reviewFailures());
+    const poll = async () => (coordinator.update(snapshot([]), async () => "stat"), await settle(), notifier.update());
+
+    for (let i = 0; i < COPILOT_DOWN_AFTER; i++) {
+      expect(armed).toEqual([]);
+      await poll();
+      now += 60 * REVIEW_RETRY_MS; // past any backoff
+    }
+    expect(armed).toEqual(["copilot"]);
     expect(store.listEvents(card.id).filter((e) => e.type === "copilot.review_failed")).toHaveLength(1);
   });
 

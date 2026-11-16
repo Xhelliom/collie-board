@@ -186,20 +186,19 @@ export function unblocks(e: BoardEvent): boolean {
   return to === "done" || to === "archived";
 }
 
-/** A review's two outcomes in the journal — written by `CopilotCoordinator.review` (copilot.ts). */
-export const REVIEW_OUTCOMES = ["review.created", "copilot.review_failed"];
 /** Reviews in a row that must fail before the board calls the copilot down. ponytail: fixed — three
  *  five-minute deadlines is a quarter of an hour of a lot waiting; make it a setting if that's wrong. */
 export const COPILOT_DOWN_AFTER = 3;
 
 /**
- * Whether the copilot has stopped answering: its last {@link COPILOT_DOWN_AFTER} review outcomes,
- * newest first, are all failures. DERIVED FROM THE JOURNAL, NOT COUNTED: no counter to persist or to
- * drift, and the retraction predicate is the same call — one `review.created` on top ends the streak.
- * Seen live on a pane stuck on a modal dialog: every review timed out for an hour and only the log said so.
+ * Whether the copilot has stopped answering: {@link COPILOT_DOWN_AFTER} reviews in a row failed, as
+ * `CopilotCoordinator.reviewFailures()` counts them. Not the journal: it keeps one `review_failed` per
+ * series, so a lone card's retries never added up. The retraction predicate is the same call — one
+ * review that lands resets the count. Seen live on a pane stuck on a modal dialog: every review
+ * timed out for an hour and only the log said so.
  */
-export function copilotDown(newestFirst: string[], n = COPILOT_DOWN_AFTER): boolean {
-  return newestFirst.length >= n && newestFirst.slice(0, n).every((t) => t === "copilot.review_failed");
+export function copilotDown(failuresInARow: number): boolean {
+  return failuresInARow >= COPILOT_DOWN_AFTER;
 }
 
 /** The columns a card can sit in and still be waiting to be started — the successors this says
@@ -209,8 +208,6 @@ const UNSTARTED = new Set(["backlog", "ready"]);
 /** The corner of `BoardDb` this needs — enough to keep the test from standing up a database. */
 export interface BoardNotifySource {
   lastEventId(): number;
-  /** The newest `limit` entries' types among `types`, newest first — for {@link copilotDown}. */
-  latestEventTypes(types: string[], limit: number): string[];
   eventsAfter(after: number): BoardEvent[];
   getCard(id: string): { id: string; title: string; status: string; repoPath: string | null; runId?: string | null; held?: { lastTouch: number } | null } | null;
   /** The cards waiting on this one, for B4 ({@link unblocks}) — one unindexed scan, on a `done`. */
@@ -307,6 +304,8 @@ export class BoardNotifier {
      *  this a bell-only tailer, exactly as it shipped in 0.129.0. */
     private readonly alerts?: BoardAlertSink,
     private readonly now: () => number = Date.now,
+    /** `CopilotCoordinator.reviewFailures` — omitted, the copilot is never called down. */
+    private readonly reviewFailures: () => number = () => 0,
   ) {
     this.cursor = db.lastEventId();
   }
@@ -336,7 +335,6 @@ export class BoardNotifier {
         if (this.alerts && e.cardId) this.heldReminder(e.cardId, e.payload);
         continue;
       }
-      if (this.alerts && e.type === "copilot.review_failed") this.copilotStalled(e);
       const said = tell(e);
       const alarmed = this.alerts ? alarm(e) : null;
       const freed = this.alerts ? unblocks(e) : false;
@@ -379,6 +377,7 @@ export class BoardNotifier {
         }
       }
     }
+    if (this.alerts) this.copilotStalled();
     this.sweep();
   }
 
@@ -446,15 +445,15 @@ export class BoardNotifier {
   /**
    * The copilot stopped answering reviews ({@link copilotDown}). One alert for the board, armed once
    * per streak; it retracts the moment a review lands. Test 3 holds — the copilot's pane is the
-   * board's own, behind no card, and stuck on a dialog it signals nothing anyone watches.
+   * board's own, behind no card, and stuck on a dialog it signals nothing anyone watches. Read every
+   * tick, not on a journal entry: a lone card's retries journal nothing after the first.
    */
-  private copilotStalled(e: BoardEvent): void {
-    const read = () => (copilotDown(this.db.latestEventTypes(REVIEW_OUTCOMES, COPILOT_DOWN_AFTER)) ? "down" : null);
+  private copilotStalled(): void {
+    const read = () => (copilotDown(this.reviewFailures()) ? "down" : null);
     if (this.armed.has(COPILOT_KEY) || !read()) return;
-    const card = e.cardId ? this.db.getCard(e.cardId) : null;
     this.armed.set(COPILOT_KEY, { mark: "down", read });
     this.alerts!.arm(COPILOT_KEY, {
-      cwd: card?.repoPath ?? "",
+      cwd: "",
       status: "stalled",
       subtitle: `copilot not answering — ${COPILOT_DOWN_AFTER} reviews in a row timed out; check its pane`,
     });

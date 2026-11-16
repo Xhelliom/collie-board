@@ -395,11 +395,11 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // hc terminals whose agent was lost (a reboot): the ones at work resumed once, one recap (resume-lost.ts).
     const resumer = new LostAgentResumer(board, herdr, new ClaudeTranscriptSource(cfg.transcriptRoot), cfg.boardCopilotKind || cfg.boardAgentKind);
     engine.onUpdate((snap) => resumer.update(snap), "resumeLost");
-    const boardNotifier = new BoardNotifier(board, notifyLog, notifications);
+    const boardNotifier = new BoardNotifier(board, notifyLog, notifications, Date.now, () => copilotBoard.reviewFailures());
     engine.onUpdate((snap) => boardNotifier.update(snap), "boardNotifier");
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
     // silenced like the copilot, above.
-    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters, () => peers.outbound(), cost), "run");
+    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters, () => peers.outbound(), cost, () => copilotBoard.reviewFailures()), "run");
     // "PR & done" (ADR 0035): its PR followed to the merge, the card filed then. Journal-driven, so a restart resumes it.
     engine.onUpdate(prFollowHook(board, herdr), "prFollow");
     // Filed cards' leftover checkouts and panes, once, on the first snapshot that has a herd to read.
