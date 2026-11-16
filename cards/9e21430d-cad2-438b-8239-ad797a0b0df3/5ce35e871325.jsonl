@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794088193519.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/291"},"ts":1794088186966}}
 {"v":1,"hlc":"1794088193519.0002.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794088193519.0003.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"done","reason":"manual"},"ts":1794088186981}}
+{"v":1,"hlc":"1794828597829.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleanup_failed","payload":{"stage":"worktree","error":"error: failed to delete 'C:/Users/steph/.herdr/worktrees/collie-board/board-dell-la-mise-a-jour-se-voit-dans-reglages': Permission denied"},"ts":1794828597160}}
