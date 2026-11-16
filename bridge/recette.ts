@@ -82,6 +82,8 @@ export function manualChecksPrompt(cardId: string): string {
     `  curl -s -X PATCH "http://127.0.0.1:\${COLLIE_BOARD_PORT:-8788}/api/cards/${cardId}" -H 'content-type: application/json' \\`,
     `    -H "x-collie-pane: \${HERDR_PANE_ID:-$HC_TERMINAL_ID}" -d '{"capability":"…","usageGroup":"…","manualChecks":[{"text":"…","expected":"…"}]}'`,
     "Purely internal work (tests, refactor, an invisible fix): write nothing.",
+    "Then read GET /api/recette?repo=<this card's repo>: if a `todo` entry of ANOTHER card describes a screen or",
+    "a label this card just changed, rewrite its steps (same PATCH on its id, same rules). Never a verdict.",
   ].join("\n");
 }
 
