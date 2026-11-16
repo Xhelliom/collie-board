@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.346.0] - 2026-11-16
+
+### Changed
+
+- En-tête : le choix du projet s'ouvre sur une recherche qui filtre à la frappe (casse et accents ignorés), au clavier ; plein écran sur téléphone (7c14569)
+
 ## [0.345.2] - 2026-11-16
 
 ### Fixed
