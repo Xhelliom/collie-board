@@ -13,6 +13,7 @@ import {
   isTransientHerdrError,
   promptAndConfirm,
   branchFromTitle,
+  cardView,
   cardViews,
   deriveParentStatus,
   CONVERTED_VERDICT,
@@ -480,6 +481,30 @@ describe("cardViews", () => {
     expect(views.find((v) => v.id === waiting.id)!.wrapupPending).toBe(true);
     expect(views.find((v) => v.id === collected.id)!.wrapupPending).toBe(false);
     expect(views.find((v) => v.id === never.id)!.wrapupPending).toBe(false);
+  });
+
+  it("says since when a card is in its status: the last status change, else its creation — in one query", () => {
+    let t = 1000;
+    const store = new BoardDb(":memory:", () => t);
+    const moved = store.createCard({ title: "moved" });
+    const still = store.createCard({ title: "still" });
+    t = 2000;
+    store.setStatus(moved.id, "ready", "test");
+    t = 3000;
+    store.setStatus(moved.id, "working", "test");
+    store.setStatus(moved.id, "working", "same status: no event"); // must not reset the clock
+    t = 4000;
+    store.recordEvent(moved.id, "card.edited", {}); // another event: not a status change
+
+    let calls = 0;
+    const real = store.statusSince.bind(store);
+    store.statusSince = (id?: string) => (calls++, real(id));
+    const views = cardViews(store, snapshot([]));
+    expect(calls).toBe(1);
+    expect(views.find((v) => v.id === moved.id)!.statusSince).toBe(3000);
+    expect(views.find((v) => v.id === still.id)!.statusSince).toBe(1000);
+    expect(cardView(store, snapshot([]), moved.id)!.statusSince).toBe(3000);
+    expect(cardView(store, snapshot([]), still.id)!.statusSince).toBe(1000);
   });
 });
 
