@@ -59,47 +59,68 @@
 - **Ce que coûte le travail** — validated 2026-11-16, 4 steps
 - **Bug** — validated 2026-11-14, 29 steps
 - **Recette guidée** — validated 2026-11-16, 4 steps
+- **Durée des états** — validated 2026-11-16, 4 steps
 
-## Phase 54 — Durée des états
+## Phase 55 — Finitions de novembre
 
-Savoir depuis quand un agent ou une carte est dans son état, et le voir.
+Solder les correctifs nés des derniers lots : copilote, redémarrage sous hc, recette, page projet.
 
-### Lot — Le board sait depuis quand (launched, 2 at a time)
+### Lot — Le copilote et le redémarrage (launched, one at a time)
 
-- **Agent : « depuis au moins » quand le board ne l a pas vu changer** — done
+- **Redémarrer Collie sous herdr-core : « herdr plugin action invoke restart » échoue** — done
 
-  bridge/state-engine.ts (~l.315) ne pose statusSince qu à une transition vue ; un agent déjà dans son état au démarrage du bridge n a rien, et un redémarrage efface tout. Pour ces agents, exposer statusSinceAtLeast = l instant où le bridge a vu le pane pour la première fois (première observation), sans rien persister (session éphémère). Un chiffre exact reste statusSince ; une borne basse est marquée comme telle, jamais présentée comme exacte. Si hc ou herdr donne l instant réel du dernier changement, le préférer (vérifier HERDR_API.md et le mux hc).
+  Constat (15/11) : sur une machine où seul herdr-core (hc) tourne, `herdr plugin action invoke restart --plugin herdr.collie-board` répond `server_not_running: no herdr server is running at ~/.config/herdr/herdr.sock`. Or CLAUDE.md impose d exprimer toute consigne de mise à jour / redémarrage sous cette forme, et scripts/release-notes.sh et docs/usage/09-manage-update.md la donnent telle quelle.
+  
+  À faire : reproduire, puis donner un chemin qui marche sous hc comme sous herdr 0.9 (équivalent hc s il existe, sinon repli documenté vers scripts/collie-board-ctl.sh restart) dans les notes de release, la doc de mise à jour et la bannière de mise à jour. Si la règle de CLAUDE.md doit changer, c est une décision du propriétaire : la poser en question dans la PR plutôt que la trancher.
 
-  - [x] Un agent vu changer garde statusSince exact
-  - [x] Un agent jamais vu changer porte statusSinceAtLeast = première observation
-  - [x] Aucune écriture en base
-  - [x] Test bun de StateEngine sur les deux cas
-- **Carte : depuis quand elle est dans son statut** — done
+  - [x] La commande de redémarrage donnée à l utilisateur fonctionne sous herdr-core seul
+  - [x] Notes de release et doc de mise à jour alignées
+- **Espacer aussi reviewNow, reformulate et refine du copilote** — done
 
-  Une carte ne sait pas depuis quand elle est dans son statut. Le dériver, sans rien stocker de nouveau : le dernier événement card.status de son journal (bridge/db.ts recordEvent « card.status » ~l.2245), sinon createdAt. L exposer en statusSince (epoch ms) sur GET /api/cards (vue complète et summary) et GET /api/cards/:id, calculé en une requête groupée (pas une par carte : la liste grossit). Documenter le champ dans skills/collie-board/SKILL.md.
+  Le critère « ne réessaie pas en boucle serrée » n'est couvert que pour les revues lancées par l'interrogation périodique (`update`) de `CopilotCoordinator`. `reviewNow`, reformulate et refine n'ont pas d'espacement, alors qu'un échec de `reviewNow` alimente la même série. Vérifier qu'aucun de ces chemins ne peut réessayer seul en boucle quand le copilote est injoignable, et sinon leur appliquer le même espacement ou refuser vite tant que la série est ouverte, avec un retour clair à l'opérateur.
 
-  - [x] statusSince présent sur chaque carte des deux vues de /api/cards et sur /api/cards/:id
-  - [x] Égal à l instant du dernier changement de statut, ou à la création si aucun
-  - [x] Une seule requête pour toute la liste (test)
-  - [x] Test bun du calcul
+  - [x] Copilote injoignable : ni `reviewNow`, ni reformulate, ni refine ne réessaient en boucle serrée
+  - [x] Toujours au plus un `copilot.review_failed` par série
+  - [x] Un test couvre au moins `reviewNow` pendant une série d'échecs
+- **Rétablir l'alerte « copilote en panne » avec une seule carte** — done
 
-### Lot — L écran le dit (launched, one at a time)
+  Depuis que `CopilotCoordinator` n'émet qu'un `copilot.review_failed` par série (carte + session), l'alerte « copilote en panne » de board-notify, qui attend 3 `review_failed` consécutifs, ne se déclenche plus quand une seule carte est en attente : il en faut trois. Un copilote injoignable peut donc rester muet. Asseoir l'alerte sur l'état de la série (par exemple un nombre d'échecs ou une durée depuis le premier échec tenus par le coordinateur), plutôt que sur le nombre d'événements dans le journal.
 
-- **Accueil : le plus ancien en attente en premier** — done
-  - after: Afficher « en attente depuis 3 h » sur les cartes et les agents
+  - [x] Avec une seule carte et un copilote injoignable, l'alerte part après le seuil d'échecs ou de durée choisi
+  - [x] Le journal garde au plus un `copilot.review_failed` par série
+  - [x] Un test couvre le cas d'une seule carte
 
-  Skill frontend-design en tête. Sur l Accueil, dans les groupes qui attendent l opérateur (agents en attente ou bloqués, cartes bloquées/en revue), trier du plus ancien au plus récent dans l état, pour que ce qui attend depuis longtemps ne se perde pas. Les autres groupes gardent leur ordre. Utiliser statusSince / statusSinceAtLeast ; un élément sans durée passe en dernier.
+### Lot — Recette et projet (planned, one at a time)
 
-  - [x] Dans les groupes en attente, le plus ancien est en tête
-  - [x] Les autres groupes ne changent pas d ordre
-  - [x] Sans durée : en dernier
-  - [x] Test Vitest du tri
-- **Afficher « en attente depuis 3 h » sur les cartes et les agents** — done
+- **Header : choisir le projet avec une recherche (combobox shadcn)** — backlog
 
-  Skill frontend-design en tête. Avec statusSince (cartes) et statusSince / statusSinceAtLeast (agents) : sur les lignes de carte (web/src/components/project-row.tsx et listes de cartes) et d agent (Accueil, page Agents), afficher la durée dans l état, courte (« depuis 3 h », « depuis 2 j ») ; une borne basse s écrit « depuis plus de 3 h ». Couleurs franches, une par sens : une attente (orange) longue de plus de 1 h passe en orange plein ; un blocage (rouge) de plus de 1 h en rouge plein ; le reste en gris discret. Seuils = constantes dans le code. Le temps se met à jour au fil du polling existant, pas de nouveau minuteur. Aucune action retirée.
+  Skill frontend-design en tête. Demande opérateur (16/11, passée par l orchestrateur CrewDesign). Le choix du projet dans le header est un <select> natif (web/src/components/board-tabs.tsx). Avec une vingtaine de projets, il faut pouvoir taper pour filtrer. SANS NOUVELLE DÉPENDANCE (décision opérateur 16/11 : ni cmdk, ni Radix, ni UI SDK) : un bouton qui ouvre la liste des projets avec un champ de recherche en tête, focalisé, qui filtre à la frappe (insensible à la casse et aux accents). Sur ordinateur, un panneau ancré sous le bouton ; sur téléphone, le BottomSheet maison (web/src/components/ui/sheet.tsx, Vaul — ADR 0003). Accessibilité combobox ARIA (role combobox/listbox, aria-activedescendant). Garder les projets masqués/listés comme aujourd hui. Aucune action ni option retirée du sélecteur actuel.
 
-  - [x] La durée apparaît sur les lignes de carte et d agent
-  - [x] Borne basse écrite « depuis plus de »
-  - [x] Attente > 1 h en orange plein, blocage > 1 h en rouge plein
-  - [x] Pas de nouveau setInterval
-  - [x] Tests Vitest du format de durée et des seuils
+  - [ ] Taper quelques lettres filtre la liste des projets (nom insensible à la casse et aux accents)
+  - [ ] Clavier : flèches + Entrée choisissent, Échap ferme
+  - [ ] Sur téléphone, la liste s’ouvre en plein écran avec le clavier
+  - [ ] Mêmes projets proposés qu’avant, même navigation après le choix
+- **Page Projet : toutes les phases où un lot tourne sont en haut** — backlog
+
+  Skill frontend-design en tête. Constat opérateur (16/11, projet CrewDesign, capture /home/swetterwald/.local/state/collie-board/uploads/t73-mwjs1i9g-b61cb43a.png) : deux phases ont chacune un lot en cours ; la page Projet (web/src/routes/project.tsx ~l.208, `current` = UNE phase) ne détaille que la première, l autre est rangée sous « Phases suivantes » et rien ne dit qu on y travaille. Corriger : chaque phase où un lot tourne est détaillée en haut comme phase en cours (même rendu que `current` : anneau, chiffres, lots), dans l ordre de la roadmap ; s il n y en a aucune, la règle actuelle reste. Dans « Phases suivantes », une phase qui a du travail en cours (lot lancé ou carte working) n arrive plus : elle est en haut. Couleur bleu = travail, signal animé comme ailleurs. Aucune action retirée.
+
+  - [ ] Deux phases avec un lot lancé : les deux sont détaillées en haut, dans l ordre de la roadmap
+  - [ ] Une seule ou aucune : rendu inchangé
+  - [ ] Aucune phase avec du travail en cours ne reste sous « Phases suivantes »
+  - [ ] Test Vitest du choix des phases en cours
+- **Recette : la carte qui refait un écran relit les étapes en attente qui le décrivent** — backlog
+
+  Constat du tri de la recette du 15/11 (docs/dev/recette-tri-2026-11-15.md) : 26 des 29 étapes périmées l étaient parce qu une carte livrée plus tard a refait l écran (Troupeau → Agents, Documents en explorateur, Recette en chronologie, boutons renommés) sans toucher aux recettes en attente qui le décrivaient.
+  
+  À faire : dans la consigne de fin de carte (manualChecksPrompt, bridge/recette.ts), ajouter une ligne : lire GET /api/recette?repo=<dépôt> ; si une entrée « à tester » d une AUTRE carte décrit un écran ou un libellé que cette carte vient de changer, réécrire ses étapes (PATCH manualChecks, mêmes règles : une ligne ≤ 100 caractères), jamais de verdict. Garder la consigne courte. Mettre à jour le test qui fige ce prompt s il existe.
+
+  - [ ] La consigne de fin de carte demande de relire les recettes en attente touchées par la carte
+  - [ ] Aucun verdict n est demandé ni permis
+  - [ ] Tests verts
+- **Afficher « dépôt inconnu » sur la page projet d'un dépôt qui n'existe pas** — backlog
+
+  Critère non couvert par la carte « page introuvable avant la page projet » : aujourd'hui, la page projet d'un dépôt inconnu s'ouvre sans erreur, car son loader ne vérifie rien. Faire vérifier le dépôt par le loader de `/board/project` (contre les dépôts connus), qui jette un 404 rendu par l'`errorElement` de `web/src/router.tsx`. Ne jamais jeter tant que la liste des dépôts n'est pas chargée : afficher un chargement à la place, sinon le bug d'origine revient.
+
+  - [ ] Une page projet d'un dépôt inconnu affiche l'écran d'erreur
+  - [ ] Une page projet d'un dépôt connu n'affiche jamais l'erreur, même quand la liste des dépôts arrive en retard
+  - [ ] Un test couvre les deux cas
