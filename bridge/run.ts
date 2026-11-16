@@ -19,7 +19,7 @@ import { join } from "node:path";
 /** Longest the end of a lot waits for the gauge CLI. */
 
 import type { AgentAdapter } from "./adapters.ts";
-import { COPILOT_DOWN_AFTER, copilotDown, REVIEW_OUTCOMES } from "./board-notify.ts";
+import { copilotDown } from "./board-notify.ts";
 import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
 import { boardBranchPrefix, type Config } from "./config.ts";
 import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
@@ -868,6 +868,8 @@ export function runHook(
   /** The paired peers, for a card set to run in a peer's environment (remote-launch.ts). */
   outbound: () => readonly OutboundPeer[] = () => [],
   cost: CostTracker | null = null,
+  /** `CopilotCoordinator.reviewFailures`, for `reviewing` — see board-notify.ts's `copilotDown`. */
+  reviewFailures: () => number = () => 0,
 ): (snap: EngineSnapshot) => void {
   // ponytail: the lead runs cfg.boardCopilotKind, not `run.leadAgent` — one lead pane for every run.
   const lead = new Lead(herdr, cfg, join(cfg.stateDir, "lead"), snapshot, adapters);
@@ -944,7 +946,7 @@ export function runHook(
       return argv ? runGate(argv, worktree) : Promise.resolve({ kind: "error", message: "empty gate command" });
     },
     freeSlots: () => ((db.maxAgents() ?? cfg.boardMaxAgents) || Infinity) - runningCards(db),
-    reviewing: () => cfg.boardCopilot && !copilotDown(db.latestEventTypes(REVIEW_OUTCOMES, COPILOT_DOWN_AFTER)),
+    reviewing: () => cfg.boardCopilot && !copilotDown(reviewFailures()),
     commits: async (card) => {
       if (!card.repoPath || !card.branch) return null;
       return (await integrationOf(card.repoPath, card.branch, await baseOf(card)))?.ahead ?? null;

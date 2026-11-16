@@ -1300,6 +1300,9 @@ export class CopilotCoordinator {
   private readonly busyCards = new Set<string>();
   /** A card whose review keeps failing: when the poll may try it again. In memory, like `busyCards`. */
   private readonly failing = new Map<string, { sessionId: string | null; fails: number; retryAt: number }>();
+  /** Failed reviews in a row, every card together — board-notify.ts's "copilot down" reads it, since
+   *  the journal keeps one `review_failed` per series and a lone card would never reach the threshold. */
+  private failedInARow = 0;
 
   constructor(
     private readonly db: BoardDb,
@@ -1315,6 +1318,11 @@ export class CopilotCoordinator {
    */
   busy(): ReadonlySet<string> {
     return this.busyCards;
+  }
+
+  /** Reviews that failed in a row since the last one that landed. In memory: a restart forgets it. */
+  reviewFailures(): number {
+    return this.failedInARow;
   }
 
   /** Passthrough to {@link Copilot.ask} for a one-off question whose logic lives elsewhere (gate-suggest.ts). */
@@ -1714,11 +1722,13 @@ export class CopilotCoordinator {
       // fail every poll, journal each one, and push a lot's green gate out of the window (run.ts).
       const prev = this.failing.get(cardId);
       const fails = prev?.sessionId === sessionId ? prev.fails + 1 : 1;
+      this.failedInARow++;
       if (fails === 1) this.db.recordEvent(cardId, "copilot.review_failed", { sessionId });
       this.failing.set(cardId, { sessionId, fails, retryAt: this.now() + Math.min(REVIEW_RETRY_MS * 2 ** (fails - 1), REVIEW_RETRY_MAX_MS) });
       return;
     }
     this.failing.delete(cardId);
+    this.failedInARow = 0;
     // The loop closes here: what the agent left in plan becomes the next cards. A full card, not a
     // bare title — see the warning on SplitTask. Created BEFORE the review record so the review can
     // link to what it produced — the card the user taps through to from "N follow-ups added".

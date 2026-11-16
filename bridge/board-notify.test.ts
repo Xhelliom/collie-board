@@ -6,7 +6,7 @@ import {
   type BoardAlertSink,
   type BoardNotifySource,
   copilotDown,
-  REVIEW_OUTCOMES,
+  COPILOT_DOWN_AFTER,
   NOTE_TTL_MS,
   tell,
   unblocks,
@@ -38,8 +38,6 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
     cards,
     lastEventId: () => events.at(-1)?.id ?? 0,
     eventsAfter: (after: number) => events.filter((e) => e.id > after),
-    latestEventTypes: (types: string[], limit: number) =>
-      events.filter((e) => types.includes(e.type)).map((e) => e.type).reverse().slice(0, limit),
     getCard: (id: string) => {
       const c = cards[id];
       return c ? { id, title: c.title, status: c.status, repoPath: c.repoPath, runId: c.runId ?? null } : null;
@@ -668,36 +666,24 @@ describe("tell: a refused auto-merge (B15)", () => {
 });
 
 describe("copilotDown", () => {
-  const F = "copilot.review_failed";
-  const OK = "review.created";
-  test("needs N failures in a row, newest first", () => {
-    expect(copilotDown([F, F, F])).toBe(true);
-    expect(copilotDown([F, F, F, OK])).toBe(true);
-    expect(copilotDown([F, F])).toBe(false);
-    expect(copilotDown([F, F, OK, F])).toBe(false);
-    expect(copilotDown([OK, F, F, F])).toBe(false);
-    expect(copilotDown([])).toBe(false);
+  test("needs N failures in a row", () => {
+    expect(copilotDown(COPILOT_DOWN_AFTER)).toBe(true);
+    expect(copilotDown(COPILOT_DOWN_AFTER - 1)).toBe(false);
+    expect(copilotDown(0)).toBe(false);
   });
 });
 
 describe("copilot stalled", () => {
-  test("one alert after N failed reviews, retracted when a review lands", () => {
-    const src = source([]);
+  test("one alert once the series reaches N failures — no journal entry needed — retracted when a review lands", () => {
     const alerts = sink();
-    const n = new BoardNotifier(src, new NotifyLog(), alerts);
-    for (let i = 1; i <= 4; i++) {
-      src.events.push(event(i, "copilot.review_failed", { sessionId: `s${i}` }));
-      n.update();
-    }
+    let fails = 0;
+    const n = new BoardNotifier(source([]), new NotifyLog(), alerts, Date.now, () => fails);
+    for (fails = 1; fails <= 4; fails++) n.update();
     expect(alerts.log.filter((l) => l === "arm copilot")).toHaveLength(1);
     expect(alerts.armed.get("copilot")?.status).toBe("stalled");
-    src.events.push(event(5, "card.status", { to: "review" }));
-    n.update();
-    expect(alerts.armed.has("copilot")).toBe(true);
-    src.events.push(event(6, "review.created", { verdict: "complete" }));
+    fails = 0;
     n.update();
     expect(alerts.armed.has("copilot")).toBe(false);
-    expect(REVIEW_OUTCOMES).toContain("review.created");
   });
 });
 
