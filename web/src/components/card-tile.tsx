@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { AgentIcon } from "@/components/agent-icon";
 import { useStateSaid } from "@/components/agent-line";
+import { StatusAge } from "@/components/status-age";
+import { cardSignal } from "@/components/status-signal";
 import { agentIdentity, stateOf } from "@/lib/agent-identity";
 import type { AgentView } from "@/lib/types";
 import type { Awaiting, CardView } from "@/lib/board";
@@ -11,6 +13,7 @@ import type { DependencyInfo } from "@/lib/board-groups";
 import type { LotHold } from "@/lib/lot-hold";
 import type { CardFacts } from "@/lib/project-facts";
 import { tileState, type TileTone } from "@/lib/tile-state";
+import { AGE_TONE_CLASS, ageTone } from "@/lib/status-age";
 
 // One card in a board column, in three lines: its title, its phase, and ONE readable state computed
 // from what the card already knows (lib/tile-state.ts). Everything else — origin, branch, criteria,
@@ -34,6 +37,7 @@ function AgentState({ card, agent }: { card: CardView; agent?: AgentView }) {
     ? agentIdentity(agent, t("agents.orchestrator"))
     : { word: stateOf({ status: runtime.agentStatus }), since: null };
   const said = useStateSaid(id);
+  const loud = agent ? ageTone(agent.status, id.since) : null;
   return (
     <span
       className={cn(
@@ -42,7 +46,7 @@ function AgentState({ card, agent }: { card: CardView; agent?: AgentView }) {
       )}
     >
       <AgentIcon agent={runtime.agent} className="size-4 shrink-0" />
-      <span className="truncate">{said}</span>
+      <span className={cn("truncate", loud && AGE_TONE_CLASS[loud])}>{said}</span>
     </span>
   );
 }
@@ -155,11 +159,14 @@ export function CardTile({
           {card.title}
         </div>
         {where && <div className="truncate text-[13px] text-muted-foreground">{where}</div>}
-        <div className="flex min-w-0 text-[13px]">
+        <div className="flex min-w-0 items-baseline gap-2 text-[13px]">
           {state.agent ? (
             <AgentState card={card} agent={agent} />
           ) : (
-            <span className={cn("truncate", TONE[state.tone])}>{state.text}</span>
+            <>
+              <span className={cn("truncate", TONE[state.tone])}>{state.text}</span>
+              {card.status !== "done" && card.status !== "archived" && <StatusAge since={card.statusSince} signal={cardSignal(card.status)} className="ml-auto" />}
+            </>
           )}
         </div>
       </Card>

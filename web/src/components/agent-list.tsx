@@ -10,6 +10,7 @@ import { AgentDetail, MachineChip, ModelEffort } from "./agent-line";
 import { Button } from "./ui/button";
 import { Chip } from "./ui/chip";
 import { PinButton } from "./pin-button";
+import { StatusAge } from "./status-age";
 import { StatusDot } from "./status-badge";
 import { TidySheet } from "./tidy-sheet";
 
@@ -44,6 +45,7 @@ export function AgentRow({ agent, onOpen }: { agent: AgentView; onOpen: (paneId:
           </span>
           <AgentDetail id={id} />
         </span>
+        <StatusAge since={id.since} atLeast={id.sinceAtLeast} signal={agent.status} />
         <ModelEffort id={id} className="hidden max-w-32 shrink-0 text-xs text-muted-foreground sm:block" />
         <MachineChip machine={id.machine} />
       </div>

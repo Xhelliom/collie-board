@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { FileText, SquareTerminal } from "lucide-react";
 
+import { StatusAge } from "@/components/status-age";
 import { StatusSignal, cardSignal } from "@/components/status-signal";
 import { useT } from "@/i18n";
 import { CARD_STATUS_LABEL, cardPath, type CardView } from "@/lib/board";
@@ -31,6 +32,7 @@ export function CardRow({ card, hold = null, note }: { card: CardView; hold?: Lo
         </Link>
         <span className={cn("shrink-0 text-xs sm:max-w-[13rem] sm:text-right", group === "waiting" ? "font-semibold text-status-blocked" : "text-muted-foreground")}>
           {note ?? (hold?.step ? t(`lot.step.${hold.step}`) : CARD_STATUS_LABEL[card.status])}
+          {!note && <StatusAge since={card.statusSince} signal={cardSignal(card.status)} className="ml-1.5 font-normal" />}
         </span>
       </span>
       <Link to={cardPath(card.id)} aria-label={t("row.openCard")} title={t("row.openCard")} className={icon}>

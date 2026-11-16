@@ -138,6 +138,8 @@ export interface CardView {
   held?: { by: "operator"; at: number; lastTouch: number } | null;
   /** Shared board only (ADR 0048 §5): the git identity of the pair that created it — derived by the bridge. */
   createdBy?: string | null;
+  /** Since when (epoch ms) the card is in its status — derived by the bridge from the journal. Optional: older fixtures omit it. */
+  statusSince?: number;
   /** Shared board only: who it is meant for, as a git identity. */
   assignee?: string | null;
   /** Shared board only (ADR 0048 §7): the pair that last claimed it by launching it, its identity and when. */
