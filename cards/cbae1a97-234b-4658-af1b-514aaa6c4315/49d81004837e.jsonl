@@ -27,3 +27,4 @@
 {"v":1,"hlc":"1794928788326.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794928788327.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794928787411}}
 {"v":1,"hlc":"1794928819200.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/audit-performance-de-collie-board-bridge-web-out","stat":"docs/dev/audit-perf-2026-11.md | +291 -0\ndocs/dev/README.md | +1 -0\n2 files changed, 292 insertions(+), 0 deletions(-)"},"ts":1794928812818}}
+{"v":1,"hlc":"1794929735905.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/479","mergedAt":1794928786000},"ts":1794929724524}}
