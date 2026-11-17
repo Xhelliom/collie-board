@@ -2,3 +2,8 @@
 {"v":1,"hlc":"1794923459129.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Réglages → À propos rogné en bas, sans défilement","status":"backlog"},"ts":1794923459054}}
 {"v":1,"hlc":"1794923468637.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e6c9b511-a981-4a19-915f-d9241de3d240"}}
 {"v":1,"hlc":"1794926050398.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794926060677.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/reglages-a-propos-rogne-en-bas-sans-defilement"}}
+{"v":1,"hlc":"1794926060678.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794926060678.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794926053506}}
+{"v":1,"hlc":"1794926060678.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794926060678.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794926060585}}
