@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794929614170.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Remesurer la « reconnexion » à la navigation et la séparer si besoin","status":"backlog"},"ts":1794929603351}}
 {"v":1,"hlc":"1794929614175.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"c99c7d6d-2df3-45b4-a2c9-2832bd8e66e7"}}
 {"v":1,"hlc":"1794929614176.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"379ed504-8380-466b-8f6c-df757005cb6f"}}
+{"v":1,"hlc":"1794932201179.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
