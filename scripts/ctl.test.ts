@@ -8,6 +8,7 @@ import {
   checkVersions,
   collieVersion,
   dnsNameFromStatus,
+  isReleaseCommit,
   isReleaseTag,
   main,
   parseEnv,
@@ -32,6 +33,19 @@ const tmp = () => {
 };
 afterEach(() => {
   for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
+});
+
+describe("isReleaseCommit", () => {
+  const ls = "aaa1\trefs/tags/v1.2.3\nbbb2\trefs/tags/v1.2.3^{}\nccc3\trefs/tags/v1.3.0-rc\r\n";
+  it("is the commit an annotated release tag peels to, or a lightweight one names", () => {
+    expect(isReleaseCommit(ls, "bbb2")).toBe(true);
+    expect(isReleaseCommit("ddd4\trefs/tags/v0.1.0\n", "ddd4")).toBe(true);
+  });
+  it("is not a prerelease, an untagged commit, or an empty HEAD", () => {
+    expect(isReleaseCommit(ls, "ccc3")).toBe(false);
+    expect(isReleaseCommit(ls, "eee5")).toBe(false);
+    expect(isReleaseCommit("\n", "")).toBe(false);
+  });
 });
 
 describe("parseEnv", () => {

@@ -365,8 +365,34 @@ update_checkout() {
 # the plugin (Herdr has no `plugin update`) — this is the turnkey refresh: advance the checkout,
 # rebuild the UI, restart the backend. That can rewrite THIS script, and bash reads scripts by byte
 # offset, so we re-exec the fresh copy (via the internal `_apply-update` step) to run build + restart.
+#
+# Settings → About shows where it stands: each half writes its step to `update-step` (read by
+# bridge/update-progress.ts), ` failed` appended when it dies there, the file removed once through.
+UPDATE_STEP=""
+update_step() {
+  UPDATE_STEP="$1"
+  { mkdir -p "$CONFIG_DIR" && printf '%s\n' "$1" >"${CONFIG_DIR}/update-step"; } 2>/dev/null || true
+}
+update_step_exit() { local rc=$?; [ "$rc" -eq 0 ] || update_step "${UPDATE_STEP} failed"; }
+
+# True when HEAD is the commit an upstream `vX.Y.Z` tag names and no tracked file was edited: CI
+# typechecked that exact tree before cutting the release, so the update may skip doing it again.
+is_release_head() {
+  local head
+  head="$(git -C "$PLUGIN_ROOT" rev-parse HEAD 2>/dev/null)" || return 1
+  git -C "$PLUGIN_ROOT" diff --quiet HEAD -- 2>/dev/null || return 1
+  git -C "$PLUGIN_ROOT" ls-remote --tags origin 'refs/tags/v*' 2>/dev/null |
+    grep -qE "^${head}[[:space:]]+refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(\^\{\})?$"
+}
+
 cmd_update() {
+  trap update_step_exit EXIT
+  update_step fetch
   update_checkout
+  if [ "${SKIP_TYPECHECK:-}" != "1" ] && is_release_head; then
+    echo "→ a tagged release, typechecked by CI: skipping the typecheck"
+    export SKIP_TYPECHECK=1
+  fi
   exec bash "${PLUGIN_ROOT}/scripts/collie-board-ctl.sh" _apply-update
 }
 
@@ -400,9 +426,13 @@ refresh_registry() {
 # half-bumped release can't go live) and rebuilds web/dist; cmd_restart picks up any bridge/ changes;
 # refresh_registry re-links so Herdr learns any newly added actions / the new version.
 cmd_apply_update() {
+  trap update_step_exit EXIT
+  update_step build
   cmd_build
+  update_step restart
   cmd_restart
   refresh_registry
+  rm -f "${CONFIG_DIR}/update-step"
   echo "✓ update complete"
 }
 

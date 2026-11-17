@@ -14,6 +14,7 @@ export const about = defineMessages({
   "about.state.todo": { en: "To do", fr: "À faire" },
   "about.state.down": { en: "Broken", fr: "En panne" },
   "about.state.off": { en: "Not in use", fr: "Inutilisé" },
+  "about.state.updating": { en: "Updating", fr: "En cours" },
 
   "about.version": { en: "Collie", fr: "Collie" },
   "about.version.current": { en: "Version {current}, build {build} — up to date.", fr: "Version {current}, build {build} — à jour." },
@@ -27,6 +28,21 @@ export const about = defineMessages({
     en: "Restart it: <c>{command}</c>",
     fr: "Redémarrez-le : <c>{command}</c>",
   },
+  "about.version.updating": { en: "Version {current}, build {build}. An update is under way:", fr: "Version {current}, build {build}. Mise à jour en cours :" },
+  "about.version.failed": { en: "Version {current}, build {build}. The update stopped at the {step} step.", fr: "Version {current}, build {build}. La mise à jour s'est arrêtée à l'étape {step}." },
+  "about.version.failed.fix": {
+    en: "Fix what the output below reports, then run the update again from Settings → System.",
+    fr: "Réglez ce que dit la sortie ci-dessous, puis relancez la mise à jour depuis Réglages → Système.",
+  },
+  "about.version.failedNoReason": { en: "Version {current}, build {build}. The update stopped at the {step} step.", fr: "Version {current}, build {build}. La mise à jour s'est arrêtée à l'étape {step}." },
+  "about.version.failedNoReason.fix": {
+    en: "Its output is in Herdr's log for the action. Run it again: <c>{command}</c>",
+    fr: "Sa sortie est dans le journal de l'action, dans Herdr. Relancez-la : <c>{command}</c>",
+  },
+  "about.steps": { en: "Update steps", fr: "Étapes de la mise à jour" },
+  "about.step.fetch": { en: "fetching", fr: "récupération" },
+  "about.step.build": { en: "building", fr: "construction" },
+  "about.step.restart": { en: "restarting", fr: "redémarrage" },
 
   "about.engine": { en: "herdr engine", fr: "Moteur herdr" },
   "about.engine.hc": { en: "New agents start on herdr-core, version {version}.", fr: "Les nouveaux agents démarrent sur herdr-core, version {version}." },

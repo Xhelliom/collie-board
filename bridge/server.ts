@@ -27,7 +27,7 @@ import type { Push, PushSubscription } from "./push.ts";
 import { herdTagFor, type SessionRegistry } from "./sessions.ts";
 import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
-import { handleRollback, handleUpdate } from "./rollback.ts";
+import { handleRollback, handleUpdate, updateProgressFacts } from "./rollback.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { SEEN_HEADER } from "./seen.ts";
 import { redactAnsi, redactDeep } from "./redact.ts";
@@ -285,7 +285,7 @@ export function startServer(opts: {
           const up = updateMonitor.status();
           const lead = leadPaneId();
           return {
-            version: { current: up.current, build: await buildId(), latest: up.latest, releaseAvailable: up.releaseAvailable, bridgeStale: up.bridgeStale, restart: ctlCommand("restart", localEngine()), update: ctlCommand("update", localEngine()) },
+            version: { current: up.current, build: await buildId(), latest: up.latest, releaseAvailable: up.releaseAvailable, bridgeStale: up.bridgeStale, restart: ctlCommand("restart", localEngine()), update: ctlCommand("update", localEngine()), ...updateProgressFacts() },
             engine: localEngine(),
             hc: { reachable: h instanceof CompositeMux && h.hcReachable, socket: hcSocketPath() },
             service: readService(),
