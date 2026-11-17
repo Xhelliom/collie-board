@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { blockedCount, groupPanesByTab, worstSpaceStatus } from "./spaces";
 import type { AgentStatus, AgentView, TabView } from "./types";
 

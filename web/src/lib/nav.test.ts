@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { homePath, panePath } from "./nav";
 
 describe("panePath", () => {

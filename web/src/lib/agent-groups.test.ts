@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { AGENT_GROUPS, groupMembers, isOrchestrator, projectOf, showsSpaces } from "./agent-groups";
 import type { AgentStatus, AgentView } from "./types";
 

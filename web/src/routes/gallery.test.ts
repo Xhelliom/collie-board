@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { filterByProject, groupBySession, groupTitle } from "./gallery";
 import type { GalleryImage } from "@/lib/types";
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { cardMilestones } from "./card-milestones";
 import type { BoardEvent } from "./board";
 

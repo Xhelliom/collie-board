@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { paneDisplayName } from "./types";
 import type { AgentView } from "./types";
 

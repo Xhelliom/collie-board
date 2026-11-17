@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { commandsFor } from "./agent-commands";
 
 describe("commandsFor", () => {

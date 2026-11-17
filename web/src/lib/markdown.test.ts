@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { parseInline, parseMarkdown, safeHref, type MdBlock, type MdSpan } from "./markdown";
 
 // The Markdown grammar for transcript prose. It exists because agent output IS Markdown and reading

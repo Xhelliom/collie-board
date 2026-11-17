@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { initials, shortCwd, timeAgo } from "./format";
 
 describe("shortCwd", () => {
