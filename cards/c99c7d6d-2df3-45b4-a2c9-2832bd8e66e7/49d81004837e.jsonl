@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794929614169.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Accès rapide filtré en SQL","status":"backlog"},"ts":1794929603306}}
 {"v":1,"hlc":"1794929614176.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"379ed504-8380-466b-8f6c-df757005cb6f"}}
 {"v":1,"hlc":"1794929614121.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794929628279.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/acces-rapide-filtre-en-sql"}}
+{"v":1,"hlc":"1794929628279.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794929628279.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794929618911}}
+{"v":1,"hlc":"1794929628279.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794929628279.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794929627095}}
+{"v":1,"hlc":"1794929628279.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2306},"ts":1794929628232}}
