@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api";
+import { apiRequest, conditionalGet } from "@/lib/api";
 import type { AgentView } from "@/lib/types";
 
 // The Peers settings screen's half of ADR 0049. Every call is the operator's own; no answer ever
@@ -102,7 +102,7 @@ export function engineName(e: MachineEngine | null | undefined): string | null {
 }
 
 export const fetchHerd = (signal?: AbortSignal) =>
-  apiRequest<{ peers: PeerHerdView[]; local?: { name: string; engine: MachineEngine | null } }>("/api/herd", { signal });
+  conditionalGet<{ peers: PeerHerdView[]; local?: { name: string; engine: MachineEngine | null } }>("/api/herd", signal);
 
 /** ADR 0052 §8's four exit criteria (`/api/exit-criteria`, bridge/exit-criteria.ts). */
 export interface ExitView {

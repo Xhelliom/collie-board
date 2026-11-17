@@ -81,7 +81,16 @@ function gzipBodyResponse(
  * body, else the gzip-aware JSON carrying its ETag. The tag is derived from the body, so a mutation
  * needs no invalidation — the next poll simply gets a different tag.
  */
-export function conditionalJson(data: unknown, req: Request): Response {
+export function conditionalJson(data: unknown, req: Request, tagSource: unknown = data): Response {
+  if (tagSource !== data) {
+    // The tag is taken from `tagSource`: `data` minus the fields that move on every read (a clock),
+    // which would otherwise make every poll a 200. A 304 then leaves the client its older clock.
+    const etag = computeEtag(JSON.stringify(tagSource));
+    if (notModified(req.headers.get("if-none-match"), etag)) {
+      return new Response(null, { status: 304, headers: { etag, "cache-control": "no-store" } });
+    }
+    return gzipBodyResponse(JSON.stringify(data), req.headers.get("accept-encoding"), { etag });
+  }
   // One stringify per data object: a memoised one (see `memoOn`) comes back with its body, tag and gzip.
   let entry = typeof data === "object" && data !== null ? serialized.get(data) : undefined;
   if (!entry) {
