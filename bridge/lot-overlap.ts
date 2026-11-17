@@ -47,3 +47,9 @@ export function overlapWarning(overlaps: Overlap[]): string | null {
   const pairs = overlaps.map((o) => `${o.cardIds[0]} & ${o.cardIds[1]} (${o.files.join(", ")})`).join("; ");
   return `parallel cards cite the same files — their second PR will likely conflict: ${pairs}. Chain them (PATCH the second card with dependsOn: <first>) or set the lot's maxParallel to 1.`;
 }
+
+/** Said when a lot's phase could not file a card: it already sits in another phase, and is never moved. */
+export function phaseStrayWarning(strays: { id: string }[]): string | null {
+  if (!strays.length) return null;
+  return `already in another phase, left there: ${strays.map((c) => c.id).join(", ")}. PATCH the card's phaseId if it belongs to this lot's phase.`;
+}

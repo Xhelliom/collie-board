@@ -47,7 +47,7 @@ import type {
 } from "./db.ts";
 import { CARD_CATEGORIES, DECLARABLE_CATEGORIES, isCardStatus, isIntegration, isMaxParallel, MAX_AGENTS_CAP, REPORT_TYPES, type DeclarableCategory, type Integration } from "./db.ts";
 import { lotPrCard, lotView } from "./lot.ts";
-import { lotOverlaps, overlapWarning } from "./lot-overlap.ts";
+import { lotOverlaps, overlapWarning, phaseStrayWarning } from "./lot-overlap.ts";
 import {
   baseOf,
   cardDiffStat,
@@ -1127,7 +1127,8 @@ async function route(
     });
     // Said, never enforced: chaining or `maxParallel: 1` stays the planner's call.
     const overlaps = lotOverlaps(run, cards.map((c) => c!));
-    return ctx.json({ run, cardIds, overlaps, warning: overlapWarning(overlaps) }, 201);
+    const warning = [overlapWarning(overlaps), phaseStrayWarning(ctx.db.fileLotInPhase(run.id))].filter(Boolean).join(" ") || null;
+    return ctx.json({ run, cardIds, overlaps, warning }, 201);
   }
 
   // The pane is the only identity: a card, when there is one, is derived from its open session and

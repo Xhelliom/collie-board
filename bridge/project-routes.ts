@@ -11,6 +11,7 @@ import { goalLaunchRefusal, idleRefusal } from "./autonomy.ts";
 import { recordStartGauge, weekPercent } from "./goal-routes.ts";
 import { usageTracker } from "./usage.ts";
 import { lotView } from "./lot.ts";
+import { phaseStrayWarning } from "./lot-overlap.ts";
 import { resumeRun } from "./run.ts";
 import { autoResumeRefusal } from "./resume.ts";
 import { assignedElsewhere, lotOwnerRefusal } from "./claim.ts";
@@ -323,7 +324,7 @@ export async function handleProjectRoute(
         return ctx.text((err as Error).message, 409);
       }
       audit("run.patch", { runId: id, ...patch });
-      return ctx.json({ run: lotView(db, db.getRun(id)!) });
+      return ctx.json({ run: lotView(db, db.getRun(id)!), warning: phaseStrayWarning(db.fileLotInPhase(id)) });
     }
     if (req.method === "DELETE") {
       const denied = guard("write");

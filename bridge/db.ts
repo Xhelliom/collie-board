@@ -2421,6 +2421,24 @@ export class BoardDb {
     return this.getRun(id);
   }
 
+  /**
+   * A lot with a phase files its phaseless cards in it — the Projet page counts cards by their own
+   * phase. A card already in another phase is never moved: it is returned, for the caller to say so.
+   */
+  fileLotInPhase(runId: string, openOnly = false): Card[] {
+    const phaseId = this.getRun(runId)?.phaseId;
+    if (!phaseId) return [];
+    const members = this.runMembers(runId).filter((c) => !openOnly || (c.status !== "done" && c.status !== "archived"));
+    const set = this.db.query("UPDATE card SET phase_id = ? WHERE id = ? AND phase_id IS NULL");
+    for (const c of members) if (!c.phaseId) set.run(phaseId, c.id);
+    return members.filter((c) => c.phaseId && c.phaseId !== phaseId);
+  }
+
+  /** Boot-time repair of lots planned before {@link fileLotInPhase}: their open cards only. Idempotent. */
+  repairLotPhases(): void {
+    for (const r of this.listRuns()) if (r.phaseId) this.fileLotInPhase(r.id, true);
+  }
+
   /** Drop a planned lot, releasing its cards. False for a missing or launched one. */
   deleteLot(id: string): boolean {
     const run = this.getRun(id);

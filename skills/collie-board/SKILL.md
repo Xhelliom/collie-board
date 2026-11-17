@@ -405,6 +405,9 @@ user's quota — and its pane id is what `$HERDR_PANE_ID` carries when it plans.
 - **Phase** — groups a repo's cards (not a container). Its progress is derived.
 - **Lot** — a *planned run*: a named, ordered set of one repo's cards inside a phase. It drives
   nothing until the user launches it.
+  A lot given a `phaseId` (on `POST /api/runs` or `PATCH /api/runs/<id>`) files each of its cards
+  that has **no** phase in that phase — the Projet page counts cards by their own phase. A card
+  already in another phase is never moved: it stays, and the answer's `warning` names it.
   Set `maxParallel` (1 to 16, or null for the board's own cap) when you plan it: **1 is sequential**.
   Decide it from the cards — ones that touch the same files, or build on each other's output, get 1
   (or a `dependsOn` chain); independent ones can run side by side. Patchable while the lot is planned.
