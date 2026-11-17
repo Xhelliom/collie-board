@@ -248,7 +248,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // When the mirror delivers fresh output (text changed), the send has been echoed back — clear the
   // pending preview immediately regardless of the 6s fallback timer.
   useEffect(() => {
-    setLastSent(null);
+    // Only when there is one: an unchanged set still costs every poll a second commit (audit P12).
+    if (lastSent !== null) setLastSent(null);
     if (lastSentTimerRef.current) {
       clearTimeout(lastSentTimerRef.current);
       lastSentTimerRef.current = null;

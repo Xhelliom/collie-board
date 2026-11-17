@@ -29,7 +29,11 @@ export function useQuickAccess(tick: unknown, enabled: boolean): QuickAccess | n
   useEffect(() => {
     if (!enabled || Date.now() - last.current < THROTTLE_MS) return;
     last.current = Date.now();
-    fetchQuickAccess().then(setQ, () => {}); // a failed read keeps the last list: the next tick asks again
+    fetchQuickAccess().then(
+      // An unchanged answer would still re-render the sidebar in a commit of its own (audit P12).
+      (next) => JSON.stringify(next) !== JSON.stringify(q) && setQ(next),
+      () => {}, // a failed read keeps the last list: the next tick asks again
+    );
   }, [tick, enabled]);
   return q;
 }

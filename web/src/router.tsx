@@ -8,6 +8,7 @@ import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoad
 import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prDetailLoader, prsLoader, roadmapLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
 import { attachNavCache } from "@/lib/nav-cache";
+import { attachTick, tickDataStrategy } from "@/lib/tick";
 
 // We don't use view transitions. React Router persists an "applied view transitions" map to
 // sessionStorage ("remix-router-transitions") and replays a phantom same-location transition on every
@@ -136,8 +137,9 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+], { dataStrategy: tickDataStrategy }); // a poll tick's revalidation answers from what it fetched first (lib/tick.ts)
 
 // A screen already seen renders from its last data, then refreshes; a touched project or card link
 // starts loading before the tap lands (lib/nav-cache.ts).
 attachNavCache(router);
+attachTick(router);

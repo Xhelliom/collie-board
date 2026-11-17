@@ -14,6 +14,7 @@ import { PreviewSelectBlock, type PreviewBlockAction } from "@/components/previe
 import { MultiSelectBlock } from "@/components/multi-select-block";
 import type { MultiSelectIntent } from "@/lib/multi-select-action";
 import { fetchHistory, isApiErrorStatus } from "@/lib/api";
+import { addTickPull } from "@/lib/tick";
 import { t, useT, type MessageKey } from "@/i18n";
 import type { TranscriptEntry } from "@/lib/types";
 import type {
@@ -41,7 +42,7 @@ import type {
 // below it belong to neither.
 //
 // NO NEW POLL LOOP (CLAUDE.md → The board). This has no timer of its own — it rides the pane poll's
-// own heartbeat (`poll`, the router revalidator's state), and pulls only what is new via `after`
+// own heartbeat (the tick, lib/tick.ts, and `poll`, the revalidator's state), and pulls only what is new via `after`
 // (bridge/transcript.ts), so a tick that found nothing costs an empty array rather than a re-download
 // of the archive.
 //
@@ -154,7 +155,8 @@ export function ReadingView({
   const busy = useRef(false);
   const listRef = useRef<ChatMessageListHandle>(null);
 
-  const pull = useCallback(async () => {
+  // Fetches, and returns how to show it: the poll tick shows it inside its own commit (lib/tick.ts).
+  const load = useCallback(async (): Promise<(() => void) | undefined> => {
     if (busy.current) return; // a tick landing on a slow fetch waits for the next one
     busy.current = true;
     try {
@@ -166,33 +168,40 @@ export function ReadingView({
         cursor ? { limit: READING_TURNS, after: cursor } : { limit: READING_TURNS },
         session,
       );
-      if (!res.available) {
-        held.current = [];
-        setEntries([]);
-        setQueued([]);
-        setNote(unavailableCopy(res.reason));
-        if (NO_READING.has(res.reason)) onUnavailable?.();
-        return;
-      }
-      const next = cursor ? mergeTail(held.current, res.entries) : res.entries.slice(-MAX_HELD);
-      held.current = next;
-      setEntries(next);
-      setQueued(res.queued);
-      setNote(next.length === 0 ? unavailableCopy("empty") : null);
+      return () => {
+        if (!res.available) {
+          held.current = [];
+          setEntries([]);
+          setQueued([]);
+          setNote(unavailableCopy(res.reason));
+          if (NO_READING.has(res.reason)) onUnavailable?.();
+          return;
+        }
+        const next = cursor ? mergeTail(held.current, res.entries) : res.entries.slice(-MAX_HELD);
+        held.current = next;
+        setEntries(next);
+        setQueued(res.queued);
+        setNote(next.length === 0 ? unavailableCopy("empty") : null);
+      };
     } catch (e) {
       // Keep whatever is on screen — a poll that failed is not a conversation that vanished.
       // A peer's pane answers 502 when that machine can't be reached: say so, not "couldn't read".
       const peer = paneId.slice(paneId.lastIndexOf("@") + 1);
-      if (held.current.length === 0)
-        setNote(paneId.includes("@") && isApiErrorStatus(e, 502) ? t("pane.reading.peer", { peer }) : unavailableCopy("error"));
+      return () => {
+        if (held.current.length === 0)
+          setNote(paneId.includes("@") && isApiErrorStatus(e, 502) ? t("pane.reading.peer", { peer }) : unavailableCopy("error"));
+      };
     } finally {
       busy.current = false;
     }
   }, [paneId, session, onUnavailable]);
+  const pull = useCallback(async () => (await load())?.(), [load]);
 
-  // One pull per completed poll: the effect re-runs on every state change, and "idle" is the settle.
+  // One pull per poll tick, fetched before the tick revalidates and shown in its commit. A revalidation
+  // the tick did not start (after a reply, a slow tick) settles back to "idle": that settle pulls too.
   // A pull skipped because one was still in flight is retried by the next beat, so the view converges
   // on its own instead of staying one turn behind forever.
+  useEffect(() => addTickPull(load), [load]);
   useEffect(() => {
     if (poll === "idle") void pull();
   }, [poll, pull]);
@@ -204,6 +213,7 @@ export function ReadingView({
 
   // The turn crossing the top edge, re-measured on scroll and when turns arrive — no timer.
   const [topUuid, setTopUuid] = useState<string | null>(null);
+  const topRef = useRef<string | null>(null); // an unchanged set still costs a commit (audit P12)
   useEffect(() => {
     const el = listRef.current?.getScrollElement();
     if (!el) return;
@@ -216,6 +226,8 @@ export function ReadingView({
         if (r.top > edge) break;
         top = row.dataset.turn ?? null;
       }
+      if (top === topRef.current) return;
+      topRef.current = top;
       setTopUuid(top);
     };
     measure();

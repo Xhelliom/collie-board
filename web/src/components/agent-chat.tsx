@@ -220,14 +220,9 @@ export function AgentChat({
   // matches). While following, the frozen pair IS the live pair by definition.
   const [following, setFollowing] = useState(true);
   const [shown, setShown] = useState({ text, revision });
-  useEffect(() => {
-    if (!following) return;
-    // Functional update that returns the previous object when nothing changed keeps React's
-    // Object.is bailout — no re-render per poll while the pane is quiet.
-    setShown((prev) =>
-      prev.text === text && prev.revision === revision ? prev : { text, revision },
-    );
-  }, [text, revision, following]);
+  // Adjusted during render, not in an effect: React re-runs this render before committing, so a poll
+  // that brings new output costs one commit, not two (audit P12).
+  if (following && (shown.text !== text || shown.revision !== revision)) setShown({ text, revision });
   const display = shown.text;
   const hasNew = !following && display !== text;
 
