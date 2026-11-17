@@ -189,3 +189,61 @@ Corriger les constats de l audit de novembre : la page Projet ne bloque plus, la
   - [x] Profil avant/après dans la PR
   - [x] Rendus par poll divisés au moins par 5 quand rien ne change
   - [x] Aucun changement visible
+
+## Phase 57 — Performance — fin de l audit
+
+Solder les constats G3 de l audit de novembre (docs/dev/audit-perf-2026-11.md, P10 à P14) : moins de trafic et de rendus par tick, tests plus rapides, et mesurer avant de toucher au reste.
+
+### Lot — Moins de trafic et de rendus par tick (launched)
+
+- **Terminal : un seul rendu par tick** — done
+
+  Audit P12 : la vue Terminal fait 6,6 commits React par tick, un par réponse. Grouper les réponses d un tick en un seul rendu (un seul setState / revalidation par tick). Profiler avant/après (commits par tick, ms de thread/min), publier la mesure.
+
+  - [x] Un commit React par tick sur la vue Terminal, mesuré
+  - [x] Aucune régression d affichage du terminal (sortie, statut, saisie)
+- **ETag sur /api/herd et /api/snapshot : 304 quand rien n a bougé** — done
+
+  Audit P11 (docs/dev/audit-perf-2026-11.md) : /api/herd et /api/snapshot partent à chaque tick sur tous les écrans, sans 304 : 208 Ko/min sur Projet et Terminal. Ajouter un ETag (comme runs/phases en GET conditionnel, #482) et If-None-Match côté web. Mesurer avant/après (Ko/min sur Projet et Terminal) et publier la mesure sur la carte.
+
+  - [x] herd et snapshot répondent 304 quand rien n a changé
+  - [x] Ko/min mesurés avant/après sur Projet et Terminal, publiés
+  - [x] Aucune donnée vieillie : un changement réel repart en 200
+
+### Lot — L orchestrateur est prévenu (planned)
+
+- **L orchestrateur est prévenu tout de suite des gestes qui l engagent** — backlog
+
+  Retour de l opérateur : quand il lance un lot, pose un objectif…, l orchestrateur ne réagit pas — il ne le lit qu au tour suivant via « quoi de neuf » (bridge/since.ts). Déstabilisant.
+  
+  Aujourd hui seuls sont poussés dans le pane de l orchestrateur (bridge/orchestrator-nudge.ts, OrchestratorNudger) : fin de lot, carte non mergée/bloquée, branche en retard, phase validée/scellée/rouverte, « Me préparer le test ».
+  
+  À faire : pousser aussi, en un message court, ces gestes de l OPÉRATEUR (jamais ceux de l orchestrateur lui-même : pane header = son pane, ou lancement autonome) :
+  1. lancement et reprise d un lot (run.launch, run.resume) ;
+  2. objectif posé, activé, modifié, mis en pause, retiré (goal.*) ;
+  3. verdict KO de recette avec followUp (card.check) — avec la carte de suite ;
+  4. autonomie activée/coupée ou startWhenIdle changé (orchestrator.autonomy).
+  Le message dit le fait et demande UNE ligne d accusé à l opérateur (ex. « Lot X lancé, je suis »), sans rien relancer. Rien si aucun orchestrateur ne vit sur le dépôt. Passer par le même chemin que les nudges existants (promptAndConfirm, file d attente si l orchestrateur travaille), pas de nouvelle boucle. Les retouches (carte, phase, lot, roadmap) restent dans « quoi de neuf ». Tests unitaires des messages et du filtre « pas son propre geste ». Mettre à jour skills/collie-board/SKILL.md si la liste des messages y est documentée.
+
+  - [ ] Lancer ou reprendre un lot depuis l app : l orchestrateur reçoit un message et répond d une ligne
+  - [ ] Objectif posé/activé/modifié/retiré : même chose
+  - [ ] KO de recette avec carte de suite : l orchestrateur est prévenu avec la carte
+  - [ ] Autonomie changée : prévenu
+  - [ ] Un lancement fait par l orchestrateur lui-même ne le réveille pas
+  - [ ] Rien n est envoyé quand aucun orchestrateur ne tourne
+
+### Lot — Tests rapides et mesures du reste (planned)
+
+- **Mesurer les routes lentes et le git fetch périodique, puis trancher** — backlog
+
+  Audit P13 et P14. P13 : docs/page-tabs 0,24-0,34 s, repos 0,18-0,22 s, recette 0,14-0,18 s à chaque navigation ; mesurer leur part synchrone maintenant que P1-P4 sont faits (/api/diag/routes) ; ne rien faire si la boucle est libérée. P14 : 5 092 événements copilot.review_failed, git fetch x5 dépôts toutes les 60 s qui réveillent gh à ~300 % CPU ; mesurer le coût réel. Livrer une courte note (docs/dev/) avec les chiffres et, pour chaque point, corriger si c est petit et net, sinon proposer une carte.
+
+  - [ ] Chiffres P13 et P14 mesurés et publiés
+  - [ ] Pour chaque point : corrigé, ou carte proposée, ou « rien à faire » justifié
+- **Tests web plus rapides (Vitest)** — backlog
+
+  Audit P10 : Vitest prend 119 s, dont 161 s d environnement et 86 s de setup cumulés pour 124 s de tests. Essayer happy-dom ou isolate:false sur les fichiers purs ; mesurer avant d adopter ; ne garder que ce qui accélère sans rendre un test instable (3 passes vertes d affilée).
+
+  - [ ] Durée de cd web && bun run test mesurée avant/après
+  - [ ] 3 passes complètes vertes d affilée après le changement
+  - [ ] Rien adopté qui ne fait pas gagner
