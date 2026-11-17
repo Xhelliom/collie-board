@@ -101,7 +101,8 @@ export function SettingsRoute() {
         ))}
       </div>
 
-      <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:px-5 lg:py-6 lg:[&>*]:max-w-3xl">
+      {/* Children must not shrink: an overflow-hidden card (About) would squash to the visible height and leave nothing to scroll. */}
+      <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:px-5 lg:py-6 [&>*]:shrink-0 lg:[&>*]:max-w-3xl">
         {tab === "display" && (
           <>
             <ThemeControl />
