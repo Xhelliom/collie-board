@@ -92,9 +92,9 @@ Corriger les constats de l audit de novembre : la page Projet ne bloque plus, la
   - [x] Bench avant/après dans la PR : /api/runs et /api/project/quick sous 150 ms
   - [x] Tests bun de l ETag
 
-### Lot — Correctif · lots lisibles sur la page Projet (planned, one at a time)
+### Lot — Correctif · lots lisibles sur la page Projet (launched, one at a time)
 
-- **Page Projet : distinguer d un coup d œil un lot de ses cartes** — backlog
+- **Page Projet : distinguer d un coup d œil un lot de ses cartes** — done
 
   Skill frontend-design en tête.
   
@@ -102,44 +102,76 @@ Corriger les constats de l audit de novembre : la page Projet ne bloque plus, la
   
   À faire : un lot est un conteneur visible qui CONTIENT ses cartes (cadre ou bande latérale à la couleur de son état : bleu en cours, orange en attente, vert fait), avec un petit libellé « Lot » et son compteur. Les cartes sont en retrait, plus légères. Garder toutes les actions (Lancer ce lot, ⋯, Voir les cartes, terminal, spec) et les animations de signal. Vérifier en largeur téléphone.
 
-  - [ ] Les cartes d un lot sont visuellement à l intérieur du lot
-  - [ ] Un lot porte le mot « Lot » et la couleur de son état
-  - [ ] Aucune action ni information ne disparaît
-  - [ ] Lisible en largeur téléphone
-- **Un lot lancé dans une phase validée reste visible sur la page Projet** — backlog
+  - [x] Les cartes d un lot sont visuellement à l intérieur du lot
+  - [x] Un lot porte le mot « Lot » et la couleur de son état
+  - [x] Aucune action ni information ne disparaît
+  - [x] Lisible en largeur téléphone
+- **Un lot lancé dans une phase validée reste visible sur la page Projet** — done
 
   Constat (CrewDesign) : le lot « Confort esquisse » est lancé (3 cartes en revue) mais rangé dans la phase « Maintenance et rattrapages », validée. La page Projet ne le montre nulle part : web/src/lib/project.ts projectOf ne garde dans `phases` que les phases ouvertes, et currentPhases (≈l.184) ne cherche les lots vivants que là. Le correctif #470 (phases avec un lot qui tourne en haut) ne couvre donc pas une phase close.
   
   À faire : une phase validée qui porte un lot lancé non fini (ou des cartes non faites d un lot) apparaît dans « en cours » avec ce lot, comme une phase ouverte, avec une mention discrète « phase validée ». Ne pas rouvrir la phase côté données. Test unitaire dans project.test.ts sur ce cas.
 
-  - [ ] Un lot lancé non fini dans une phase validée s affiche en haut de la page Projet avec ses cartes
-  - [ ] La phase reste validée (closedAt intact)
-  - [ ] Test unitaire du cas
+  - [x] Un lot lancé non fini dans une phase validée s affiche en haut de la page Projet avec ses cartes
+  - [x] La phase reste validée (closedAt intact)
+  - [x] Test unitaire du cas
 
-### Lot — La machine respire (planned, one at a time)
+### Lot — La machine respire (launched, one at a time)
 
-- **Mise à jour : sans revérification, et l étape affichée** — backlog
+- **Mise à jour : sans revérification, et l étape affichée** — done
 
   Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P7. Chronométrer d abord le Dell (Windows) étape par étape. Puis : SKIP_TYPECHECK=1 sur le chemin update quand la cible est une release (22 s sur 27 ici, déjà faits en CI) ; scripts/ctl.ts écrit l étape en cours dans un fichier d état, Réglages → À propos l affiche (« récupération… », « construction… », « redémarrage… ») au lieu d attendre en silence jusqu à 180 s. Skill frontend-design en tête.
 
-  - [ ] Durée avant/après ici et sur le Dell dans la PR
-  - [ ] À propos affiche l étape en cours pendant la mise à jour
-  - [ ] Une étape qui échoue s affiche avec sa raison
-- **Ne pas relancer à la vérification ce que le pre-push a validé** — backlog
+  - [x] Durée avant/après ici et sur le Dell dans la PR
+  - [x] À propos affiche l étape en cours pendant la mise à jour
+  - [x] Une étape qui échoue s affiche avec sa raison
+- **Ne pas relancer à la vérification ce que le pre-push a validé** — done
 
   Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P6, décision opérateur 17/11 : la même suite (~205 s) tourne trois fois par carte (pre-push, gate, CI). Le gate ne relance pas les tests quand le pre-push les a passés sur le MÊME commit (le hook écrit le sha validé, le gate le lit ; tout écart = on relance). La CI reste le filet. Le typecheck du gate reste s il est court.
 
-  - [ ] Même commit validé au pre-push : le gate saute les tests et le dit dans son journal
-  - [ ] Commit différent ou trace absente : tout est relancé
-  - [ ] Tests bun de la décision
-- **Vérifications des cartes en basse priorité, une à la fois** — backlog
+  - [x] Même commit validé au pre-push : le gate saute les tests et le dit dans son journal
+  - [x] Commit différent ou trace absente : tout est relancé
+  - [x] Tests bun de la décision
+- **Vérifications des cartes en basse priorité, une à la fois** — done
 
   Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P5. Les gates (bun run check, ~205 s, 4 workers jsdom) tournent dans le cgroup du bridge sans priorité réduite : ~2 cœurs et jusqu à 5,2 Go pendant les lots. Les lancer en nice/ionice (bridge/gate.ts, argv jamais shell), au plus un gate à la fois par machine (file d attente visible sur la carte : « vérification en attente »). Windows : priorité basse équivalente ou rien, sans casser.
 
-  - [ ] Un gate tourne en priorité basse
-  - [ ] Deux cartes prêtes : la seconde attend et la carte le dit
-  - [ ] Windows non cassé
-  - [ ] Tests bun de la file
+  - [x] Un gate tourne en priorité basse
+  - [x] Deux cartes prêtes : la seconde attend et la carte le dit
+  - [x] Windows non cassé
+  - [x] Tests bun de la file
+
+### Lot — Correctif · liserés, menu ⋯ et rappel qui vibre (planned, one at a time)
+
+- **Mode lecture : le rappel du dernier message ne vibre plus au bord** — backlog
+
+  Skill frontend-design en tête : le lire et l appliquer avant de toucher au rendu.
+  
+  Retour de l opérateur : sur téléphone, le rappel collant du dernier message (PromptPin, web/src/components/reading-view.tsx ≈l.205-240) « vibre » quand le message est presque au niveau du haut de la conversation.
+  
+  Cause probable : sur téléphone le rappel est DANS le flux, au-dessus du défileur. Quand il apparaît, le défileur rétrécit de sa hauteur, les lignes bougent, le tour mesuré au bord (measure sur scroll) change, le rappel disparaît, le défileur regrandit… boucle d oscillation.
+  
+  À faire : casser la boucle sans rendre le rappel invisible ni recouvrir la réponse (ce que le commentaire du code voulait éviter). Piste la plus simple : réserver la place du rappel en permanence sur téléphone (hauteur fixe même vide), ou une hystérésis sur la mesure. Test unitaire si la logique est pure (pinFor / mesure).
+
+  - [ ] Faire défiler lentement jusqu à ce qu un message soit au bord : le rappel apparaît ou disparaît une fois, sans trembler
+  - [ ] Le rappel ne recouvre toujours pas la réponse sur téléphone
+  - [ ] Bureau inchangé
+- **Liseré latéral retiré (lots, Recette, À propos) ; « où est ce terminal » dans le menu ⋯** — backlog
+
+  Skill frontend-design en tête.
+  
+  Retour de l opérateur sur #485 : la distinction lot/cartes est mieux, mais le liseré sur le côté (border-l-4 de FRAME, et la ligne border-l sous la liste des cartes) n est pas le style du board. « c est pas bon ».
+  
+  À faire dans web/src/routes/project.tsx (et le composant des lots touché par #485) : plus aucun liseré latéral. Le cadre d un lot reprend le style de cadre déjà utilisé avant #485 (ex. le lot « Prêt » : bordure fine tout autour teintée de la couleur d état à ~40 %, fond bg-card/40 ou teinte /5, rounded-xl) — bleu en cours, orange en attente/ensuite, vert fini, rouge arrêté. Les cartes restent DANS le cadre, en retrait sans trait vertical. Garder le mot « Lot », toutes les actions et les animations de signal. Republier une capture téléphone.Conversation d un agent : l encadré du haut qui dit où est le terminal (« herdr-app, espace Collie Board… », web/src/components/pane-place.tsx, rendu dans agent-chat.tsx ≈l.805) ne reste plus affiché en permanence. Il passe dans le menu « ⋯ » de l en-tête de la conversation, en une entrée qui montre le même texte (lieu, espace, onglet). Rien ne se perd : dans le cas « attention » (terminal sous herdr 0.9, invisible dans herdr-app), un petit point orange sur le bouton « ⋯ » le signale. Mettre à jour pane-place.test.tsx.
+  
+  Même suppression du liseré latéral, remplacé par la bordure fine tout autour teintée de l état : les fiches de la Recette (web/src/components/recette-entry.tsx, STATE_EDGE + border-l-4 : brand à tester, vert ok, rouge ko) et la vérification de version dans À propos (web/src/components/about-control.tsx).
+  
+  PRÉCISION DE L OPÉRATEUR (prime sur ce qui précède pour les lots) : pas de « carte dans une carte ». La phase est déjà une carte ; un lot à l intérieur ne doit PAS être un second cadre (ni bordure, ni fond de carte). Un lot = une section : une ligne d en-tête (badge d état coloré déjà existant — en cours bleu, Prêt/Ensuite orange, fini vert, arrêté rouge — + le mot « Lot » + son nom + ses actions), puis ses cartes en retrait juste dessous, plus légères ; les lots séparés par de l espace et un filet horizontal fin (divide-y), pas par des cadres. La couleur d état est portée par le badge, pas par un contour. Valable aussi pour « Ensuite » et les lots finis dépliés. Le même principe vaut partout où cette carte touche (pas de cadre imbriqué dans un cadre).
+
+  - [ ] Sur la page Projet, aucun lot n a de cadre ni de fond de carte à l intérieur de la carte de phase : en-tête de section + cartes en retrait + filet entre lots
+  - [ ] Aucun liseré latéral (lots, Recette, À propos)
+  - [ ] L encadré « où est ce terminal » est dans le menu ⋯, point orange sur ⋯ quand invisible dans herdr-app
+  - [ ] Actions intactes, capture téléphone publiée
 
 ### Lot — L app plus légère (planned, one at a time)
 
