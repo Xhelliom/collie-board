@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794949222504.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"L orchestrateur est prévenu tout de suite des gestes qui l engagent","status":"backlog"},"ts":1794949221004}}
 {"v":1,"hlc":"1794949222505.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"4ef15013-ef61-49ad-8f0f-07021c043d12"}}
 {"v":1,"hlc":"1794950793442.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794950803866.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/l-orchestrateur-est-prevenu-tout-de-suite-des-ge"}}
+{"v":1,"hlc":"1794950803866.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794950803866.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794950796663}}
+{"v":1,"hlc":"1794950803867.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794950803867.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794950803258}}
+{"v":1,"hlc":"1794950803867.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3655},"ts":1794950803788}}
