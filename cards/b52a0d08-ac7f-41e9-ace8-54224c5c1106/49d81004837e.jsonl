@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794946760597.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"b96b69a0-dc99-41f9-8e15-3e99b1696f8e"}}
 {"v":1,"hlc":"1794946760597.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Mesurer les routes lentes et le git fetch périodique, puis trancher","status":"backlog"},"ts":1794946755380}}
 {"v":1,"hlc":"1794946760599.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"434f419b-ef02-448a-a292-14e838b288c8"}}
+{"v":1,"hlc":"1794951829165.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
