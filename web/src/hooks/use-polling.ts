@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigation, useRevalidator } from "react-router";
 
 import { beginCatchUp, endCatchUp, isLocked, useLocked } from "@/lib/idle";
+import { runTick } from "@/lib/tick";
 import type { Lot } from "@/lib/board";
 import type { HomeData } from "@/lib/loaders";
 
@@ -117,7 +118,11 @@ export function usePolling(
       // because a possibly-lying flag says offline.
       const r = ref.current;
       if (r.state === "idle") {
-        r.revalidate();
+        // Fetch first, then revalidate: the whole tick lands in one commit (lib/tick.ts).
+        void runTick(
+          () => void ref.current.revalidate(),
+          () => navRef.current === "idle" && ref.current.state === "idle",
+        );
         return;
       }
       // Already loading: normally we leave it be, but a revalidation stuck past SUPERSEDE_MS is

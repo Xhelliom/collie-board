@@ -130,10 +130,16 @@ export function subscribeHealth(cb: () => void): () => void {
  * Reactive read of the shared ESCALATION anchor — re-renders a consumer whenever markLive/markWake/
  * latchLost fires. Returns effectiveAnchor(), so it already honours the sticky latch (drops the wake
  * grace once escalated); consumers derive `lost` from this single value and cannot disagree.
+ *
+ * `watch` false reads a constant 0: a healthy consumer has no use for the anchor, and every live poll
+ * moves it (three markLive per tick on the pane screen), each one its own React commit (audit P12).
  */
-export function useConnectionHealth(): number {
-  return useSyncExternalStore(subscribeHealth, effectiveAnchor, effectiveAnchor);
+export function useConnectionHealth(watch = true): number {
+  const read = watch ? effectiveAnchor : noAnchor;
+  return useSyncExternalStore(subscribeHealth, read, read);
 }
+
+const noAnchor = () => 0;
 
 // A phone backgrounds Collie (screen off, app switch) far more than it truly disconnects; timers
 // freeze while it's away. On return, grant a fresh grace window rather than escalating on the stale,

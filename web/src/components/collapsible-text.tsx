@@ -36,7 +36,9 @@ export function CollapsibleText({
     if (!el) return;
     const cs = getComputedStyle(el);
     const lh = parseFloat(cs.lineHeight) || 1.5 * (parseFloat(cs.fontSize) || 16);
-    setLimit(el.scrollHeight > lines * lh + 1 ? lines * lh : null);
+    const next = el.scrollHeight > lines * lh + 1 ? lines * lh : null;
+    // Even an unchanged value set from a layout effect costs a second commit (audit P12).
+    if (next !== limit) setLimit(next);
   });
 
   return (

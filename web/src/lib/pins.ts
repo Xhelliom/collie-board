@@ -38,7 +38,11 @@ const THROTTLE_MS = 10_000;
 function refresh(): void {
   if (Date.now() - last < THROTTLE_MS) return;
   last = Date.now();
-  apiRequest<{ pins: Pin[] }>("/api/board/pins").then((r) => publish(r.pins), () => {}); // a failed read keeps the last list
+  apiRequest<{ pins: Pin[] }>("/api/board/pins").then(
+    // An unchanged list re-rendered every pin's screen in a commit of its own (audit P12).
+    (r) => JSON.stringify(r.pins) !== JSON.stringify(pins) && publish(r.pins),
+    () => {}, // a failed read keeps the last list
+  );
 }
 
 /** `tick`: anything that changes on the caller's revalidation (the HomeData object), so pins set elsewhere show up. */

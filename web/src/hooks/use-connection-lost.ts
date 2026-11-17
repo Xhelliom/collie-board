@@ -37,7 +37,8 @@ function useNotLiveFor(connecting: boolean, thresholdMs: number, latch: boolean)
   // The shared escalation anchor. Subscribing re-renders us whenever markLive/markWake/latchLost moves
   // it, and feeding it into the effect deps below reschedules the threshold timer against the new
   // anchor (e.g. a pre-latch wake pushes escalation back a fresh window; latching drops the wake grace).
-  const anchor = useConnectionHealth();
+  // Only while `connecting`: healthy, `reached` is false and the timer off whatever the anchor says.
+  const anchor = useConnectionHealth(connecting);
   // A bare re-render nudge: `reached` below is the source of truth; this just makes React re-evaluate
   // it at the threshold moment (and on focus/online) even when no poll or store change re-renders us.
   const [, tick] = useState(0);
