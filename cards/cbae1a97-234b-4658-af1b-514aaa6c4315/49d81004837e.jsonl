@@ -10,3 +10,6 @@
 {"v":1,"hlc":"1794927061223.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794927061223.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794927059591}}
 {"v":1,"hlc":"1794927061223.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3559},"ts":1794927059891}}
+{"v":1,"hlc":"1794927125198.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.held","payload":{"by":"operator"},"ts":1794927112190}}
+{"v":1,"hlc":"1794927125199.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.operator_said","payload":{"text":"oui j'ai cosntaté aussi un reconnexion très régulier quand on change de page du coup on attend 3 secondes"},"ts":1794927112403}}
+{"v":1,"hlc":"1794927125199.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.released","payload":{"why":"operator"},"ts":1794927114228}}
