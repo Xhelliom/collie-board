@@ -141,9 +141,9 @@ Corriger les constats de l audit de novembre : la page Projet ne bloque plus, la
   - [x] Windows non cassé
   - [x] Tests bun de la file
 
-### Lot — Correctif · liserés, menu ⋯ et rappel qui vibre (planned, one at a time)
+### Lot — Correctif · liserés, menu ⋯ et rappel qui vibre (launched, one at a time)
 
-- **Mode lecture : le rappel du dernier message ne vibre plus au bord** — backlog
+- **Mode lecture : le rappel du dernier message ne vibre plus au bord** — done
 
   Skill frontend-design en tête : le lire et l appliquer avant de toucher au rendu.
   
@@ -153,10 +153,10 @@ Corriger les constats de l audit de novembre : la page Projet ne bloque plus, la
   
   À faire : casser la boucle sans rendre le rappel invisible ni recouvrir la réponse (ce que le commentaire du code voulait éviter). Piste la plus simple : réserver la place du rappel en permanence sur téléphone (hauteur fixe même vide), ou une hystérésis sur la mesure. Test unitaire si la logique est pure (pinFor / mesure).
 
-  - [ ] Faire défiler lentement jusqu à ce qu un message soit au bord : le rappel apparaît ou disparaît une fois, sans trembler
-  - [ ] Le rappel ne recouvre toujours pas la réponse sur téléphone
-  - [ ] Bureau inchangé
-- **Liseré latéral retiré (lots, Recette, À propos) ; « où est ce terminal » dans le menu ⋯** — backlog
+  - [x] Faire défiler lentement jusqu à ce qu un message soit au bord : le rappel apparaît ou disparaît une fois, sans trembler
+  - [x] Le rappel ne recouvre toujours pas la réponse sur téléphone
+  - [x] Bureau inchangé
+- **Liseré latéral retiré (lots, Recette, À propos) ; « où est ce terminal » dans le menu ⋯** — done
 
   Skill frontend-design en tête.
   
@@ -168,10 +168,10 @@ Corriger les constats de l audit de novembre : la page Projet ne bloque plus, la
   
   PRÉCISION DE L OPÉRATEUR (prime sur ce qui précède pour les lots) : pas de « carte dans une carte ». La phase est déjà une carte ; un lot à l intérieur ne doit PAS être un second cadre (ni bordure, ni fond de carte). Un lot = une section : une ligne d en-tête (badge d état coloré déjà existant — en cours bleu, Prêt/Ensuite orange, fini vert, arrêté rouge — + le mot « Lot » + son nom + ses actions), puis ses cartes en retrait juste dessous, plus légères ; les lots séparés par de l espace et un filet horizontal fin (divide-y), pas par des cadres. La couleur d état est portée par le badge, pas par un contour. Valable aussi pour « Ensuite » et les lots finis dépliés. Le même principe vaut partout où cette carte touche (pas de cadre imbriqué dans un cadre).
 
-  - [ ] Sur la page Projet, aucun lot n a de cadre ni de fond de carte à l intérieur de la carte de phase : en-tête de section + cartes en retrait + filet entre lots
-  - [ ] Aucun liseré latéral (lots, Recette, À propos)
-  - [ ] L encadré « où est ce terminal » est dans le menu ⋯, point orange sur ⋯ quand invisible dans herdr-app
-  - [ ] Actions intactes, capture téléphone publiée
+  - [x] Sur la page Projet, aucun lot n a de cadre ni de fond de carte à l intérieur de la carte de phase : en-tête de section + cartes en retrait + filet entre lots
+  - [x] Aucun liseré latéral (lots, Recette, À propos)
+  - [x] L encadré « où est ce terminal » est dans le menu ⋯, point orange sur ⋯ quand invisible dans herdr-app
+  - [x] Actions intactes, capture téléphone publiée
 
 ### Lot — L app plus légère (planned, one at a time)
 
