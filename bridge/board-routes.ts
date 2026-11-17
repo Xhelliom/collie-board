@@ -107,7 +107,7 @@ import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { prDetail, prRerun, prUpdateBranch } from "./pr-detail.ts";
 import { forgetPrRead, notePrOutcome, openPrs, prGesture } from "./prs.ts";
-import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
+import { listRepos, scanRootsFor, withDefaultBaseRef, withDefaultBranches } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
 import type { Mux } from "./mux/mux.ts";
 import { migrateBlock, migrationIdentity, migrateToHc } from "./migrate-hc.ts";
@@ -507,9 +507,13 @@ async function route(
     const denied = ctx.guard("read");
     if (denied) return denied;
     const roots = scanRootsFor(ctx.cfg.boardRepoRoots, homedir(), existsSync);
-    const all = await listRepos(ctx.db, ctx.engine.current(), roots);
+    const q = new URL(req.url).searchParams;
+    // `?branches=1`: the new-card sheet's base-ref pre-fill. Opt-in — it spawns ≈ 80 git, ≈ 300 ms of
+    // blocked event loop, for a field only that sheet reads (docs/dev/mesure-p13-p14.md).
+    const listed = await listRepos(ctx.db, ctx.engine.current(), roots);
+    const all = q.get("branches") === "1" ? await withDefaultBranches(listed) : listed;
     // `?all=1` is how the client shows the hidden ones so they can be brought back.
-    const showAll = new URL(req.url).searchParams.get("all") === "1";
+    const showAll = q.get("all") === "1";
     return ctx.json({
       // `sync`: a shared repo's « N changements non envoyés » and read-only reason (ADR 0048 §3).
       repos: (showAll ? all : all.filter((r) => !r.hidden)).map((r) => ({ ...r, sync: journalStatus(ctx.db, r.path) })),

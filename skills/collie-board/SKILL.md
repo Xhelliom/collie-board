@@ -43,7 +43,7 @@ rather than retrying.
 curl -s http://127.0.0.1:8788/api/cards            # every card, with live agent state
 curl -s 'http://127.0.0.1:8788/api/cards?view=summary'  # the light list (below)
 curl -s http://127.0.0.1:8788/api/cards/<id>       # one card + journal, sessions, reviews, children
-curl -s http://127.0.0.1:8788/api/repos            # repos the board knows about (for repoPath)
+curl -s http://127.0.0.1:8788/api/repos            # repos the board knows about (for repoPath); ?branches=1 adds defaultBranch (slow: git per repo)
 curl -s http://127.0.0.1:8788/api/repos/listed     # {"paths":[…]} repos the operator added to the project lists by hand
 curl -s http://127.0.0.1:8788/api/about            # how this Collie runs: {"rows":[{id,state,key,vars}]} — read-only, no secret
 ```

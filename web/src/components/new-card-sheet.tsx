@@ -98,7 +98,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
     setError(null);
     let cancelled = false;
     setShowHidden(false);
-    void fetchRepos()
+    void fetchRepos({ branches: true })
       .then(({ repos: list, hiddenCount: n }) => {
         if (cancelled) return;
         setRepos(list);
@@ -135,7 +135,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
 
   /** Refetch after a hide/unhide so the list and the count stay honest. */
   async function reload(all: boolean) {
-    const { repos: list, hiddenCount: n } = await fetchRepos({ all });
+    const { repos: list, hiddenCount: n } = await fetchRepos({ all, branches: true });
     setRepos(list);
     setHiddenCount(n);
     // The selection may have just been hidden out from under us.

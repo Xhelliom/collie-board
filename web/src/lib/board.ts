@@ -981,7 +981,7 @@ export interface RepoChoice {
   /** Where the bridge learned about it: a previous card, the live herd, or a configured scan root. */
   source: "card" | "herd" | "scan";
   lastUsedAt?: number;
-  /** Pre-fills the card's base ref, so that field doesn't have to be typed either. */
+  /** Pre-fills the card's base ref, so that field doesn't have to be typed either. Only when fetched with `branches`. */
   defaultBranch?: string;
   /** The operator hid it. Only ever present when the list was fetched with `all`. */
   hidden?: boolean;
@@ -998,13 +998,12 @@ export interface RepoChoice {
  * the bridge shells out to git per distinct pane cwd to build it.
  */
 export function fetchRepos(
-  opts: { all?: boolean } = {},
+  opts: { all?: boolean; branches?: boolean } = {},
   signal?: AbortSignal,
 ): Promise<{ repos: RepoChoice[]; hiddenCount: number }> {
-  return apiRequest<{ repos: RepoChoice[]; hiddenCount: number }>(
-    `/api/repos${opts.all ? "?all=1" : ""}`,
-    { signal },
-  );
+  // `branches`: fill `defaultBranch` — ≈ 80 git spawned on the bridge, so only the sheet that pre-fills a base ref asks.
+  const q = new URLSearchParams({ ...(opts.all ? { all: "1" } : {}), ...(opts.branches ? { branches: "1" } : {}) }).toString();
+  return apiRequest<{ repos: RepoChoice[]; hiddenCount: number }>(`/api/repos${q ? `?${q}` : ""}`, { signal });
 }
 
 /**
