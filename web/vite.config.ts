@@ -109,12 +109,28 @@ const buildInfoPlugin: Plugin = {
   },
 };
 
+// The entry chunk is what every phone re-downloads before the first screen; screens load on demand
+// (router.tsx `lazy`). Fail the build rather than let it creep back (audit perf 2026-11, P9: 1 444 kB).
+const ENTRY_BUDGET_KB = 450;
+const entryBudgetPlugin: Plugin = {
+  name: "collie-entry-budget",
+  apply: "build",
+  generateBundle(_, bundle) {
+    for (const c of Object.values(bundle)) {
+      if (c.type !== "chunk" || !c.isEntry) continue;
+      const kb = Buffer.byteLength(c.code) / 1000;
+      if (kb > ENTRY_BUDGET_KB) this.error(`entry chunk ${c.fileName} is ${kb.toFixed(0)} kB, over the ${ENTRY_BUDGET_KB} kB budget — lazy-load the screen that grew it (router.tsx)`);
+    }
+  },
+};
+
 export default defineConfig({
   define: { __BUILD_INFO__: JSON.stringify(BUILD_INFO) },
   plugins: [
     react(),
     tailwindcss(),
     buildInfoPlugin,
+    entryBudgetPlugin,
     VitePWA({
       // Build the manifest + service worker. We use `injectManifest` (not the default generateSW)
       // because we hand-write the SW in `src/sw.ts` to add `push` + `notificationclick` handlers a
