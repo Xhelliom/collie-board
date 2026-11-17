@@ -61,3 +61,99 @@
 - **Recette guidée** — validated 2026-11-16, 4 steps
 - **Durée des états** — validated 2026-11-16, 4 steps
 - **Finitions de novembre** — validated 2026-11-17, 7 steps
+
+## Phase 56 — Performance
+
+Corriger les constats de l audit de novembre : la page Projet ne bloque plus, la machine respire pendant les lots, l app est plus légère.
+
+### Lot — La page Projet ne bloque plus (launched, one at a time)
+
+- **Remesurer la « reconnexion » à la navigation et la séparer si besoin** — done
+  - after: Accès rapide filtré en SQL
+
+  Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P2, après les deux cartes précédentes. Rejouer la sonde de latence du rapport (§1.1) avec une page Projet ouverte. Si le p90 reste au-dessus de 50 ms ou qu une navigation déclenche encore « reconnexion », séparer côté client « navigation lente » (une barre de chargement discrète) et « connexion perdue » (useLoadingStalled alimente isConnecting, web/src/hooks). Skill frontend-design en tête si l interface change.
+
+  - [x] Mesures avant/après dans la PR
+  - [x] Une navigation lente n affiche plus « reconnexion »
+  - [x] Une vraie coupure l affiche toujours
+- **Accès rapide filtré en SQL** — done
+
+  Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P4. /api/project/quick charge les 395 lots à chaque appel (633 ms en moyenne, toutes les 10 s par client). Filtrer en SQL : lots lancés non finis, ou finis depuis moins de 7 jours ; garder l ETag. Même réponse qu avant pour l interface.
+
+  - [x] La réponse est identique à l ancienne sur les données réelles (test de comparaison)
+  - [x] Temps moyen mesuré sous 100 ms
+  - [x] Test bun du filtre
+- **Index card(run_id) et lots/phases en GET conditionnel** — done
+
+  Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P1 + P3. (1) CREATE INDEX IF NOT EXISTS card_run_idx ON card(run_id) dans SCHEMA (bridge/db.ts) : runMembers × 395 lots 342 ms → ~100 ms. (2) ETag + conditionalGet sur GET /api/runs et GET /api/phases, comme cards/facts (0 réponse 304 aujourd hui, 39 appels/min, 859 Ko/min sur la page Projet). (3) runFinishedAt lu dans run.finished_at (−73 ms). Rejouer le bench du rapport avant/après et coller les chiffres dans la PR.
+
+  - [x] Index créé au démarrage, idempotent
+  - [x] /api/runs et /api/phases répondent 304 quand rien n a changé
+  - [x] Bench avant/après dans la PR : /api/runs et /api/project/quick sous 150 ms
+  - [x] Tests bun de l ETag
+
+### Lot — Correctif · lots lisibles sur la page Projet (planned, one at a time)
+
+- **Page Projet : distinguer d un coup d œil un lot de ses cartes** — backlog
+
+  Skill frontend-design en tête.
+  
+  Retour de l opérateur (capture du projet CrewDesign, phase A3) : dans « Lots de la phase », on ne voit pas ce qui est un lot et ce qui est une carte. Les en-têtes de lot (en cours, Prêt, Ensuite) et les lignes de carte ont presque la même typo, et les cartes du lot en cours sont posées sous son cadre au lieu d être dedans.
+  
+  À faire : un lot est un conteneur visible qui CONTIENT ses cartes (cadre ou bande latérale à la couleur de son état : bleu en cours, orange en attente, vert fait), avec un petit libellé « Lot » et son compteur. Les cartes sont en retrait, plus légères. Garder toutes les actions (Lancer ce lot, ⋯, Voir les cartes, terminal, spec) et les animations de signal. Vérifier en largeur téléphone.
+
+  - [ ] Les cartes d un lot sont visuellement à l intérieur du lot
+  - [ ] Un lot porte le mot « Lot » et la couleur de son état
+  - [ ] Aucune action ni information ne disparaît
+  - [ ] Lisible en largeur téléphone
+- **Un lot lancé dans une phase validée reste visible sur la page Projet** — backlog
+
+  Constat (CrewDesign) : le lot « Confort esquisse » est lancé (3 cartes en revue) mais rangé dans la phase « Maintenance et rattrapages », validée. La page Projet ne le montre nulle part : web/src/lib/project.ts projectOf ne garde dans `phases` que les phases ouvertes, et currentPhases (≈l.184) ne cherche les lots vivants que là. Le correctif #470 (phases avec un lot qui tourne en haut) ne couvre donc pas une phase close.
+  
+  À faire : une phase validée qui porte un lot lancé non fini (ou des cartes non faites d un lot) apparaît dans « en cours » avec ce lot, comme une phase ouverte, avec une mention discrète « phase validée ». Ne pas rouvrir la phase côté données. Test unitaire dans project.test.ts sur ce cas.
+
+  - [ ] Un lot lancé non fini dans une phase validée s affiche en haut de la page Projet avec ses cartes
+  - [ ] La phase reste validée (closedAt intact)
+  - [ ] Test unitaire du cas
+
+### Lot — La machine respire (planned, one at a time)
+
+- **Mise à jour : sans revérification, et l étape affichée** — backlog
+
+  Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P7. Chronométrer d abord le Dell (Windows) étape par étape. Puis : SKIP_TYPECHECK=1 sur le chemin update quand la cible est une release (22 s sur 27 ici, déjà faits en CI) ; scripts/ctl.ts écrit l étape en cours dans un fichier d état, Réglages → À propos l affiche (« récupération… », « construction… », « redémarrage… ») au lieu d attendre en silence jusqu à 180 s. Skill frontend-design en tête.
+
+  - [ ] Durée avant/après ici et sur le Dell dans la PR
+  - [ ] À propos affiche l étape en cours pendant la mise à jour
+  - [ ] Une étape qui échoue s affiche avec sa raison
+- **Ne pas relancer à la vérification ce que le pre-push a validé** — backlog
+
+  Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P6, décision opérateur 17/11 : la même suite (~205 s) tourne trois fois par carte (pre-push, gate, CI). Le gate ne relance pas les tests quand le pre-push les a passés sur le MÊME commit (le hook écrit le sha validé, le gate le lit ; tout écart = on relance). La CI reste le filet. Le typecheck du gate reste s il est court.
+
+  - [ ] Même commit validé au pre-push : le gate saute les tests et le dit dans son journal
+  - [ ] Commit différent ou trace absente : tout est relancé
+  - [ ] Tests bun de la décision
+- **Vérifications des cartes en basse priorité, une à la fois** — backlog
+
+  Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P5. Les gates (bun run check, ~205 s, 4 workers jsdom) tournent dans le cgroup du bridge sans priorité réduite : ~2 cœurs et jusqu à 5,2 Go pendant les lots. Les lancer en nice/ionice (bridge/gate.ts, argv jamais shell), au plus un gate à la fois par machine (file d attente visible sur la carte : « vérification en attente »). Windows : priorité basse équivalente ou rien, sans casser.
+
+  - [ ] Un gate tourne en priorité basse
+  - [ ] Deux cartes prêtes : la seconde attend et la carte le dit
+  - [ ] Windows non cassé
+  - [ ] Tests bun de la file
+
+### Lot — L app plus légère (planned, one at a time)
+
+- **Charger l app écran par écran** — backlog
+
+  Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P9. Un seul chunk de 1 444 Ko (402 Ko gzip, +50 % en un mois), re-téléchargé à chaque release. React.lazy par route (Projet, Recette, Documents, PR, Réglages, Galerie) avec un repli de chargement discret ; budget de taille du chunk d entrée vérifié au build (échec si dépassé).
+
+  - [ ] Chunk d entrée réduit d au moins 40 %
+  - [ ] Chaque route se charge sans écran blanc
+  - [ ] Le build échoue si le budget est dépassé
+- **Recette : ne plus tout redessiner à chaque rafraîchissement** — backlog
+
+  Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P8. ~8 600 composants re-rendus par poll alors que les données de la recette ne changent pas (4,4 s de thread/min sur ordinateur). Profiler d abord (comme en octobre), puis isoler l écran de la revalidation racine : memo sur la liste, ou données de la recette hors du loader racine.
+
+  - [ ] Profil avant/après dans la PR
+  - [ ] Rendus par poll divisés au moins par 5 quand rien ne change
+  - [ ] Aucun changement visible
