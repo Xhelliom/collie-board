@@ -591,6 +591,12 @@ of it reaches your conversation. `GET /api/orchestrator/since?since=<ts>` lists 
 gestures (yours, i.e. your pane's, left out) and the PRs merged or closed — plus a remote card stopped with no PR (`card.remote_idle`) and what retracts it (`card.remote_idle_cleared`, `card.remote_ended`) — newer than `since` (ms epoch).
 It answers only the orchestrator's own pane (`204` for any other) and derives the repo from it.
 
+A few of the user's gestures do not wait for your next turn: the bridge types them into your pane at once
+(queued if you are working), one message per repo — a lot launched or resumed, the objective set,
+started, edited, paused, resumed, abandoned, validated or deleted, a recette KO with its follow-up card,
+the autonomy changed. Never your own gesture. Answer the user with ONE line (« Lot X lancé, je suis ») and
+relaunch nothing; everything else (cards, phases, lots, roadmap) stays in this list.
+
 ```bash
 curl -s "$B/api/orchestrator/since?since=<cursor>" "${H[@]}"   # {cursor, count, summary}
 #   no `since` yet: {cursor: now, count: 0} — keep `cursor`, send it next time.

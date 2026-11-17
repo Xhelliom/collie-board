@@ -416,6 +416,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
     const nudger = new OrchestratorNudger(board, herdr, notifyLog);
     engine.onUpdate((snap) => nudger.update(snap), "nudger");
+    audit.listeners.push((e) => nudger.heard(e)); // the operator's gestures, told on the next tick
     // …and of a lot's card whose agent stalls (blocked, idle or gone for 10 min) — once per episode.
     const stuck = new StuckCards(board, herdr);
     engine.onUpdate((snap) => stuck.update(snap), "stuckCards");

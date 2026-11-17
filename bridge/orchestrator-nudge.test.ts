@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { BoardDb } from "./db.ts";
-import { OrchestratorNudger } from "./orchestrator-nudge.ts";
+import { GESTURE_ACK, OrchestratorNudger, gestureLine } from "./orchestrator-nudge.ts";
 import { DEFAULT_BUDGET } from "./goal-routes.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -182,5 +182,73 @@ describe("OrchestratorNudger (ADR 0028)", () => {
       expect(sent).toHaveLength(2);
       for (const t of sent) expect(t).not.toContain("Ne lance rien");
     });
+  });
+});
+
+describe("the operator's gestures reach the orchestrator", () => {
+  const heard = async (w: ReturnType<typeof world>, action: string, detail: Record<string, unknown>, live = true) => {
+    w.nudger.heard({ action, detail });
+    w.nudger.update(snap(live));
+    await flush();
+  };
+
+  it("tells a lot launched or resumed by the operator, and asks for one line back", async () => {
+    const w = world();
+    await heard(w, "run.launch", { runId: w.run.id });
+    await heard(w, "run.resume", { runId: w.run.id, resumed: 2 });
+    expect(w.sent).toHaveLength(2);
+    expect(w.sent[0]).toContain("a lancé le lot « lot 1 »");
+    expect(w.sent[0]).toEndWith(GESTURE_ACK);
+    expect(w.sent[1]).toContain("repris (2 carte(s) relancée(s)) le lot « lot 1 »");
+  });
+
+  it("never tells the orchestrator its own gesture", async () => {
+    const w = world();
+    await heard(w, "run.launch", { runId: w.run.id, autonomous: true, reason: "idle" });
+    await heard(w, "run.resume", { runId: w.run.id, resumed: 1, autonomous: true });
+    await heard(w, "goal.edit", { goalId: "g", repoPath: "/g/r", pane: "o1" });
+    expect(w.sent).toHaveLength(0);
+  });
+
+  it("sends nothing when no orchestrator lives on the repo, and does not keep it for later", async () => {
+    const w = world();
+    await heard(w, "run.launch", { runId: w.run.id }, false);
+    w.nudger.update(snap(true));
+    await flush();
+    expect(w.sent).toHaveLength(0);
+  });
+
+  it("tells each move of the objective, but not one the objective's own wake already says", () => {
+    const w = world();
+    // No lot running on /g/s: goal.created wakes it with the plan to make — no second message.
+    const idle = w.db.createGoal({ repoPath: "/g/s", text: "rien", criteria: ["ok"], budget: DEFAULT_BUDGET }, "active", null)!;
+    expect(gestureLine(w.db, { action: "goal.create", detail: { goalId: idle.id, repoPath: "/g/s" } })).toBeNull();
+    // « lot 1 » runs on /g/r: its end will wake it, so the objective is told now.
+    const g = w.db.createGoal({ repoPath: "/g/r", text: "zéro bug", criteria: ["ok"], budget: DEFAULT_BUDGET }, "active", null)!;
+    expect(gestureLine(w.db, { action: "goal.create", detail: { goalId: g.id, repoPath: "/g/r" } })?.text).toBe("L'opérateur a posé l'objectif « zéro bug ».");
+    for (const [action, verb] of [["goal.edit", "modifié"], ["goal.pause", "mis en pause"], ["goal.abandon", "abandonné"], ["goal.activate", "activé"]])
+      expect(gestureLine(w.db, { action: action!, detail: { goalId: g.id, repoPath: "/g/r" } })?.text).toContain(`a ${verb} l'objectif`);
+    expect(gestureLine(w.db, { action: "goal.delete", detail: { goalId: "gone", repoPath: "/g/r" } })?.text).toBe("L'opérateur a retiré l'objectif suivant.");
+  });
+
+  it("tells a recette KO with the card that fixes it, and only that verdict", () => {
+    const w = world();
+    const fix = w.db.createCard({ title: "Corriger : a", repoPath: "/g/r" });
+    const ko = gestureLine(w.db, { action: "card.check", detail: { cardId: w.card.id, stepId: "s", status: "ko", note: "rien ne s'affiche", followUp: fix.id, followUpTitle: fix.title } });
+    expect(ko?.text).toBe(`Recette KO par l'opérateur sur « a » (${w.card.id}) : « rien ne s'affiche » — carte de suite « Corriger : a » (${fix.id}).`);
+    expect(gestureLine(w.db, { action: "card.check", detail: { cardId: w.card.id, stepId: "s", status: "ok" } })).toBeNull();
+    expect(gestureLine(w.db, { action: "card.check", detail: { cardId: w.card.id, stepId: "s", status: "ko" } })).toBeNull();
+  });
+
+  it("tells the autonomy setting, and folds two gestures of one tick into one message", async () => {
+    const w = world();
+    w.nudger.heard({ action: "orchestrator.autonomy", detail: { repoPath: "/g/r", enabled: true, startWhenIdle: false } });
+    w.nudger.heard({ action: "card.edit", detail: { cardId: w.card.id } });
+    w.nudger.heard({ action: "run.launch", detail: { runId: w.run.id } });
+    w.nudger.update(snap(true));
+    await flush();
+    expect(w.sent).toHaveLength(1);
+    expect(w.sent[0]).toContain("l'autonomie : activée, lancement quand rien ne tourne : non.");
+    expect(w.sent[0]).toContain("a lancé le lot");
   });
 });
