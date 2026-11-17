@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.351.0] - 2026-11-17
+
+### Added
+
+- L'orchestrateur est prévenu tout de suite des gestes de l'opérateur : lot lancé/repris, objectif, recette KO avec carte de suite, autonomie (152604f)
+
 ## [0.350.6] - 2026-11-17
 
 ### Changed
