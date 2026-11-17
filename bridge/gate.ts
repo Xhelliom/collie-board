@@ -14,7 +14,8 @@ const SUMMARY_LINES = 40;
 const SUMMARY_CHARS = 4_000;
 
 export type GateResult =
-  | { kind: "pass" }
+  /** `note`: the gate's last line on stdout — where a gate says what it did (e.g. tests skipped). */
+  | { kind: "pass"; note?: string }
   | { kind: "fail"; exit: number; summary: string }
   /** The gate could not give a verdict (missing binary, timeout): the operator's, not the worker's. */
   | { kind: "error"; message: string };
@@ -34,6 +35,12 @@ export function summarizeGate(output: string): string {
   const tail = lines.slice(-SUMMARY_LINES).join("\n");
   const cut = lines.length > SUMMARY_LINES || tail.length > SUMMARY_CHARS;
   return (cut ? "…\n" : "") + tail.slice(-SUMMARY_CHARS);
+}
+
+/** The last non-empty line of a green gate's stdout, capped, or undefined. Pure. */
+export function gateNote(stdout: string): string | undefined {
+  const last = stdout.trimEnd().split("\n").pop()?.trim();
+  return last ? last.slice(0, 200) : undefined;
 }
 
 /** The message that sends the worker back when the gate is red. Pure. */
@@ -91,7 +98,8 @@ export async function spawnGate(argv: string[], cwd: string, timeoutMs = GATE_TI
       proc.exited,
     ]);
     if (timedOut) return { kind: "error", message: `timed out after ${Math.round(timeoutMs / 60_000)} min` };
-    return exit === 0 ? { kind: "pass" } : { kind: "fail", exit, summary: summarizeGate(`${out}\n${err}`) };
+    const note = gateNote(out);
+    return exit === 0 ? (note ? { kind: "pass", note } : { kind: "pass" }) : { kind: "fail", exit, summary: summarizeGate(`${out}\n${err}`) };
   } finally {
     clearTimeout(timer);
   }

@@ -728,7 +728,7 @@ export class RunCoordinator {
     const r = await this.ports.runGate(command, brief.worktree);
     if (r.kind === "error") return this.halt(run, card.id, `gate could not run: ${r.message}`);
     const ok = r.kind === "pass";
-    this.db.recordRunEvent(card.id, "run.gate", { runId: run.id, command, ok, ...(ok ? {} : { summary: r.summary }) });
+    this.db.recordRunEvent(card.id, "run.gate", { runId: run.id, command, ok, ...(r.kind === "pass" ? (r.note ? { note: r.note } : {}) : { summary: r.summary }) });
     if (ok) return;
     const prompt = gatePrompt(command, r.summary);
     await this.sendFailure(card, session, prompt);

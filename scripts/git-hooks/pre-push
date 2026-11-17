@@ -51,8 +51,9 @@ if [ "${SKIP_TESTS:-}" = "1" ]; then
   exit 0
 fi
 
-echo "pre-push: running backend test suite (bun test ./bridge)…" >&2
-if ! (cd "$ROOT" && bun test ./bridge); then
+# The same suites as the gate's `bun run test`, so a green here can stand in for it (scripts/tests-passed.sh).
+echo "pre-push: running backend test suite (bun test ./bridge ./scripts)…" >&2
+if ! (cd "$ROOT" && bun test ./bridge ./scripts); then
   cat >&2 <<'EOF'
 ✗ pre-push: backend tests failed — push aborted.
   Fix the failing tests, or override once with: SKIP_TESTS=1 git push
@@ -63,6 +64,7 @@ fi
 # Windows runs the plugin through scripts/ctl.ts, not collie-board-ctl.sh (whose suite needs python): Linux CI plays it.
 if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* || "${OS:-}" == Windows_NT ]]; then
   echo "pre-push: Windows — skipping collie-board-ctl.test.sh (the plugin uses scripts/ctl.ts here; Linux CI runs it)" >&2
+  ctl_skipped=1
 else
   echo "pre-push: running control-script lifecycle suite (collie-board-ctl.test.sh)…" >&2
   if ! (cd "$ROOT" && bash scripts/collie-board-ctl.test.sh); then
@@ -81,6 +83,11 @@ if ! (cd "$ROOT/web" && bun run test); then
   Fix the failing tests, or override once with: SKIP_TESTS=1 git push
 EOF
   exit 1
+fi
+
+# Every suite the gate would run is green on this tree: note the commit so the gate does not run them again.
+if [ -z "${ctl_skipped:-}" ]; then
+  (cd "$ROOT" && bash scripts/tests-passed.sh record) || true
 fi
 
 exit 0

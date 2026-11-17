@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { tmpdir } from "node:os";
 
 import { BoardDb } from "./db.ts";
-import { gatePrompt, oneAtATime, parseGate, runGate, summarizeGate } from "./gate.ts";
+import { gateNote, gatePrompt, oneAtATime, parseGate, runGate, summarizeGate } from "./gate.ts";
 
 // The gate commands are this very bun, so the test runs where no `true`, `sh` or `sleep` exists (Windows).
 const bun = (code: string) => [process.execPath, "-e", code];
@@ -27,13 +27,20 @@ describe("gate (ADR 0020)", () => {
     expect(summarizeGate("x".repeat(9000)).length).toBeLessThanOrEqual(4_002);
   });
 
+  it("gateNote is the last non-empty stdout line, capped", () => {
+    expect(gateNote("a\nb\n\n")).toBe("b");
+    expect(gateNote("  \n")).toBeUndefined();
+    expect(gateNote("x".repeat(500))).toHaveLength(200);
+  });
+
   it("gatePrompt names the command and carries the report", () => {
     expect(gatePrompt("make", "boom")).toContain("`make`");
     expect(gatePrompt("make", "boom")).toContain("boom");
   });
 
   it("runGate: pass, fail with output, missing binary, timeout", async () => {
-    expect(await runGate(TRUE, tmp)).toEqual({ kind: "pass" });
+    expect(await runGate(TRUE, tmp)).toMatchObject({ kind: "pass" });
+    expect(await runGate(bun('console.log("tests\\ntests skipped")'), tmp)).toEqual({ kind: "pass", note: "tests skipped" });
     const fail = await runGate(bun('console.error("bad"); process.exit(3)'), tmp);
     expect(fail).toMatchObject({ kind: "fail", exit: 3 });
     expect((fail as { summary: string }).summary).toContain("bad");
@@ -64,7 +71,7 @@ describe("gate (ADR 0020)", () => {
     const t0 = Date.now();
     const [slow, fast] = await Promise.all([runGate(SLEEP, tmp, 100), runGate(TRUE, tmp)]);
     expect(slow.kind).toBe("error");
-    expect(fast).toEqual({ kind: "pass" });
+    expect(fast).toMatchObject({ kind: "pass" });
     expect(Date.now() - t0).toBeGreaterThanOrEqual(100);
   });
 
