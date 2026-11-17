@@ -210,9 +210,9 @@ Solder les constats G3 de l audit de novembre (docs/dev/audit-perf-2026-11.md, P
   - [x] Ko/min mesurés avant/après sur Projet et Terminal, publiés
   - [x] Aucune donnée vieillie : un changement réel repart en 200
 
-### Lot — L orchestrateur est prévenu (planned)
+### Lot — L orchestrateur est prévenu (launched)
 
-- **L orchestrateur est prévenu tout de suite des gestes qui l engagent** — backlog
+- **L orchestrateur est prévenu tout de suite des gestes qui l engagent** — done
 
   Retour de l opérateur : quand il lance un lot, pose un objectif…, l orchestrateur ne réagit pas — il ne le lit qu au tour suivant via « quoi de neuf » (bridge/since.ts). Déstabilisant.
   
@@ -225,12 +225,12 @@ Solder les constats G3 de l audit de novembre (docs/dev/audit-perf-2026-11.md, P
   4. autonomie activée/coupée ou startWhenIdle changé (orchestrator.autonomy).
   Le message dit le fait et demande UNE ligne d accusé à l opérateur (ex. « Lot X lancé, je suis »), sans rien relancer. Rien si aucun orchestrateur ne vit sur le dépôt. Passer par le même chemin que les nudges existants (promptAndConfirm, file d attente si l orchestrateur travaille), pas de nouvelle boucle. Les retouches (carte, phase, lot, roadmap) restent dans « quoi de neuf ». Tests unitaires des messages et du filtre « pas son propre geste ». Mettre à jour skills/collie-board/SKILL.md si la liste des messages y est documentée.
 
-  - [ ] Lancer ou reprendre un lot depuis l app : l orchestrateur reçoit un message et répond d une ligne
-  - [ ] Objectif posé/activé/modifié/retiré : même chose
-  - [ ] KO de recette avec carte de suite : l orchestrateur est prévenu avec la carte
-  - [ ] Autonomie changée : prévenu
-  - [ ] Un lancement fait par l orchestrateur lui-même ne le réveille pas
-  - [ ] Rien n est envoyé quand aucun orchestrateur ne tourne
+  - [x] Lancer ou reprendre un lot depuis l app : l orchestrateur reçoit un message et répond d une ligne
+  - [x] Objectif posé/activé/modifié/retiré : même chose
+  - [x] KO de recette avec carte de suite : l orchestrateur est prévenu avec la carte
+  - [x] Autonomie changée : prévenu
+  - [x] Un lancement fait par l orchestrateur lui-même ne le réveille pas
+  - [x] Rien n est envoyé quand aucun orchestrateur ne tourne
 
 ### Lot — Tests rapides et mesures du reste (planned)
 
