@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.347.0] - 2026-11-17
+
+### Added
+
+- « Nouveau terminal » : choix de l'espace herdr-app (« Collie Board » par défaut), grisé avec sa raison sous herdr 0.9 (d40dd83)
+- Après l'ouverture, un encadré dit où trouver le terminal (herdr-app ou herdr 0.9) et pourquoi en cas de repli, avec « Ouvrir dans Collie » (d40dd83)
+- Vue d'un terminal : l'en-tête dit le moteur et l'espace/onglet où le retrouver (orange s'il est invisible dans herdr-app) (d40dd83)
+
+### Changed
+
+- `POST /api/project/open` renvoie `engine`, `fallback` et `place` (espace, onglet) ; accepte `space` (d40dd83)
+
 ## [0.346.4] - 2026-11-17
 
 ### Fixed
