@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794934475967.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Page Projet : distinguer d un coup d œil un lot de ses cartes","status":"backlog"},"ts":1794934473756}}
 {"v":1,"hlc":"1794934492518.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"cc874e21-f8c1-4bf3-81c4-61061694cc97"}}
 {"v":1,"hlc":"1794934492518.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"0976fae8-a37c-4095-82d4-93203d3fab13"}}
+{"v":1,"hlc":"1794935022010.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
