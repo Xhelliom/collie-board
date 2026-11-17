@@ -14,7 +14,7 @@
     "test": "bun test ./bridge ./scripts && bash scripts/collie-board-ctl.test.sh",
     "test:ctl": "bash scripts/collie-board-ctl.test.sh",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run test && cd web && bun run typecheck && bun run test"
+    "check": "bash scripts/check.sh"
   },
   "devDependencies": {
     "@types/bun": "latest",

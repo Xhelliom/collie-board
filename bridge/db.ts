@@ -711,7 +711,7 @@ export interface RunEventPayloads {
   /** `auto`: the orchestrator's resume (ADR 0055), the gesture's time — one per gesture, counted against its bound. */
   "run.resumed": { runId: string; auto?: number };
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
-  "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
+  "run.gate": { runId: string; command: string; ok: boolean; summary?: string; note?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */
   "run.merge": { runId: string; merged: boolean; reason: string; wait?: boolean; conflict?: boolean; ci?: { name: string; log: string } };
   /** The worker's bilan as the lead read it at a check — kept here because the worktree is not. Once per new text. */
