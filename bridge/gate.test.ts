@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { tmpdir } from "node:os";
 
 import { BoardDb } from "./db.ts";
-import { gateNote, gatePrompt, oneAtATime, parseGate, runGate, summarizeGate } from "./gate.ts";
+import { gateNote, gatePrompt, gatesWaiting, oneAtATime, parseGate, runGate, summarizeGate } from "./gate.ts";
 
 // The gate commands are this very bun, so the test runs where no `true`, `sh` or `sleep` exists (Windows).
 const bun = (code: string) => [process.execPath, "-e", code];
@@ -73,6 +73,25 @@ describe("gate (ADR 0020)", () => {
     expect(slow.kind).toBe("error");
     expect(fast).toMatchObject({ kind: "pass" });
     expect(Date.now() - t0).toBeGreaterThanOrEqual(100);
+  });
+
+  it("two ready cards: the second waits, listed in gatesWaiting until its turn (audit P5)", async () => {
+    // The first card's gate reports whether the second is listed as waiting while it runs.
+    const first = runGate(bun('setTimeout(() => {}, 300)'), tmp, undefined, "card-a");
+    const second = runGate(TRUE, tmp, undefined, "card-b");
+    expect(gatesWaiting.has("card-b")).toBe(true);
+    await Bun.sleep(100);
+    expect(gatesWaiting.has("card-a")).toBe(false); // running, not waiting
+    expect(gatesWaiting.has("card-b")).toBe(true);
+    await first;
+    await second;
+    expect(gatesWaiting.size).toBe(0);
+  });
+
+  it("a gate runs at low priority, and its children inherit it", async () => {
+    if (process.platform === "win32") return; // getpriority from the child is POSIX; Windows only must not break
+    const r = await runGate(bun('console.log(require("node:os").getPriority())'), tmp);
+    expect(r).toEqual({ kind: "pass", note: "19" });
   });
 
   it("a repo's gate survives hiding and unhiding, and a bare row is pruned", () => {

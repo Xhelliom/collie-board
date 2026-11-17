@@ -6,6 +6,8 @@
 // two rules: argv elements, never a shell, and the command is the operator's own, set through a
 // write-gated route — never read from the repo, where the worker could rewrite it.
 
+import { constants, setPriority } from "node:os";
+
 /** A gate that outlives this is hung, not slow: the run halts instead of waiting for ever. */
 const GATE_TIMEOUT_MS = 30 * 60_000;
 
@@ -66,14 +68,27 @@ export function oneAtATime<A extends unknown[], R>(fn: (...args: A) => Promise<R
   };
 }
 
+/** The cards whose gate is queued behind another one — runtime only, shown as "check waiting" (audit P5). */
+const waiting = new Set<string>();
+export const gatesWaiting: ReadonlySet<string> = waiting;
+
+const queued = oneAtATime((argv: string[], cwd: string, timeoutMs?: number, cardId?: string) => {
+  if (cardId) waiting.delete(cardId);
+  return spawnGate(argv, cwd, timeoutMs);
+});
+
 /**
  * The operator's gate, one at a time across the whole bridge: a run gates each card of a lot in
  * parallel and pr-follow gates each PR it lands, and N test suites at once starve the CPU until a
  * healthy suite times out (a red that is not the worker's). Each gate's own timeout starts when it
- * actually runs, so a queued gate is never charged for the wait.
+ * actually runs, so a queued gate is never charged for the wait. `cardId`: listed in `gatesWaiting`
+ * until its turn comes.
  * ponytail: one global queue; per-repo slots if gates on unrelated repos must overlap.
  */
-export const runGate = oneAtATime(spawnGate);
+export function runGate(argv: string[], cwd: string, timeoutMs?: number, cardId?: string): Promise<GateResult> {
+  if (cardId) waiting.add(cardId);
+  return queued(argv, cwd, timeoutMs, cardId);
+}
 
 /** Run a command unqueued — what the gate runs, and what `bun install` (deps.ts) uses directly. */
 export async function spawnGate(argv: string[], cwd: string, timeoutMs = GATE_TIMEOUT_MS): Promise<GateResult> {
@@ -86,6 +101,12 @@ export async function spawnGate(argv: string[], cwd: string, timeoutMs = GATE_TI
   } catch (err) {
     return { kind: "error", message: (err as Error).message };
   }
+  // Low priority (audit P5): the bridge and the herd's panes stay responsive while a suite runs. Set
+  // before the gate forks its workers, which inherit it; on Linux the IO priority follows the nice
+  // level. os.setPriority is portable (IDLE class on Windows) — and a refusal only costs the priority.
+  try {
+    setPriority(proc.pid, constants.priority.PRIORITY_LOW);
+  } catch {}
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;

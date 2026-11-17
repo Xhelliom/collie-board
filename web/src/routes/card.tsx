@@ -20,6 +20,7 @@ import {
   GitMerge,
   GitPullRequest,
   GripVertical,
+  Hourglass,
   Layers,
   Link2,
   Lock,
@@ -741,6 +742,12 @@ export function CardRoute() {
       }
     >
       {/* Here, because it is usually why the card is still a bare title. */}
+      {card.gateWaiting && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          <Hourglass className="size-3.5 shrink-0" />
+          <span>{t("card.gateWaiting")}</span>
+        </div>
+      )}
       {card.copilotBusy && (
         <div className="flex animate-pulse items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
           <Sparkles className="size-3.5 shrink-0" />
