@@ -1,14 +1,16 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Bot, ChevronDown, Ellipsis, SquareTerminal } from "lucide-react";
 
 import { AgentKindPicker } from "@/components/agent-kind-picker";
+import { OpenedNote } from "@/components/pane-place";
 import { TemplatePicker } from "@/components/template-picker";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { useT } from "@/i18n";
 import type { OpenInRepo } from "@/lib/api";
-import { repoName } from "@/lib/board";
+import { fetchLaunchEngine, repoName } from "@/lib/board";
+import type { CreatedPane, OpenedPlace } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // An agent or a terminal in the repo's folder, outside any card: hc has no Spaces tab to open one
@@ -16,25 +18,46 @@ import { cn } from "@/lib/utils";
 // « New agent » stays a button; the terminal and the page's rarer gestures (`actions`) sit under « Actions ».
 export function ProjectOpen({ repo, actions }: { repo: string; actions?: ReactNode }) {
   const t = useT();
-  const { openInRepo } = useSpaceActions();
+  const { openInRepo, enter } = useSpaceActions();
   const [sheet, setSheet] = useState(false);
+  const [termSheet, setTermSheet] = useState(false);
+  const [space, setSpace] = useState("");
+  // Where a launch goes now: herdr 0.9 has no herdr-app space to pick (null = not read yet).
+  const [launch, setLaunch] = useState<{ engine: "hc" | "herdr09"; fallback: boolean } | null>(null);
+  const [opened, setOpened] = useState<(OpenedPlace & { pane: CreatedPane }) | null>(null);
+  const spaceId = useId();
   const [menu, setMenu] = useState(false);
   const [busy, setBusy] = useState(false);
   const [agentKind, setAgentKind] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!termSheet) return;
+    let live = true;
+    fetchLaunchEngine().then(
+      (r) => live && setLaunch(r),
+      () => live && setLaunch(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [termSheet]);
+
   const run = async (opts: OpenInRepo) => {
     setBusy(true);
     try {
-      await openInRepo(repo, opts);
+      const res = await openInRepo(repo, opts);
+      if (res) setOpened(res);
     } finally {
       setBusy(false);
       setSheet(false);
+      setTermSheet(false);
     }
   };
+  const on09 = launch?.engine === "herdr09";
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="relative flex items-center gap-2">
       {/* On a phone « New agent » joins the menu: the project's name beside it needs the room. */}
       <Button variant="outline" size="sm" disabled={busy} onClick={() => setSheet(true)} className="max-sm:hidden">
         <Bot className="size-4" />
@@ -79,7 +102,7 @@ export function ProjectOpen({ repo, actions }: { repo: string; actions?: ReactNo
                 disabled={busy}
                 onClick={() => {
                   setMenu(false);
-                  void run({ open: "terminal" });
+                  setTermSheet(true);
                 }}
                 className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-left font-medium hover:bg-muted/60"
               >
@@ -91,6 +114,48 @@ export function ProjectOpen({ repo, actions }: { repo: string; actions?: ReactNo
           </>
         )}
       </span>
+      <BottomSheet
+        open={termSheet}
+        onClose={() => setTermSheet(false)}
+        title={t("project.open.terminalSheet", { repo: repoName(repo) })}
+        footer={
+          <Button className="w-full" disabled={busy} onClick={() => void run({ open: "terminal", ...(!on09 && space.trim() ? { space: space.trim() } : {}) })}>
+            {t(busy ? "project.open.opening" : "project.open.openTerminal")}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={spaceId} className={cn("text-sm font-medium", on09 && "text-muted-foreground")}>
+            {t("project.open.space")}
+          </label>
+          <input
+            id={spaceId}
+            value={space}
+            onChange={(e) => setSpace(e.target.value)}
+            disabled={on09}
+            maxLength={40}
+            placeholder="Collie Board"
+            aria-describedby={`${spaceId}-hint`}
+            className="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          />
+          <p id={`${spaceId}-hint`} className={cn("text-xs", launch?.fallback ? "text-status-blocked" : "text-muted-foreground")}>
+            {t(!on09 ? "project.open.spaceHint" : launch?.fallback ? "project.open.spaceFallback" : "project.open.spaceOff")}
+          </p>
+        </div>
+      </BottomSheet>
+      {/* Anchored under the header's actions, like the menu, but it stays until dismissed: not a toast that leaves. */}
+      {opened && (
+        <div className="absolute right-0 top-full z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg bg-card shadow-(--shadow-3)">
+          <OpenedNote
+          opened={opened}
+          onDismiss={() => setOpened(null)}
+          onEnter={() => {
+            setOpened(null);
+            enter(opened.pane);
+          }}
+          />
+        </div>
+      )}
       <BottomSheet
         open={sheet}
         onClose={() => setSheet(false)}

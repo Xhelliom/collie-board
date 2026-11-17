@@ -46,6 +46,7 @@ import { Composer, type ComposerHandle } from "@/components/composer";
 import { AgentViewIdentity, ContextMeter } from "@/components/agent-view-header";
 import { SubagentsLine } from "@/components/subagents-line";
 import { WorkMark } from "@/components/work-mark";
+import { PanePlace } from "@/components/pane-place";
 import { PinButton, useAgentPin } from "@/components/pin-button";
 import { ThreadSidebar } from "@/components/agent-sidebar";
 import { PaneListColumn } from "@/components/pane-list-column";
@@ -797,6 +798,13 @@ export function AgentChat({
             <NotificationBell />
           </div>
         </div>
+
+        {/* Where to find this pane outside Collie: herdr-app's space and tab, or herdr 0.9's (orange: hidden from herdr-app). */}
+        {agent && !findOpen && (
+          <div className="shrink-0 px-3 pt-2 lg:px-5">
+            <PanePlace agent={agent} tabLabel={tabLabel} />
+          </div>
+        )}
 
       {/* The screen's one h1, for the sheets' headings to hang off. */}
       <h1 className="sr-only">{paneTitle}</h1>

@@ -5,7 +5,7 @@ import * as api from "@/lib/api";
 import { setStatus } from "@/lib/status";
 import { panePath } from "@/lib/nav";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
-import { isReadOnly, type AgentView, type CreateResponse } from "@/lib/types";
+import { isReadOnly, type AgentView, type CreatedPane, type CreateResponse, type OpenInRepoResponse } from "@/lib/types";
 import { t, type MessageKey } from "@/i18n";
 import { boardErrorMessage } from "@/lib/board";
 
@@ -33,13 +33,9 @@ export function useSpaceActions() {
   const sessionRef = useRef<string | undefined>(undefined);
   sessionRef.current = root?.session;
 
-  const open = useCallback(
-    (res: CreateResponse, ready: MessageKey) => {
-      if (!res.ok) {
-        setStatus(res.error, "error");
-        return;
-      }
-      const p = res.pane;
+  /** Into a fresh pane: it is not in the snapshot yet, so it rides along as `freshPane`. */
+  const enter = useCallback(
+    (p: CreatedPane) => {
       const fresh: AgentView = {
         paneId: p.paneId,
         workspaceId: p.workspaceId,
@@ -52,11 +48,22 @@ export function useSpaceActions() {
         focused: false,
         kind: "shell",
       };
-      setStatus(t(ready), "success");
-      revalidatorRef.current.revalidate();
       navigate(panePath(p.paneId, sessionRef.current), { state: { freshPane: fresh } });
     },
     [navigate],
+  );
+
+  const open = useCallback(
+    (res: CreateResponse, ready: MessageKey) => {
+      if (!res.ok) {
+        setStatus(res.error, "error");
+        return;
+      }
+      setStatus(t(ready), "success");
+      revalidatorRef.current.revalidate();
+      enter(res.pane);
+    },
+    [enter],
   );
 
   const newTab = useCallback(
@@ -85,16 +92,23 @@ export function useSpaceActions() {
 
   /** A terminal or an agent in a repo's folder, outside any card — on whichever engine launches (hc has no space to pick). */
   const openInRepo = useCallback(
-    async (repoPath: string, opts: api.OpenInRepo) => {
-      if (readOnlyRef.current) return setStatus(t("pane.readOnlyStatus"), "error");
+    async (repoPath: string, opts: api.OpenInRepo): Promise<Extract<OpenInRepoResponse, { ok: true }> | null> => {
+      if (readOnlyRef.current) return setStatus(t("pane.readOnlyStatus"), "error"), null;
       try {
-        open(await api.openInRepo(repoPath, opts), opts.open === "agent" ? "project.open.readyAgent" : "project.open.readyTerminal");
+        const res = await api.openInRepo(repoPath, opts);
+        // A terminal stays on the page: the caller says where it landed (herdr-app or herdr 0.9) and offers it.
+        if (opts.open === "terminal" && res.ok) {
+          revalidatorRef.current.revalidate();
+          return res;
+        }
+        open(res, "project.open.readyAgent");
       } catch (e) {
         setStatus(boardErrorMessage(e), "error");
       }
+      return null;
     },
     [open],
   );
 
-  return { newTab, newSpace, openInRepo };
+  return { newTab, newSpace, openInRepo, enter };
 }
