@@ -13,3 +13,4 @@
 {"v":1,"hlc":"1794927125198.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.held","payload":{"by":"operator"},"ts":1794927112190}}
 {"v":1,"hlc":"1794927125199.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.operator_said","payload":{"text":"oui j'ai cosntaté aussi un reconnexion très régulier quand on change de page du coup on attend 3 secondes"},"ts":1794927112403}}
 {"v":1,"hlc":"1794927125199.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.released","payload":{"why":"operator"},"ts":1794927114228}}
+{"v":1,"hlc":"1794928326802.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"cbae1a97-234b-4658-af1b-514aaa6c4315","name":"audit-perf-2026-11.md","size":21521,"by":"agent","pane":"t12q"},"ts":1794928319608}}
