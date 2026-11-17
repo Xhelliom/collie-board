@@ -18,8 +18,8 @@ function PlaceBox({ attention, className, children }: { attention: boolean; clas
       role="status"
       data-tone={attention ? "attention" : "info"}
       className={cn(
-        "flex items-start gap-2.5 rounded-lg border border-l-[3px] px-3 py-2 text-sm",
-        attention ? "border-status-blocked/40 border-l-status-blocked bg-status-blocked/8" : "border-status-working/30 border-l-status-working bg-status-working/6",
+        "flex items-start gap-2.5 rounded-lg border px-3 py-2 text-sm",
+        attention ? "border-status-blocked/40 bg-status-blocked/8" : "border-status-working/40 bg-status-working/6",
         className,
       )}
     >
@@ -62,13 +62,16 @@ export function OpenedNote({ opened, onEnter, onDismiss }: { opened: OpenedPlace
   );
 }
 
-/** The pane view's header line: which engine, and the space/tab to find the pane in. */
+// shortcut: « fell back » is read as « on 0.9 while the herd also has hc » (the engine badge is only set
+// when the herd mixes) — a 0.9 pane on a machine whose hc has no pane yet shows blue.
+/** The pane is on herdr 0.9 beside hc: invisible in herdr-app — the « ⋯ » button wears an orange dot. */
+export const placeHidden = (agent: AgentView) => !agent.peer && !isHcAgent(agent) && agent.engine === "herdr09";
+
+/** The pane view's « ⋯ » sheet entry: which engine, and the space/tab to find the pane in. */
 export function PanePlace({ agent, tabLabel }: { agent: AgentView; tabLabel?: string }) {
   const t = useT();
   if (agent.peer) return null; // a peer's pane: its machine, not this one, says where it is
-  // shortcut: « fell back » is read as « on 0.9 while the herd also has hc » (the engine badge is only set
-  // when the herd mixes) — a 0.9 pane on a machine whose hc has no pane yet shows blue.
-  const hidden = !isHcAgent(agent) && agent.engine === "herdr09";
+  const hidden = placeHidden(agent);
   const text = isHcAgent(agent)
     ? agent.appPlace
       ? t("pane.place.app", agent.appPlace)

@@ -46,7 +46,7 @@ import { Composer, type ComposerHandle } from "@/components/composer";
 import { AgentViewIdentity, ContextMeter } from "@/components/agent-view-header";
 import { SubagentsLine } from "@/components/subagents-line";
 import { WorkMark } from "@/components/work-mark";
-import { PanePlace } from "@/components/pane-place";
+import { PanePlace, placeHidden } from "@/components/pane-place";
 import { PinButton, useAgentPin } from "@/components/pin-button";
 import { ThreadSidebar } from "@/components/agent-sidebar";
 import { PaneListColumn } from "@/components/pane-list-column";
@@ -683,15 +683,19 @@ export function AgentChat({
       onClose={closeFind}
     />
   );
+  // Where the pane lives sits in the « ⋯ » sheet; when herdr-app can't see it, an orange dot on « ⋯ » says so.
+  const placeAlert = !!agent && placeHidden(agent);
+  const moreLabel = placeAlert ? `${tr("pane.more")} — ${tr("pane.place.hidden")}` : tr("pane.more");
   const moreButton = (
     <button
       type="button"
       onClick={() => setDrawer("more")}
-      aria-label={tr("pane.more")}
-      title={tr("pane.more")}
-      className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
+      aria-label={moreLabel}
+      title={moreLabel}
+      className="relative flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
     >
       <EllipsisVertical className="size-4" />
+      {placeAlert && <span aria-hidden className="absolute top-2 right-2 size-2 rounded-full bg-status-blocked ring-2 ring-background" />}
     </button>
   );
   // A row of the « ⋯ » sheet that closes it first.
@@ -798,13 +802,6 @@ export function AgentChat({
             <NotificationBell />
           </div>
         </div>
-
-        {/* Where to find this pane outside Collie: herdr-app's space and tab, or herdr 0.9's (orange: hidden from herdr-app). */}
-        {agent && !findOpen && (
-          <div className="shrink-0 px-3 pt-2 lg:px-5">
-            <PanePlace agent={agent} tabLabel={tabLabel} />
-          </div>
-        )}
 
       {/* The screen's one h1, for the sheets' headings to hang off. */}
       <h1 className="sr-only">{paneTitle}</h1>
@@ -1024,6 +1021,8 @@ export function AgentChat({
           the pin in the toolbar too; the phone has only this. */}
       <BottomSheet open={drawer === "more"} onClose={closeDrawer} title={paneTitle}>
         <div className="flex flex-col gap-1">
+          {/* Where to find this pane outside Collie: herdr-app's space and tab, or herdr 0.9's (orange: hidden from herdr-app). */}
+          {agent && <PanePlace agent={agent} tabLabel={tabLabel} />}
           {statusLines.length > 0 && (
             <section aria-label={tr("pane.statusLine")} className="mb-2 flex flex-col gap-0.5 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
               {statusLines.map((line, i) => (
