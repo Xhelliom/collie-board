@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.349.0] - 2026-11-17
+
+### Changed
+
+- Le gate du dépôt (`bun run check`) saute les tests quand le pre-push les a passés sur le même commit, arbre propre ; tout écart les relance (326dfbb)
+- Le pre-push lance aussi `bun test ./scripts`, comme le gate (326dfbb)
+- Une barrière verte montre dans le journal de la carte sa dernière ligne (« tests skipped… ») (326dfbb)
+
 ## [0.348.0] - 2026-11-17
 
 ### Added
