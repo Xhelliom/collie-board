@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.347.1] - 2026-11-17
+
+### Fixed
+
+- Carte distante : un prompt (API et boîte de la fiche) part au pane du pair, même après son redémarrage (0932022)
+- « Terminer la session » libère la carte dès que le pair ne connaît plus le pane ; la relance repart dans la même branche (0932022)
+- Fiche : la fin de session et un échec de lecture de la session distante s'affichent, plus de silence (0932022)
+- « Diff indisponible » dit que le pair a redémarré, plus « no peer surface » (0932022)
+
 ## [0.347.0] - 2026-11-17
 
 ### Added
