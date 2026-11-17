@@ -12,9 +12,11 @@ import {
   launchRouteFor,
   parseCardEnvironment,
   peerRefusal,
+  promptOnPeer,
   remoteSessionFor,
   remoteSessionOf,
   startOnPeer,
+  remoteStateOf,
   type RemoteDeps,
 } from "./remote-launch.ts";
 
@@ -216,3 +218,53 @@ describe("environmentChangeRefusal", () => {
     expect(environmentChangeRefusal(db, card, null)).toBeNull();
   });
 });
+
+describe("a peer switched off, then back on (sw-to-crew, 17/11)", () => {
+  it("prompts the pane that survived, frees the card on « Terminer », relaunches in the same branch", async () => {
+    // The peer's bridge: `launched` is memory only, so a reboot empties it while herdr restores pane t8.
+    let online = true;
+    let launched = new Set<string>();
+    const typed: unknown[] = [];
+    const fetchFn = (async (url: string, init: RequestInit) => {
+      if (!online) throw new Error("connect ETIMEDOUT");
+      const route = new URL(url).pathname;
+      const body = init.body ? JSON.parse(init.body as string) : null;
+      if (route === "/api/node/launch") {
+        launched.add("t8");
+        return Response.json({ ok: true, paneId: "t8", branch: body.branch });
+      }
+      if (route === "/api/node/snapshot") return Response.json({ agents: [{ paneId: "t8", status: "idle", agent: "claude" }], shellPanes: [] });
+      if (route === "/api/node/reply") return typed.push(body), Response.json({ ok: true, textDelivered: true });
+      if (route === "/api/node/end") {
+        if (!launched.delete(body.paneId)) return Response.json({ ok: false, error: "not a pane launched for this peer" }, { status: 404 });
+        return Response.json({ ok: true });
+      }
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+    const db = new BoardDb(":memory:");
+    const d: RemoteDeps = { db, fetch: fetchFn, outbound: () => [DEV], branchPrefix: "board/" };
+    const card = db.createCard({ title: "sw-mesh-rs 0.5.14", repoPath: "/r", environment: { peer: "dev", name: "dev-board" } });
+
+    const first = await startOnPeer(d, card);
+    expect(first.ok).toBe(true);
+    const branch = (first as { session: { branch: string } }).session.branch;
+
+    online = false; // ~2 h off Tailscale
+    const s = remoteSessionFor(db, card.id)!;
+    expect((await promptOnPeer(d, s, "fix clippy")) as unknown).toMatchObject({ ok: false, error: expect.stringContaining("unreachable") });
+
+    online = true; // back on: its bridge restarted, pane t8 restored
+    launched = new Set();
+    expect(await remoteStateOf(d, s)).toMatchObject({ reachable: true, pane: { status: "idle" } });
+    expect(await promptOnPeer(d, s, "fix clippy")).toEqual({ ok: true });
+    expect(typed).toEqual([{ paneId: "t8", text: "fix clippy", submit: true }]);
+
+    // « Terminer la session »: the peer no longer knows t8 — the card is freed here all the same.
+    db.patchCard(card.id, { title: "renamed since" });
+    expect(await endOnPeer(d, db.getCard(card.id)!)).toMatchObject({ ok: true });
+    expect(remoteSessionFor(db, card.id)).toBeNull();
+    const again = await startOnPeer(d, db.getCard(card.id)!);
+    expect(again).toMatchObject({ ok: true, session: { branch } });
+  });
+});
+

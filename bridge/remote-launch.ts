@@ -170,7 +170,9 @@ export async function startOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true
   const refused = await claimForLaunch(d.db, card);
   if (refused) return failed(refused, "board");
 
-  const branch = card.branch ?? branchFromTitle(card.title, d.branchPrefix);
+  // A relaunch after an end goes back to the branch the last launch used, whatever the title says now.
+  const prior = (d.db.lastEventOf(card.id, [REMOTE_LAUNCHED])?.payload as { branch?: unknown } | null)?.branch;
+  const branch = card.branch ?? (typeof prior === "string" && prior ? prior : branchFromTitle(card.title, d.branchPrefix));
   const r = await call(d, peer, "/api/node/launch", { body: { environment, prompt: `${initialPrompt(card)}\n\n${DELIVER_PROMPT}`, branch }, timeoutMs: LAUNCH_TIMEOUT_MS });
   if (!ok(r) || typeof r.body.paneId !== "string") return failed(peerRefusal(peer.name, environment, r), "peer", peer.name);
   const session = { peer: peer.name, environment, paneId: r.body.paneId, branch: typeof r.body.branch === "string" ? r.body.branch : branch };
@@ -190,11 +192,24 @@ export async function endOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true; 
   const peer = peerOf(d, s);
   if (!peer) return { ok: false, error: `${s.peer} is no longer a paired peer of this machine` };
   const r = await call(d, peer, "/api/node/end", { body: { paneId: s.paneId } });
-  // 404: the peer no longer knows that pane (restarted, or closed there) — nothing is left to end.
-  const gone = !("error" in r) && r.status === 404 && r.body !== null;
+  // 404: the peer no longer knows that pane (its bridge restarted, or it was closed there) — nothing
+  // this machine may end is left, so the card is freed here; a new start reopens the same branch.
+  const gone = !("error" in r) && r.status === 404;
   if (!ok(r) && !gone) return { ok: false, error: peerRefusal(s.peer, s.environment, r) };
   d.db.recordEvent(card.id, REMOTE_ENDED, { ...s, ...(gone ? { gone: true } : {}) });
   return { ok: true, session: s };
+}
+
+/**
+ * A follow-up instruction to the card's agent on its peer: typed into the pane through `/api/node/reply`,
+ * which needs no memory of the launch — so it still reaches the pane after the peer restarted.
+ */
+export async function promptOnPeer(d: Pick<RemoteDeps, "fetch" | "outbound">, s: RemoteSession, text: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const peer = d.outbound().find((p) => p.name === s.peer);
+  if (!peer) return { ok: false, error: `${s.peer} is no longer a paired peer of this machine` };
+  const r = await call(d, peer, "/api/node/reply", { body: { paneId: s.paneId, text, submit: true } });
+  if (ok(r) && r.body.ok === true) return { ok: true };
+  return { ok: false, error: peerRefusal(s.peer, s.environment, r) };
 }
 
 /** The card's diff, read on its peer: the stat, or one file's patch. */

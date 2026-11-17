@@ -40,6 +40,7 @@ export const peers = defineMessages({
   "cardEnv.paneGone": { en: "Its pane is no longer there on the peer.", fr: "Son pane n'existe plus chez le pair." },
   "cardEnv.unreachable": { en: "Peer not reached: {error}", fr: "Pair injoignable : {error}" },
   "cardEnv.end": { en: "End the session on {peer}", fr: "Terminer la session sur {peer}" },
+  "cardEnv.ended": { en: "Session ended on {peer} — Start relaunches it in the same branch", fr: "Session terminée sur {peer} — Démarrer la relance dans la même branche" },
   "peers.title": { en: "Peers", fr: "Pairs" },
   "peers.hint": {
     en: "Pair this Collie ({name}) with another one by a code. The token never reaches this browser.",
