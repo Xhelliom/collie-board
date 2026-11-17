@@ -114,7 +114,7 @@ import { migrateBlock, migrationIdentity, migrateToHc } from "./migrate-hc.ts";
 import { handleMigrateHcRoute } from "./migrate-hc-routes.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
-import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
+import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, promptOnPeer, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
 import { assignedElsewhere } from "./claim.ts";
 
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
@@ -2029,11 +2029,24 @@ async function route(
     const promptText = (body as { text?: unknown }).text;
     if (typeof promptText !== "string" || promptText.trim() === "") return text("text required", 400);
     const session = db.openSessionFor(id);
-    if (!session?.paneId) {
-      return ctx.json({ ok: false, error: NO_AGENT, kind: "no-session" }, 409);
-    }
     // ADR 0058: an agent never writes to a worker the operator has in hand.
     const fromAgent = !!req.headers.get(PANE_HEADER)?.trim();
+    if (!session?.paneId) {
+      // A card running on a peer has no local session: its pane is the peer's, reached through it.
+      const remote = remoteSessionFor(db, id);
+      if (!remote) return ctx.json({ ok: false, error: NO_AGENT, kind: "no-session" }, 409);
+      if (fromAgent && card.held) return ctx.json({ ok: false, error: HELD_ERROR, kind: "held" }, 409);
+      const r = await promptOnPeer(remoteDeps(ctx), remote, promptText);
+      ctx.audit.record({
+        action: "card.prompt",
+        session: ctx.session,
+        device: ctx.device,
+        detail: { cardId: id, text: promptText, peer: remote.peer, paneId: remote.paneId, ok: r.ok, ...(r.ok ? {} : { error: r.error }) },
+      });
+      if (!r.ok) return ctx.json({ ok: false, error: r.error, kind: "peer" }, 502);
+      db.recordEvent(id, "card.prompted", { chars: promptText.length, followUp: true, peer: remote.peer });
+      return json({ ok: true, card: view(id) });
+    }
     if (fromAgent && db.getCard(id)?.held) return ctx.json({ ok: false, error: HELD_ERROR, kind: "held" }, 409);
     try {
       await promptAndConfirm(ctx.herdr, session.paneId, promptText);

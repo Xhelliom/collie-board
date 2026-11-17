@@ -304,7 +304,8 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
   if (pathname === "/api/node/diff") {
     const q = new URL(req.url).searchParams;
     const launched = d.launched.get(q.get("pane") ?? "");
-    if (!launched) return d.text("not a pane launched for a peer", 404);
+    // JSON, so the caller reads this reason rather than « no peer surface »: since a restart this map is empty.
+    if (!launched) return d.json({ ok: false, error: "this pane was not launched for a peer since this machine's bridge started" }, 404);
     // `diffFile` refuses an unsafe path (`isSafeDiffPath`); the checkout is this machine's, never the caller's.
     const diff = await d.actions.diff(launched, q.get("path"), q.get("untracked") === "1");
     return (diff as { ok?: boolean }).ok === false ? d.json(diff, 400) : d.json(redactDeep(diff));

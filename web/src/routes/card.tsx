@@ -878,7 +878,13 @@ export function CardRoute() {
       {repoModel && <p className="-mt-1 px-1 text-xs text-muted-foreground">{t("fiche.repoModel", { model: repoModel })}</p>}
       <TemplatePicker value={card.templateId ?? null} onChange={(templateId) => void patchField({ templateId })} />
       <FlowPicker value={card.pipelineId ?? null} onChange={(pipelineId) => void patchField({ pipelineId })} />
-      <CardEnvironment card={card} onChanged={() => revalidator.revalidate()} onError={(m) => setStatus(m, "error", null)}>
+      <CardEnvironment
+        card={card}
+        onChanged={() => revalidator.revalidate()}
+        onError={(m) => setStatus(m, "error", null)}
+        onEnded={(m) => setStatus(m, "success")}
+        prompt={<PromptBox onSend={sendToAgent} />}
+      >
         {/* ADR 0048 §7: another pair holds this shared card — greyed with why, and « reprendre la main ». */}
         {claimHolder(card, identities) ? (
           <ClaimedElsewhere card={card} onChanged={() => revalidator.revalidate()} onMessage={(m, tone) => setStatus(m, tone)} />

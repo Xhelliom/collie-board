@@ -171,19 +171,38 @@ describe("CardEnvironment", () => {
     );
     envs([{ ...onCard, agent: "claude" }]);
     const onChanged = vi.fn();
-    render(<CardEnvironment card={card({ environment: onCard, status: "working" })} onChanged={onChanged} onError={() => {}}>{start}</CardEnvironment>);
+    const onEnded = vi.fn();
+    render(
+      <CardEnvironment card={card({ environment: onCard, status: "working" })} onChanged={onChanged} onError={() => {}} onEnded={onEnded} prompt={<p>prompt-box</p>}>
+        {start}
+      </CardEnvironment>,
+    );
     // Not even a flash of Start while the remote is being read.
     expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
     expect(await screen.findByText("En cours sur test-depot-collie (dev), branche board/x")).toBeInTheDocument();
     expect(screen.getByText("Son agent, à l'ouverture de la carte : working")).toBeInTheDocument();
+    expect(screen.getByText("prompt-box")).toBeInTheDocument(); // its pane is there: a follow-up reaches it
     expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
     expect(screen.queryByLabelText("Lancer sur")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Terminer la session sur test-depot-collie" }));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     expect(ended).toBe(1);
+    expect(onEnded).toHaveBeenCalledWith(expect.stringContaining("Session terminée sur test-depot-collie"));
     expect(await screen.findByRole("button", { name: "Start" })).toBeInTheDocument();
     expect(screen.queryByTestId("card-remote")).toBeNull();
+  });
+
+  it("an end the peer refuses says why — never a silent click", async () => {
+    server.use(
+      http.get("/api/cards/c1/remote", () => HttpResponse.json({ ...running, state: { reachable: false, error: "timeout", pane: null } })),
+      http.delete("/api/cards/c1/remote", () => HttpResponse.json({ ok: false, error: "dev: test-depot-collie unreachable (timeout)" }, { status: 502 })),
+    );
+    const onError = vi.fn();
+    render(<CardEnvironment card={card({ environment: onCard })} onChanged={() => {}} onError={onError} prompt={<p>prompt-box</p>}>{start}</CardEnvironment>);
+    await userEvent.click(await screen.findByRole("button", { name: /test-depot-collie/ }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringContaining("unreachable (timeout)")));
+    expect(screen.queryByText("prompt-box")).toBeNull(); // no pane read: no box that can only fail
   });
 
   it("an unreachable peer still holds the card: Start stays hidden", async () => {

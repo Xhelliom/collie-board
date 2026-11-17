@@ -11,7 +11,23 @@ const keyOf = (e: Env | null | undefined) => (e ? `${e.peer}/${e.name}` : "");
 // is lot 2's (the unified herd); this only says what it was a moment ago.
 // `children` (the Start button) shows only once the card is known not to run on a peer: the bridge
 // would refuse a second launch ("already running on …"), and a button that can only fail is a wasted tap.
-export function CardEnvironment({ card, onChanged, onError, children }: { card: CardView; onChanged: () => void; onError: (m: string) => void; children?: ReactNode }) {
+// `prompt` (the card's prompt box) shows under a session whose pane the peer still has: the follow-up
+// goes to that pane through the peer, even after the peer restarted and forgot its launch.
+export function CardEnvironment({
+  card,
+  onChanged,
+  onError,
+  onEnded,
+  prompt,
+  children,
+}: {
+  card: CardView;
+  onChanged: () => void;
+  onError: (m: string) => void;
+  onEnded?: (m: string) => void;
+  prompt?: ReactNode;
+  children?: ReactNode;
+}) {
   const t = useT();
   // undefined: not read yet — Start waits for the answer rather than flash in and out.
   const [remote, setRemote] = useState<CardRemote | null | undefined>(card.environment ? undefined : null);
@@ -25,7 +41,12 @@ export function CardEnvironment({ card, onChanged, onError, children }: { card: 
     let live = true;
     fetchCardRemote(card.id).then(
       (r) => live && setRemote(r),
-      () => live && setRemote(null),
+      // Never a silent failure: the Start button still shows, and the reason it could not be read too.
+      (e) => {
+        if (!live) return;
+        setRemote(null);
+        onError((e as Error).message);
+      },
     );
     return () => {
       live = false;
@@ -44,6 +65,7 @@ export function CardEnvironment({ card, onChanged, onError, children }: { card: 
       <div className="flex flex-col gap-2 rounded-lg border border-border p-3" data-testid="card-remote">
         <p className="text-sm">{t("cardEnv.runningOn", { peer: session.peer, environment: session.environment, branch: session.branch })}</p>
         <p className="text-xs text-muted-foreground">{state}</p>
+        {st?.reachable && st.pane && prompt}
         <Button
           variant="outline"
           disabled={ending}
@@ -51,6 +73,7 @@ export function CardEnvironment({ card, onChanged, onError, children }: { card: 
             setEnding(true);
             try {
               await endCardRemote(card.id);
+              onEnded?.(t("cardEnv.ended", { peer: session.peer }));
               setRemote(await fetchCardRemote(card.id));
             } catch (e) {
               onError((e as Error).message);
