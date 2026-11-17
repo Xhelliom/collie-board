@@ -76,6 +76,11 @@ describe("CardTile — three lines", () => {
     expect(screen.queryByText("2")).toBeNull();
   });
 
+  it("a gate queued behind another card's reads « check waiting », even with its agent idle", () => {
+    render(<CardTile card={card({ status: "review", gateWaiting: true, runtime: runtime({ agentStatus: "idle" }) })} onClick={() => {}} />);
+    expect(stateLine("check waiting")).toBeInTheDocument();
+  });
+
   it("an unmet predecessor reads « waits for: <title> », grey, not red", () => {
     render(<CardTile card={card()} onClick={() => {}} dependency={{ title: "the panes column", met: false }} />);
     const line = stateLine("waits for: the panes column");

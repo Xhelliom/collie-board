@@ -42,6 +42,7 @@ import { manualChecksPrompt } from "./recette.ts";
 import { ClaudeTranscriptSource } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { claimForLaunch } from "./claim.ts";
+import { gatesWaiting } from "./gate.ts";
 import { owedStep, resolvePipeline } from "./flows.ts";
 import { composePrompt, modelArgs } from "./templates.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -168,6 +169,8 @@ export interface CardView extends Card {
    * a restart cancels the work, and this forgets it in the same instant.
    */
   copilotBusy: boolean;
+  /** The card's gate is queued behind another card's (one gate at a time per machine, audit P5). Runtime only. */
+  gateWaiting: boolean;
   /**
    * The card was filed done and its agent is still writing the closing report `WrapupCoordinator`
    * (wrapup.ts) is waiting to collect, into a checkout `cleanup` would delete out from under it.
@@ -402,6 +405,7 @@ export function cardViews(
       runtime: pane ? runtimeOf(pane) : null,
       sessionCount: sessions.length,
       copilotBusy: opts.copilotBusy?.has(card.id) ?? false,
+      gateWaiting: gatesWaiting.has(card.id),
       wrapupPending: last ? isPendingWrapup(last) : false,
       statusSince: since.get(card.id) ?? card.createdAt,
     };
@@ -425,6 +429,7 @@ export function cardView(
     ...card,
     session,
     copilotBusy: copilotBusy?.has(card.id) ?? false,
+    gateWaiting: gatesWaiting.has(card.id),
     runtime: pane ? runtimeOf(pane) : null,
     sessionCount: sessions.length,
     wrapupPending: last ? isPendingWrapup(last) : false,

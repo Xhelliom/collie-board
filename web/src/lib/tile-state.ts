@@ -31,6 +31,7 @@ export function tileState(
   if (card.status === "review" && pr === "closed")
     return { text: t("tile.state.blocked", { reason: t("tile.state.prClosed") }), tone: "bad" };
   if (o.awaiting) return { text: t("tile.state.question"), tone: "strong" };
+  if (card.gateWaiting) return { text: t("tile.state.gateWaiting"), tone: "quiet" };
   if (card.runtime) return { agent: true };
   if (card.status === "blocked") return { text: t("agents.state.needs"), tone: "strong" };
   if (card.copilotBusy) return { text: t("tile.state.copilot"), tone: "quiet" };

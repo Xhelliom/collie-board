@@ -121,7 +121,7 @@ export function prFollowHook(db: BoardDb, herdr: Mux): (snap: EngineSnapshot) =>
       if (ok === undefined) {
         const argv = parseGate(command);
         const worktree = card.repoPath && card.branch ? await worktreePathFor(card.repoPath, card.branch) : null;
-        const r: GateResult = !argv ? { kind: "error", message: "empty gate command" } : !worktree ? { kind: "error", message: "the checkout is gone" } : await runGate(argv, worktree);
+        const r: GateResult = !argv ? { kind: "error", message: "empty gate command" } : !worktree ? { kind: "error", message: "the checkout is gone" } : await runGate(argv, worktree, undefined, card.id);
         ok = r.kind === "pass";
         db.recordRunEvent(card.id, "run.gate", { runId, command, ok, ...(r.kind === "fail" ? { summary: r.summary } : r.kind === "error" ? { summary: r.message } : r.note ? { note: r.note } : {}) });
       }

@@ -62,7 +62,7 @@ import {
   type MergeMode,
 } from "./git.ts";
 import { redactDeep, redactText } from "./redact.ts";
-import { parseGate } from "./gate.ts";
+import { gatesWaiting, parseGate } from "./gate.ts";
 import { HELD_ERROR, hold, release } from "./held.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
@@ -1211,7 +1211,7 @@ async function route(
       const busy = ctx.copilot.busy();
       // `identities`: who is "me" and who can be assigned, per shared repo (ADR 0048 §5) — runtime, hence a dep.
       const identities = db.identities();
-      const deps = [db.revision(), snap.agents, snap.shellPanes, [...busy].join(), JSON.stringify(identities)];
+      const deps = [db.revision(), snap.agents, snap.shellPanes, [...busy].join(), [...gatesWaiting].join(), JSON.stringify(identities)];
       return json(
         memoOn(db, `cards:${v}`, deps, () => {
           const all = cardViews(db, snap, { copilotBusy: busy }).map(withNext);

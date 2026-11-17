@@ -85,7 +85,7 @@ export interface RunPorts {
   /** The repo's gate command (ADR 0020), or null. Read per card: the operator may set it mid-run. */
   gateCommand(card: Card): string | null;
   /** Run it in the worker's checkout. */
-  runGate(command: string, worktree: string): Promise<GateResult>;
+  runGate(command: string, worktree: string, cardId: string): Promise<GateResult>;
   /** Whether the copilot reviews — off, or down (`copilotDown`: no member waits on a review that will
    *  time out like the last ones), there is no review to triage and the lead goes straight to the PR. */
   reviewing(): boolean;
@@ -725,7 +725,7 @@ export class RunCoordinator {
     const command = this.ports.gateCommand(card);
     const brief = await this.ports.brief(card);
     if (!command || !brief) return this.halt(run, card.id, command ? "the worker's checkout is gone" : "the gate was removed");
-    const r = await this.ports.runGate(command, brief.worktree);
+    const r = await this.ports.runGate(command, brief.worktree, card.id);
     if (r.kind === "error") return this.halt(run, card.id, `gate could not run: ${r.message}`);
     const ok = r.kind === "pass";
     this.db.recordRunEvent(card.id, "run.gate", { runId: run.id, command, ok, ...(r.kind === "pass" ? (r.note ? { note: r.note } : {}) : { summary: r.summary }) });
@@ -941,9 +941,9 @@ export function runHook(
       return text.trim().slice(0, 8000) || null;
     },
     gateCommand: (card) => db.cardGate(card),
-    runGate: (command, worktree) => {
+    runGate: (command, worktree, cardId) => {
       const argv = parseGate(command);
-      return argv ? runGate(argv, worktree) : Promise.resolve({ kind: "error", message: "empty gate command" });
+      return argv ? runGate(argv, worktree, undefined, cardId) : Promise.resolve({ kind: "error", message: "empty gate command" });
     },
     freeSlots: () => ((db.maxAgents() ?? cfg.boardMaxAgents) || Infinity) - runningCards(db),
     reviewing: () => cfg.boardCopilot && !copilotDown(reviewFailures()),

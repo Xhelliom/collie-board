@@ -179,6 +179,8 @@ export interface CardView {
    * bridge restart — which is correct: the restart cancelled the work.
    */
   copilotBusy: boolean;
+  /** Its gate waits for another card's to finish (one at a time per machine). Absent on an older bridge. */
+  gateWaiting?: boolean;
   /** The agent is still writing its closing report — cleaning up the worktree now would lose it. */
   wrapupPending: boolean;
   /** The card's PR url, from its journal. On one card's GET only; absent on the list and an older bridge. */
