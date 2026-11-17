@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794929614168.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"0976fae8-a37c-4095-82d4-93203d3fab13"}}
 {"v":1,"hlc":"1794929614168.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Index card(run_id) et lots/phases en GET conditionnel","status":"backlog"},"ts":1794929603262}}
 {"v":1,"hlc":"1794929614176.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"379ed504-8380-466b-8f6c-df757005cb6f"}}
+{"v":1,"hlc":"1794931246170.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
