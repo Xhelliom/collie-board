@@ -578,6 +578,7 @@ export const project = defineMessages({
   "project.todo.ready": { en: "Lot {name} ready:", fr: "Lot {name} prêt :" },
   "project.todo.nothingElse": { en: "Nothing else is running.", fr: "Rien d'autre ne tourne." },
   "project.current.label": { en: "Phase in progress", fr: "Phase en cours" },
+  "project.current.validated": { en: "phase validated", fr: "phase validée" },
   "project.current.working": { en: "work running", fr: "travail en cours" },
   "project.current.more": { en: "More actions on the phase {name}", fr: "Plus d'actions sur la phase {name}" },
   "project.current.lots": { en: "The phase's lots, in order", fr: "Lots de la phase, dans l'ordre" },

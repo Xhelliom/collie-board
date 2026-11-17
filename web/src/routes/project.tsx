@@ -240,7 +240,7 @@ export function ProjectRoute() {
   };
   const canSeal = (p: ProjectPhase) => !p.phase && Boolean(repo) && p.steps.some((s) => s.status === "done");
   const phaseButton = (p: ProjectPhase) =>
-    p.phase && p.steps.length > 0 ? (
+    p.phase && !p.phase.closedAt && p.steps.length > 0 ? (
       <Button variant="outline" onClick={() => setValidating(p)} className={cn(ACT, "max-sm:hidden")}>
         {toValidate(p) && <Check aria-hidden="true" className="size-3.5" />}
         {t("project.validate")}
@@ -253,7 +253,7 @@ export function ProjectRoute() {
   // Its rarer gestures, under « ⋯ »: the main one again (a phone has no room for it), settings, filter, delete.
   const phaseMenu = (p: ProjectPhase) => (
     <MoreActions label={t("project.current.more", { name: p.title || t("project.noPhase") })}>
-      {p.phase && p.steps.length > 0 && (
+      {p.phase && !p.phase.closedAt && p.steps.length > 0 && (
         <button type="button" role="menuitem" onClick={() => setValidating(p)} className={cn(MENU_ITEM, "sm:hidden")}>
           <Check className="size-4 text-muted-foreground" />
           {t("project.validate")}
@@ -621,6 +621,7 @@ export function ProjectRoute() {
                           <div className="flex min-w-0 flex-1 flex-col">
                             <span className="flex items-center gap-2 text-xs text-muted-foreground">
                               {t("project.current.label")}
+                              {p.phase?.closedAt != null && <span>· {t("project.current.validated")}</span>}
                               {busy(p, live) && <StatusSignal status="working" label={t("project.current.working")} />}
                             </span>
                             <h2 className="text-[17px] font-semibold leading-snug">{p.title || t("project.noPhase")}</h2>
