@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { pinFor } from "./prompt-pin";
 import type { TranscriptEntry } from "./types";
 

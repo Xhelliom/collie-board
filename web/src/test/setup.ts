@@ -61,6 +61,8 @@ afterAll(() => {
   pendingTimeouts.clear();
 });
 
+// Pure-logic files run under `environment: node` (no DOM to patch).
+if (typeof window !== "undefined") {
 // jsdom gaps that the terminal mirror / sheets touch.
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = vi.fn();
@@ -87,6 +89,8 @@ if (!HTMLDialogElement.prototype.showModal) {
   };
 }
 
+}
+
 // NOT a jsdom gap — a Node one, and a confusing one. Node 24+ defines its own `localStorage` global
 // that stays UNDEFINED unless the process was started with `--localstorage-file`, and it takes
 // precedence over the one jsdom installs. So every display-preference test started failing on
@@ -108,7 +112,7 @@ if (!globalThis.localStorage) {
   };
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: shim });
 }
-if (typeof window.matchMedia !== "function") {
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: (query: string) => ({

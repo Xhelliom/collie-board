@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { haltSummary } from "./halt-reason";
 
 it("a short reason is shown whole, nothing folded", () => {

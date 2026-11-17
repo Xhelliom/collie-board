@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { collectImages } from "./lightbox";
 import type { TranscriptEntry } from "@/lib/types";
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { keysMatch } from "./push";
 
 // The VAPID-rotation guard in enablePush hinges on this byte compare: an existing PushManager

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
 import { recordSlot, showBadge, slotCount, waitingCount, type BadgeCaches } from "./app-badge";

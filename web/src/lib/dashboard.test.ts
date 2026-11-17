@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { byLot, dashboardOf, herdCounts, tileLot } from "./dashboard";
 import type { CardView, Lot, Phase } from "./board";
 import type { AgentView } from "./types";
