@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useRevalidator } from "react-router";
+import { useNavigation, useRevalidator } from "react-router";
 
 import { beginCatchUp, endCatchUp, isLocked, useLocked } from "@/lib/idle";
 import type { Lot } from "@/lib/board";
@@ -59,6 +59,9 @@ export function usePolling(
   // not on every revalidation (its identity flips each cycle).
   const ref = useRef(revalidator);
   ref.current = revalidator;
+  const navigation = useNavigation();
+  const navRef = useRef(navigation.state);
+  navRef.current = navigation.state;
 
   // Wall-clock timestamp of when the current revalidation began, or null when idle. Stamped on the
   // idle→loading edge and cleared on →idle, so a tick can tell how long a load has been in flight
@@ -101,6 +104,10 @@ export function usePolling(
       // the `navigator.onLine` trap below, this flag can't lie: it's set by our own lock, and
       // resuming re-runs every loader, so a pause can't strand the UI on stale data.
       if (isLocked()) return;
+      // A navigation in flight already loads fresh data, and revalidate() would INTERRUPT and restart
+      // it (react-router's router.revalidate): on a slow bridge every tick pushed the page change back
+      // and flipped the revalidator to "loading", which use-loading-stalled read as a lost connection.
+      if (navRef.current !== "idle") return;
       // Deliberately NO navigator.onLine gate here. On some phones the flag lies — it stuck FALSE
       // after an airplane-mode toggle even though the network was back — and gating the tick on it
       // wedged polling permanently: the app froze on "not connected" with a resting/bad-state dog and
