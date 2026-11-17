@@ -8,3 +8,5 @@
 {"v":1,"hlc":"1794923402289.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794923402289.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794923402204}}
 {"v":1,"hlc":"1794923407133.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3594},"ts":1794923402552}}
+{"v":1,"hlc":"1794923875443.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"145bc840-6aa9-41f4-87a0-3268ad613014","name":"ou-est-le-terminal-light.png","size":106150,"by":"agent","pane":"t12k"},"ts":1794923874823}}
+{"v":1,"hlc":"1794923875444.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"145bc840-6aa9-41f4-87a0-3268ad613014","name":"ou-est-le-terminal-dark.png","size":106667,"by":"agent","pane":"t12k"},"ts":1794923874841}}
