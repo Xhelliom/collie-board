@@ -148,8 +148,19 @@ function startNote(pl: ProjectLot, cardId: string, t: ReturnType<typeof useT>) {
 }
 
 type Tag = "ready" | "next" | null;
-const TAG_CLS: Record<Exclude<Tag, null>, string> = { ready: "bg-status-done/15 text-status-done", next: "bg-muted text-muted-foreground" };
-const ROW = "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2";
+const TAG_CLS: Record<Exclude<Tag, null>, string> = { ready: "bg-status-blocked/15 text-status-blocked", next: "bg-muted text-muted-foreground" };
+// A lot is a frame that HOLDS its cards: a side band in its state's colour (blue running, orange waiting,
+// green done, red halted), the word « Lot » in that colour, its cards indented inside.
+type Tone = "working" | "waiting" | "done" | "halted";
+const TONE: Record<Tone, { frame: string; text: string }> = {
+  working: { frame: "border-l-status-working bg-status-working/5", text: "text-status-working" },
+  waiting: { frame: "border-l-status-blocked bg-status-blocked/5", text: "text-status-blocked" },
+  done: { frame: "border-l-status-done bg-status-done/5", text: "text-status-done" },
+  halted: { frame: "border-destructive/45 border-l-destructive bg-destructive/5", text: "text-destructive" },
+};
+const FRAME = "flex min-w-0 flex-col gap-1 rounded-xl border border-l-4 p-1.5 sm:p-2";
+const ROW = "flex flex-wrap items-center gap-x-3 gap-y-2 px-1.5 py-1";
+const LotWord = ({ tone, label }: { tone: Tone; label: string }) => <span className={cn("text-xs font-semibold", TONE[tone].text)}>{label}</span>;
 const SMALL = "h-11 shrink-0 rounded-sm px-3 text-sm font-semibold sm:h-8";
 
 /**
@@ -212,16 +223,17 @@ export function PhaseLots({
     const { planned, finished, halted } = lotState(pl);
     const owner = lotOwner(pl.lot, ids);
     const ownerName = owner ? personName(owner, ids[pl.lot.repoPath]?.me ?? null, t("people.me")) : null;
+    const tone: Tone = halted ? "halted" : finished ? "done" : planned ? "waiting" : "working";
     return (
-      <section key={pl.lot.id} aria-label={t("lot.aria", { name: pl.lot.name ?? "" })} className="flex min-w-0 flex-col gap-1">
-        <div className={cn(ROW, halted ? "border-destructive/45 bg-destructive/5" : tag === "ready" ? "border-status-done/40 bg-card/40" : "bg-card/40")}>
+      <section key={pl.lot.id} aria-label={t("lot.aria", { name: pl.lot.name ?? "" })} className={cn(FRAME, TONE[tone].frame)}>
+        <div className={ROW}>
           {tag ? (
             <span className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CLS[tag])}>{t(tag === "ready" ? "lot.tag.ready" : "lot.tag.next")}</span>
           ) : (
             <StatusSignal status={finished ? "done" : halted ? "stuck" : "working"} decorative />
           )}
           <span className="min-w-0 flex-1 basis-48 text-sm leading-snug">
-            <b className="font-semibold">{nameOf(pl)}</b>{" "}
+            <LotWord tone={tone} label={t("run.lot")} /> <b className="text-[15px] font-semibold">{nameOf(pl)}</b>{" "}
             <span className="text-muted-foreground">
               {planned
                 ? [t("lot.cards", { count: pl.cards.length }), pace(pl)].filter(Boolean).join(", ")
@@ -256,12 +268,12 @@ export function PhaseLots({
           </span>
         </div>
         {ownerName && (planned || halted) && (
-          <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+          <p className="flex items-center gap-2 px-1.5 text-xs text-muted-foreground">
             <Lock className="size-3.5 shrink-0" />
             <span>{t("lot.ownedBy", { name: ownerName })}</span>
           </p>
         )}
-        <ul className="flex flex-col">{own.map((c) => renderStep(c, true, planned ? startNote(pl, c.id, t) : undefined))}</ul>
+        <ul className="ml-2 flex flex-col border-l border-foreground/10 pl-1 sm:ml-3">{own.map((c) => renderStep(c, true, planned ? startNote(pl, c.id, t) : undefined))}</ul>
       </section>
     );
   };
@@ -274,19 +286,23 @@ export function PhaseLots({
         opened.has(g.pl.lot.id) ? (
           block(g, "next")
         ) : (
-          <div key={g.pl.lot.id} role="group" aria-label={t("lot.aria", { name: g.pl.lot.name ?? "" })} className={cn(ROW, "bg-card/40")}>
-            <span className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CLS.next)}>{t("lot.tag.next")}</span>
-            <span className="min-w-0 flex-1 basis-48 text-sm leading-snug">
-              <b className="font-semibold">{nameOf(g.pl)}</b> <span className="text-muted-foreground">{t("lot.nextLine", { count: g.pl.cards.length })}</span>
-            </span>
-            <Button variant="outline" className={SMALL} aria-expanded={false} onClick={() => setOpened((s) => new Set(s).add(g.pl.lot.id))}>
-              {t("lot.seeCards")}
-            </Button>
+          <div key={g.pl.lot.id} role="group" aria-label={t("lot.aria", { name: g.pl.lot.name ?? "" })} className={cn(FRAME, TONE.waiting.frame)}>
+            <div className={ROW}>
+              <span className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CLS.next)}>{t("lot.tag.next")}</span>
+              <span className="min-w-0 flex-1 basis-48 text-sm leading-snug">
+                <LotWord tone="waiting" label={t("run.lot")} /> <b className="text-[15px] font-semibold">{nameOf(g.pl)}</b>{" "}
+                <span className="text-muted-foreground">{t("lot.nextLine", { count: g.pl.cards.length })}</span>
+              </span>
+              <Button variant="outline" className={SMALL} aria-expanded={false} onClick={() => setOpened((s) => new Set(s).add(g.pl.lot.id))}>
+                {t("lot.seeCards")}
+              </Button>
+            </div>
           </div>
         ),
       )}
       {empty.length > 0 && (
-        <div role="group" aria-label={t("lot.tag.empty")} className={cn(ROW, "border-dashed")}>
+        <div role="group" aria-label={t("lot.tag.empty")} className={cn(FRAME, "border-dashed", TONE.waiting.frame)}>
+          <div className={ROW}>
           <span className="rounded-sm bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{t("lot.tag.empty")}</span>
           <span className="min-w-0 flex-1 basis-48 text-sm leading-snug text-muted-foreground">
             {t("lot.emptyLine", { names: empty.map((g) => nameOf(g.pl)).join(", ") })}
@@ -302,6 +318,7 @@ export function PhaseLots({
             </Button>
             {empty.length > 1 && <MoreActions label={t("lot.emptyMore")}>{empty.map((g) => <span key={g.pl.lot.id}>{deleteItem(g.pl)}</span>)}</MoreActions>}
           </span>
+          </div>
         </div>
       )}
       {done.length > 0 && (
