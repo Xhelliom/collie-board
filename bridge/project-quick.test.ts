@@ -27,4 +27,28 @@ describe("quickAccess (the sidebar's quick access)", () => {
     // A week later the finished lot has dropped out; the running one stays.
     expect(quickAccess(db, Date.now() + 8 * 24 * 3600 * 1000).projects.map((p) => p.repoPath)).toEqual(["/live"]);
   });
+
+  it("filters in SQL: launched lots with members, unfinished or moved within the week", () => {
+    const db = new BoardDb(":memory:");
+    const day = 24 * 3600 * 1000;
+    const lot = (repo: string, status = "done") => {
+      const c = db.createCard({ title: repo, repoPath: repo, status: status as never });
+      const r = db.createRun({ repoPath: repo, cardIds: [c.id], foldInCap: 0, name: repo });
+      db.launchRun(r.id);
+      return r.id;
+    };
+    lot("/open", "in_progress");
+    db.recordRunEvent(null, "run.finished", { runId: lot("/event") }); // finished by the local event
+    (db as unknown as { db: { query(s: string): { run(...a: unknown[]): void } } }).db
+      .query("UPDATE run SET finished_at = 1 WHERE id = ?")
+      .run(lot("/shared")); // finished by another pair's `finished_at` only
+    db.launchRun(db.createRun({ repoPath: "/empty", cardIds: [], foldInCap: 0 }).id);
+    const later = Date.now() + 8 * day;
+    expect(db.quickRuns(0).map((r) => [r.run.repoPath, r.finished])).toEqual([
+      ["/open", false],
+      ["/event", true],
+      ["/shared", true],
+    ]);
+    expect(db.quickRuns(later - 7 * day).map((r) => r.run.repoPath)).toEqual(["/open"]);
+  });
 });

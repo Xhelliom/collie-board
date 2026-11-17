@@ -2518,6 +2518,30 @@ export class BoardDb {
     );
   }
 
+  /**
+   * The launched lots with members, each with its tally and last move (`ts`: launch or a member's
+   * update), minus the finished ones whose last move is before `since` — the sidebar's quick access in
+   * one query instead of a walk over every lot. "Finished" is {@link runFinished}'s. Plan order.
+   */
+  quickRuns(since: number): { run: Run; ts: number; finished: boolean; done: number; total: number; blocked: boolean }[] {
+    type Row = RunRow & { ts: number; fin: number; done: number; total: number; blocked: number };
+    return this.db
+      .query<Row, [number]>(
+        `WITH fin AS (SELECT DISTINCT json_extract(payload, '$.runId') AS id FROM event WHERE type = 'run.finished'),
+              m AS (SELECT run_id, MAX(updated_at) AS up, COUNT(*) AS total,
+                           SUM(status IN ('done', 'archived')) AS done, MAX(status = 'blocked') AS blocked
+                      FROM card WHERE run_id IS NOT NULL GROUP BY run_id)
+         SELECT * FROM (
+           SELECT r.*, MAX(r.launched_at, m.up) AS ts, m.total, m.done, m.blocked,
+                  (r.finished_at IS NOT NULL OR r.id IN (SELECT id FROM fin)) AS fin
+             FROM run r JOIN m ON m.run_id = r.id WHERE r.launched_at IS NOT NULL)
+         WHERE NOT fin OR ts >= ?
+         ORDER BY position, created_at`,
+      )
+      .all(since)
+      .map((r) => ({ run: toRun(r), ts: r.ts, finished: r.fin === 1, done: r.done, total: r.total, blocked: r.blocked === 1 }));
+  }
+
   /** This pair's pair id (ADR 0048 §7), or null when no sync runs. */
   pairId(): string | null {
     return this.localPair;

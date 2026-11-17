@@ -22,28 +22,15 @@ export interface QuickAccess {
   waiting: { cardId: string; title: string; repoPath: string; text: string }[];
 }
 
-type QuickDb = Pick<BoardContext["db"], "listRuns" | "runMembers" | "runFinished" | "listCards" | "getRoadmap" | "getPhase">;
+type QuickDb = Pick<BoardContext["db"], "quickRuns" | "listCards" | "getRoadmap" | "getPhase">;
 
 export function quickAccess(db: QuickDb, now = Date.now()): QuickAccess {
   const best = new Map<string, QuickProject>();
-  for (const run of db.listRuns()) {
-    if (run.launchedAt === null) continue;
-    const members = db.runMembers(run.id);
-    if (members.length === 0) continue;
-    const finished = db.runFinished(run.id);
-    // ponytail: a finished lot's time is its members' last move, not the `run.finished` event's — read the event if that ever misleads.
-    const ts = Math.max(run.launchedAt, ...members.map((c) => c.updatedAt));
-    if (finished && now - ts > RECENT) continue;
+  // ponytail: a finished lot's time is its members' last move, not the `run.finished` event's — read the event if that ever misleads.
+  for (const { run, ts, finished, done, total, blocked } of db.quickRuns(now - RECENT)) {
     const row: QuickProject = {
       repoPath: run.repoPath,
-      lot: {
-        id: run.id,
-        name: run.name ?? (run.phaseId ? (db.getPhase(run.phaseId)?.name ?? null) : null),
-        done: members.filter((c) => c.status === "done" || c.status === "archived").length,
-        total: members.length,
-        blocked: members.some((c) => c.status === "blocked"),
-        finished,
-      },
+      lot: { id: run.id, name: run.name ?? (run.phaseId ? (db.getPhase(run.phaseId)?.name ?? null) : null), done, total, blocked, finished },
       ts,
     };
     // One row per project: its running lot over a finished one, then the newest.
