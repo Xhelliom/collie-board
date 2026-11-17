@@ -13,3 +13,4 @@
 | Ajouter un agent (adaptateur de harness) | [`HARNESS_CONTRIBUTING.md`](../../HARNESS_CONTRIBUTING.md) · [`AGENT_COMPAT.md`](../../AGENT_COMPAT.md) |
 | Le rapport à l'amont : aucun, le fork est indépendant | [`UPSTREAM.md`](../../UPSTREAM.md) · [ADR 0059](../../.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md) |
 | Organiser la doc d'un dépôt | [`conventions/DOC_CONVENTION.md`](../conventions/DOC_CONVENTION.md) |
+| Les mesures de performance (bridge, web, outillage, mise à jour) | [`audit-perf-2026-11.md`](./audit-perf-2026-11.md) · [audit d'octobre](../ui-audit/performance-percue.md) |
