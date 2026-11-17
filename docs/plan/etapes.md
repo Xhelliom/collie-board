@@ -173,19 +173,19 @@ Corriger les constats de l audit de novembre : la page Projet ne bloque plus, la
   - [x] L encadré « où est ce terminal » est dans le menu ⋯, point orange sur ⋯ quand invisible dans herdr-app
   - [x] Actions intactes, capture téléphone publiée
 
-### Lot — L app plus légère (planned, one at a time)
+### Lot — L app plus légère (launched, one at a time)
 
-- **Charger l app écran par écran** — backlog
+- **Charger l app écran par écran** — done
 
   Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P9. Un seul chunk de 1 444 Ko (402 Ko gzip, +50 % en un mois), re-téléchargé à chaque release. React.lazy par route (Projet, Recette, Documents, PR, Réglages, Galerie) avec un repli de chargement discret ; budget de taille du chunk d entrée vérifié au build (échec si dépassé).
 
-  - [ ] Chunk d entrée réduit d au moins 40 %
-  - [ ] Chaque route se charge sans écran blanc
-  - [ ] Le build échoue si le budget est dépassé
-- **Recette : ne plus tout redessiner à chaque rafraîchissement** — backlog
+  - [x] Chunk d entrée réduit d au moins 40 %
+  - [x] Chaque route se charge sans écran blanc
+  - [x] Le build échoue si le budget est dépassé
+- **Recette : ne plus tout redessiner à chaque rafraîchissement** — done
 
   Rapport : docs/dev/audit-perf-2026-11.md (audit du 17/11). P8. ~8 600 composants re-rendus par poll alors que les données de la recette ne changent pas (4,4 s de thread/min sur ordinateur). Profiler d abord (comme en octobre), puis isoler l écran de la revalidation racine : memo sur la liste, ou données de la recette hors du loader racine.
 
-  - [ ] Profil avant/après dans la PR
-  - [ ] Rendus par poll divisés au moins par 5 quand rien ne change
-  - [ ] Aucun changement visible
+  - [x] Profil avant/après dans la PR
+  - [x] Rendus par poll divisés au moins par 5 quand rien ne change
+  - [x] Aucun changement visible
