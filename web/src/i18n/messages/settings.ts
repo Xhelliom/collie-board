@@ -185,7 +185,10 @@ export const settings = defineMessages({
   "settings.updates.copy": { en: "Copy command: {command}", fr: "Copier la commande : {command}" },
   "settings.updates.apply": { en: "Update to {version}", fr: "Mettre à jour vers {version}" },
   "settings.updates.applying": { en: "Updating to {version}…", fr: "Mise à jour vers {version} en cours…" },
-  "settings.updates.applyingHint": { en: "The page reloads on the new version when it's done.", fr: "La page se recharge sur la nouvelle version à la fin." },
+  "settings.updates.applyingHint": {
+    en: "Its steps show in Settings → About; the page reloads on the new version when it's done.",
+    fr: "Ses étapes s'affichent dans Réglages → À propos ; la page se recharge sur la nouvelle version à la fin.",
+  },
   "settings.updates.applyFailed": { en: "The update failed — the current version keeps running.", fr: "La mise à jour a échoué — la version en place continue de tourner." },
   "settings.updates.repair": { en: "Have an agent fix it", fr: "Faire réparer par un agent" },
   "settings.updates.repairing": { en: "Starting the agent…", fr: "Lancement de l'agent…" },

@@ -9,6 +9,7 @@ import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 
 import type { MachineEngine } from "./mux/mux.ts";
+import type { UpdateProgress } from "./update-progress.ts";
 
 /** ok = green, todo = something for the operator to do, down = broken, off = not in use (neutral). */
 export type AboutState = "ok" | "todo" | "down" | "off";
@@ -21,7 +22,11 @@ export interface AboutRow {
 }
 
 export interface AboutFacts {
-  version: { current: string; build: string | null; latest: string | null; releaseAvailable: boolean; bridgeStale: boolean; restart: string; update: string };
+  version: { current: string; build: string | null; latest: string | null; releaseAvailable: boolean; bridgeStale: boolean; restart: string; update: string;
+    /** The update under way (update-progress.ts), and the reason this bridge saw it fail, if it did. */
+    progress: UpdateProgress | null;
+    failure: string | null;
+  };
   engine: MachineEngine | null;
   hc: { reachable: boolean; socket: string };
   /** null off Linux: no systemd to ask. */
@@ -43,11 +48,17 @@ export function aboutRows(f: AboutFacts): AboutRow[] {
   const peersDown = f.peers.filter((p) => p.state === "disconnected").map((p) => p.name);
   const peersUp = f.peers.filter((p) => p.state === "connected").length;
   return [
-    v.bridgeStale
-      ? { id: "version", state: "todo", key: "stale", vars: { ...vv, command: v.restart } }
-      : v.releaseAvailable
-        ? { id: "version", state: "todo", key: "update", vars: { ...vv, latest: v.latest ?? "?", command: v.update } }
-        : { id: "version", state: "ok", key: "current", vars: vv },
+    v.progress && !v.progress.failed
+      ? { id: "version", state: "todo", key: "updating", vars: { ...vv, step: v.progress.step } }
+      : v.progress
+        ? v.failure
+          ? { id: "version", state: "down", key: "failed", vars: { ...vv, step: v.progress.step, reason: v.failure } }
+          : { id: "version", state: "down", key: "failedNoReason", vars: { ...vv, step: v.progress.step, command: v.update } }
+        : v.bridgeStale
+          ? { id: "version", state: "todo", key: "stale", vars: { ...vv, command: v.restart } }
+          : v.releaseAvailable
+            ? { id: "version", state: "todo", key: "update", vars: { ...vv, latest: v.latest ?? "?", command: v.update } }
+            : { id: "version", state: "ok", key: "current", vars: vv },
     !f.engine
       ? { id: "engine", state: "down", key: "none" }
       : f.engine.engine === "hc"

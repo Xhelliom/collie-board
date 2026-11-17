@@ -7,6 +7,7 @@ import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PANE_HEADER } from "./board-routes.ts";
 import { summarizeGate } from "./gate.ts";
+import { readUpdateProgress, type UpdateProgress } from "./update-progress.ts";
 import { compareSemver, githubTagsFetcher, parseSemverTag, resolveUpdateRepo } from "./update.ts";
 
 const PLUGIN = "herdr.collie-board";
@@ -87,6 +88,12 @@ export interface UpdateFailure {
 }
 let lastFailure: UpdateFailure | null = null;
 export const lastUpdateFailure = (): UpdateFailure | null => lastFailure;
+
+/** For Settings → About: the step the update is on, and why it failed when this bridge watched it fail. */
+export function updateProgressFacts(configDir = process.env.HERDR_PLUGIN_CONFIG_DIR ?? ""): { progress: UpdateProgress | null; failure: string | null } {
+  const progress = readUpdateProgress(configDir);
+  return { progress, failure: progress?.failed && lastFailure ? summarizeGate(lastFailure.output) : null };
+}
 
 /** The checkout this bridge runs from — the one the service serves, the one an update rewrites. */
 export const PLUGIN_CHECKOUT = join(import.meta.dir, "..");

@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { aboutRows, readService, type AboutFacts } from "./about.ts";
 
 const healthy: AboutFacts = {
-  version: { current: "1.0.0", build: "abc", latest: "1.0.0", releaseAvailable: false, bridgeStale: false, restart: "R", update: "U" },
+  version: { current: "1.0.0", build: "abc", latest: "1.0.0", releaseAvailable: false, bridgeStale: false, restart: "R", update: "U", progress: null, failure: null },
   engine: { engine: "hc", hc: { version: "0.3.0", generation: 2 } },
   hc: { reachable: true, socket: "/run/user/1000/herdr-core/default.sock" },
   service: { systemd: true, enabled: true, linger: true },
@@ -17,6 +17,13 @@ const healthy: AboutFacts = {
 const row = (f: AboutFacts, id: string) => aboutRows(f).find((r) => r.id === id)!;
 
 describe("aboutRows", () => {
+  test("an update under way, or failed, says its step before anything else on the version row", () => {
+    const v = healthy.version;
+    expect(row({ ...healthy, version: { ...v, bridgeStale: true, progress: { step: "build", failed: false } } }, "version")).toMatchObject({ state: "todo", key: "updating", vars: { step: "build" } });
+    expect(row({ ...healthy, version: { ...v, progress: { step: "fetch", failed: true }, failure: "fatal: no network" } }, "version")).toMatchObject({ state: "down", key: "failed", vars: { step: "fetch", reason: "fatal: no network" } });
+    expect(row({ ...healthy, version: { ...v, progress: { step: "restart", failed: true } } }, "version")).toMatchObject({ state: "down", key: "failedNoReason", vars: { step: "restart", command: "U" } });
+  });
+
   test("a healthy machine is green or neutral everywhere", () => {
     expect(aboutRows(healthy).map((r) => r.state).filter((s) => s !== "ok" && s !== "off")).toEqual([]);
     expect(row(healthy, "engine")).toEqual({ id: "engine", state: "ok", key: "hc", vars: { version: "0.3.0" } });

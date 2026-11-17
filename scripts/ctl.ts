@@ -536,21 +536,60 @@ async function updateCheckout(c: Ctx): Promise<number> {
 }
 
 /**
+ * True when `head` is the commit a `vX.Y.Z` tag names in `git ls-remote --tags` output (an annotated
+ * tag's commit is its `^{}` line). CI typechecked that exact tree before cutting it. Pure.
+ */
+export function isReleaseCommit(lsRemote: string, head: string): boolean {
+  return lsRemote.split(/\r?\n/).some((line) => {
+    const [sha, ref = ""] = line.trim().split(/\s+/);
+    return Boolean(head) && sha === head && /^refs\/tags\/v\d+\.\d+\.\d+(\^\{\})?$/.test(ref);
+  });
+}
+
+/** `is_release_head`: HEAD is an upstream release and no tracked file was edited. */
+function isReleaseHead(c: Ctx): boolean {
+  const head = run(["git", "-C", c.root, "rev-parse", "HEAD"]).stdout.trim();
+  if (run(["git", "-C", c.root, "diff", "--quiet", "HEAD", "--"]).code !== 0) return false;
+  return isReleaseCommit(run(["git", "-C", c.root, "ls-remote", "--tags", "origin", "refs/tags/v*"]).stdout, head);
+}
+
+/** Where the update stands, for Settings → About (bridge/update-progress.ts reads it); null removes it. */
+function updateStep(c: Ctx, step: string | null) {
+  const file = join(c.configDir, "update-step");
+  try {
+    if (step === null) rmSync(file, { force: true });
+    else {
+      mkdirSync(c.configDir, { recursive: true });
+      writeFileSync(file, `${step}\n`);
+    }
+  } catch {
+    // the screen loses its progress line, the update goes on
+  }
+}
+
+/**
  * Second half of `update`, run from the freshly checked-out ctl.ts: build (version gate + staged
  * swap — a failed build leaves the running bridge and its web/dist alone), restart, and re-link a
  * linked install so Herdr learns new actions (never a managed one: that would block `plugin install`).
  */
 async function applyUpdate(c: Ctx): Promise<number> {
+  updateStep(c, "build");
   if ((await build(c)) !== 0) {
+    updateStep(c, "build failed");
     console.error("error: build failed — the running version is untouched");
     return 1;
   }
+  updateStep(c, "restart");
   stopWindows(c);
-  if ((await startWindows(c)) !== 0) return 1;
+  if ((await startWindows(c)) !== 0) {
+    updateStep(c, "restart failed");
+    return 1;
+  }
   if (!isManagedCheckout(c)) {
     const linked = run(["herdr", "plugin", "link", c.root]);
     console.log(linked.code === 0 ? "herdr registry refreshed (re-linked)" : `note: couldn't re-link — run: herdr plugin link "${c.root}"`);
   }
+  updateStep(c, null);
   console.log("✓ update complete");
   return 0;
 }
@@ -654,10 +693,20 @@ async function windows(cmd: string, rest: string[]): Promise<number> {
       return startWindows(c);
     case "uninstall":
       return uninstallWindows(c);
-    case "update":
-      if ((await updateCheckout(c)) !== 0) return 1;
+    case "update": {
+      updateStep(c, "fetch");
+      if ((await updateCheckout(c)) !== 0) {
+        updateStep(c, "fetch failed");
+        return 1;
+      }
+      const env = { ...process.env };
+      if (c.env.SKIP_TYPECHECK !== "1" && isReleaseHead(c)) {
+        console.log("→ a tagged release, typechecked by CI: skipping the typecheck");
+        env.SKIP_TYPECHECK = "1";
+      }
       // The checkout may have rewritten this very file: the rest runs from the fresh copy.
-      return runLoud([c.bun, join(c.root, "scripts", "ctl.ts"), "_apply-update"], c.root);
+      return runLoud([c.bun, join(c.root, "scripts", "ctl.ts"), "_apply-update"], c.root, env);
+    }
     case "_apply-update":
       return applyUpdate(c);
     case "_run":

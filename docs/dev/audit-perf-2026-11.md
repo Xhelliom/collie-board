@@ -215,17 +215,23 @@ Constat opérateur du 17/11 : près d'une minute sur le Dell (Windows), sans dir
 `git fetch`/`pull` → `check-version` → `bun install` racine + web → **typecheck racine + web** → `vite build`
 (staging + swap) → arrêt/démarrage → `herdr plugin link` (checkout lié seulement).
 
-| Étape | Ici (Linux) [time] | Le Dell |
-|---|---:|---|
-| fetch + check-version + installs (lockfile inchangé) | ≈ 1 s | non mesuré |
-| typecheck racine + web | **22 s** | non mesuré |
-| vite build + SW | 3 s | non mesuré |
+| Étape | Ici (Linux) [time] | Le Dell (Windows) [time, 17/11] |
+|---|---:|---:|
+| fetch | ≈ 1 s (avec check-version + installs) | 1,8 s |
+| `bun install` racine + web (lockfile inchangé) | (inclus ci-dessus) | 6,1 s |
+| typecheck racine + web | **22 s** (27,6 s au re-chronométrage) | **46,4 s** (14,7 + 31,7) |
+| vite build + SW | 3 s | **33,8 s** |
 | redémarrage (`Stopping` → `listening`) [journal] | 1,2 s | non mesuré (`printBanner` attend jusqu'à 10 s) |
-| **Total** | **≈ 27 s, dont 80 % de typecheck** | ≈ 60 s (constat opérateur) |
+| **Total** | **≈ 27 s, dont 80 % de typecheck** | **≈ 88 s + redémarrage** |
 
-**Pas mesuré sur le Dell** : il est pair de cette machine (`Dell-5550-Stef`), mais aucun accès shell n'en
-donne le détail, et aucune étape n'y laisse de durée dans un journal. Hypothèse à vérifier, non chiffrée :
-`bun install` et `tsc` sont plus lents sous Windows (antivirus sur `node_modules`).
+**Dell chronométré le 17/11** (carte « Mise à jour : sans revérification, et l'étape affichée ») : étape par
+étape dans le checkout installé par Herdr, depuis un terminal du pair, build dans un dossier jetable — la
+version en place n'a pas bougé. `vite build` y coûte 11 fois plus qu'ici : piste suivante si 43 s restent
+trop (antivirus sur `node_modules`/`dist-staging`, non vérifié).
+
+**Après P7** (typecheck sauté sur une release, + `git ls-remote --tags` pour le savoir : 0,6 s ici comme sur
+le Dell) : ≈ 5 s ici, ≈ 43 s + redémarrage sur le Dell. Somme des étapes mesurées, pas une mise à jour de
+bout en bout : la première release qui porte P7 sera la première à en profiter.
 
 - **Évitable : le typecheck.** La CI (`.github/workflows/ci.yml`) typecheck les deux côtés sur `main` avant
   que `release.yml` ne coupe la version, et une mise à jour vise une release : les 22 s refont un travail
