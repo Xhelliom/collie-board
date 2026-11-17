@@ -32,3 +32,4 @@
 {"v":1,"hlc":"1794931246178.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.automerge_armed","payload":{"branch":"board/acces-rapide-filtre-en-sql"},"ts":1794931245739}}
 {"v":1,"hlc":"1794931246178.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794931246178.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794931245760}}
+{"v":1,"hlc":"1794931248365.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/481","mergedAt":1794931244000},"ts":1794931246939}}
