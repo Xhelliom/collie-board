@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.346.4] - 2026-11-17
+
+### Fixed
+
+- Un lot avec une phase range dans cette phase ses cartes qui n'en ont pas (création et modification) ; une carte d'une autre phase reste, un `warning` le dit. (05e882d)
+- Au démarrage, les cartes ouvertes des lots à phase restées sans phase y sont rangées. (05e882d)
+
 ## [0.346.3] - 2026-11-16
 
 ### Fixed
