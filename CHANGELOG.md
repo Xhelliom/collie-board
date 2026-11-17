@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.350.1] - 2026-11-17
+
+### Fixed
+
+- Mode lecture, téléphone : le rappel du dernier message ne tremble plus au bord de la conversation (sa place reste réservée). (8bef33a)
+
 ## [0.350.0] - 2026-11-17
 
 ### Added
