@@ -2,26 +2,8 @@ import { createBrowserRouter } from "react-router";
 
 import { BootSplash, PaneError, RootError, RootLayout } from "@/routes/root";
 import { HomeRoute } from "@/routes/home";
-import { SpaceRoute } from "@/routes/space";
-import { SpacesRoute } from "@/routes/spaces";
-import { DetailRoute } from "@/routes/detail";
-import { HistoryRoute } from "@/routes/history";
-import { ArtifactsRoute } from "@/routes/artifacts";
-import { ZoomRoute } from "@/routes/zoom";
-import { SettingsRoute } from "@/routes/settings";
-import { GalleryRoute } from "@/routes/gallery";
-import { BoardRoute } from "@/routes/board";
-import { CardRoute } from "@/routes/card";
-import { PrsRoute } from "@/routes/prs";
-import { PrRoute } from "@/routes/pr";
-import { RepoSettingsRoute } from "@/routes/repo-settings";
-import { RecetteRoute } from "@/routes/recette";
-import { DocumentsRoute } from "@/routes/documents";
-import { CustomPageRoute } from "@/routes/custom-page";
 import { docsLoader } from "@/lib/docs";
 import { recetteLoader } from "@/lib/recette";
-import { ProjectRoute } from "@/routes/project";
-import { RoadmapRoute } from "@/routes/roadmap";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
 import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prDetailLoader, prsLoader, roadmapLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
@@ -66,16 +48,16 @@ export const router = createBrowserRouter([
         id: "board",
         path: "board",
         loader: boardRouteLoader,
-        element: <BoardRoute />,
+        lazy: () => import("@/routes/board").then((m) => ({ Component: m.BoardRoute })),
         errorElement: <RootError />,
       },
-      { path: "board/project", loader: projectLoader, element: <ProjectRoute />, errorElement: <RootError to={boardPath()} /> },
+      { path: "board/project", loader: projectLoader, lazy: () => import("@/routes/project").then((m) => ({ Component: m.ProjectRoute })), errorElement: <RootError to={boardPath()} /> },
       // Polled with the root: the live roadmap, no file to regenerate.
-      { path: "board/roadmap", loader: roadmapLoader, element: <RoadmapRoute />, errorElement: <RootError to={boardPath()} /> },
+      { path: "board/roadmap", loader: roadmapLoader, lazy: () => import("@/routes/roadmap").then((m) => ({ Component: m.RoadmapRoute })), errorElement: <RootError to={boardPath()} /> },
       {
         path: "board/prs",
         loader: prsLoader,
-        element: <PrsRoute />,
+        lazy: () => import("@/routes/prs").then((m) => ({ Component: m.PrsRoute })),
         errorElement: <RootError to={boardPath()} />,
         // Not polled: GitHub is asked on the Check tap, and the journal only moves on a tap too.
         shouldRevalidate: () => false,
@@ -83,7 +65,7 @@ export const router = createBrowserRouter([
       {
         path: "board/prs/:number",
         loader: prDetailLoader,
-        element: <PrRoute />,
+        lazy: () => import("@/routes/pr").then((m) => ({ Component: m.PrRoute })),
         errorElement: <RootError to={boardPath()} />,
         // Not polled: read on open, like the list.
         shouldRevalidate: () => false,
@@ -91,7 +73,7 @@ export const router = createBrowserRouter([
       {
         path: "board/recette",
         loader: recetteLoader,
-        element: <RecetteRoute />,
+        lazy: () => import("@/routes/recette").then((m) => ({ Component: m.RecetteRoute })),
         errorElement: <RootError to={boardPath()} />,
         // Not polled: the list reads the deliverables off disk, and only moves on a verdict — refetched then.
         shouldRevalidate: ({ currentUrl, nextUrl }) => currentUrl.searchParams.get("repo") !== nextUrl.searchParams.get("repo"),
@@ -99,26 +81,26 @@ export const router = createBrowserRouter([
       {
         path: "board/documents",
         loader: docsLoader,
-        element: <DocumentsRoute />,
+        lazy: () => import("@/routes/documents").then((m) => ({ Component: m.DocumentsRoute })),
         errorElement: <RootError to={boardPath()} />,
         // Not polled (read on open): only a change of repo reads the index again — opening a document doesn't.
         shouldRevalidate: ({ currentUrl, nextUrl }) => currentUrl.searchParams.get("repo") !== nextUrl.searchParams.get("repo"),
       },
-      { path: "board/page", element: <CustomPageRoute />, errorElement: <RootError to={boardPath()} /> },
-      { path: "board/settings", element: <RepoSettingsRoute />, errorElement: <RootError to={boardPath()} /> },
+      { path: "board/page", lazy: () => import("@/routes/custom-page").then((m) => ({ Component: m.CustomPageRoute })), errorElement: <RootError to={boardPath()} /> },
+      { path: "board/settings", lazy: () => import("@/routes/repo-settings").then((m) => ({ Component: m.RepoSettingsRoute })), errorElement: <RootError to={boardPath()} /> },
       {
         path: "card/:cardId",
         loader: cardLoader,
-        element: <CardRoute />,
+        lazy: () => import("@/routes/card").then((m) => ({ Component: m.CardRoute })),
         errorElement: <RootError to={boardPath()} />,
       },
-      { path: "space/:spaceId", element: <SpaceRoute /> },
-      { path: "spaces", element: <SpacesRoute /> },
-      { path: "settings", element: <SettingsRoute /> },
+      { path: "space/:spaceId", lazy: () => import("@/routes/space").then((m) => ({ Component: m.SpaceRoute })) },
+      { path: "spaces", lazy: () => import("@/routes/spaces").then((m) => ({ Component: m.SpacesRoute })) },
+      { path: "settings", lazy: () => import("@/routes/settings").then((m) => ({ Component: m.SettingsRoute })) },
       {
         path: "gallery",
         loader: galleryLoader,
-        element: <GalleryRoute />,
+        lazy: () => import("@/routes/gallery").then((m) => ({ Component: m.GalleryRoute })),
         errorElement: <RootError />,
         // Same reasoning as history: the poll tick would otherwise re-walk the bridge's scratchpad
         // tree every 1.5 s for a listing that changes when an agent happens to save a picture.
@@ -127,13 +109,13 @@ export const router = createBrowserRouter([
       {
         path: "pane/:paneId",
         loader: paneLoader,
-        element: <DetailRoute />,
+        lazy: () => import("@/routes/detail").then((m) => ({ Component: m.DetailRoute })),
         errorElement: <RootError />,
       },
       {
         path: "pane/:paneId/history",
         loader: historyLoader,
-        element: <HistoryRoute />,
+        lazy: () => import("@/routes/history").then((m) => ({ Component: m.HistoryRoute })),
         errorElement: <PaneError />,
         // Opt OUT of the poll loop. revalidate() re-runs every active loader, and a transcript can be
         // hundreds of turns — re-pulling it every 1.5s would be pure waste, and it would fight the
@@ -142,11 +124,11 @@ export const router = createBrowserRouter([
         shouldRevalidate: () => false,
       },
       // Polled like the pane itself (same loader), so the zoomed output stays live.
-      { path: "pane/:paneId/zoom", loader: paneLoader, element: <ZoomRoute />, errorElement: <PaneError /> },
+      { path: "pane/:paneId/zoom", loader: paneLoader, lazy: () => import("@/routes/zoom").then((m) => ({ Component: m.ZoomRoute })), errorElement: <PaneError /> },
       {
         path: "pane/:paneId/artifacts",
         loader: paneArtifactsLoader,
-        element: <ArtifactsRoute />,
+        lazy: () => import("@/routes/artifacts").then((m) => ({ Component: m.ArtifactsRoute })),
         errorElement: <PaneError />,
         // Same reasoning as history/gallery: the list walks the card's worktree diff on the bridge,
         // so re-running it every 1.5 s would burn a git call per tick for a view you open once.
