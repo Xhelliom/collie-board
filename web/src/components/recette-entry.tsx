@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Link } from "react-router";
 import { ArrowUpRight, Archive, ArchiveRestore, Check, ChevronDown, Circle, CircleDot, GitPullRequest, Images, SkipForward, Smartphone, Sparkles, X, ZoomIn } from "lucide-react";
 
@@ -231,7 +231,8 @@ function AsideButton({ entry: e, onChange }: { entry: RecetteEntry; onChange: ()
   );
 }
 
-export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry; defaultOpen: boolean; onChange: () => Promise<void> }) {
+// Memoised: the root poll re-renders the Recette route every tick while its entries stay the same objects (audit perf P8).
+export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry; defaultOpen: boolean; onChange: () => Promise<void> }) {
   const t = useT();
   const checksLine = useChecksLine();
   const [unfolded, setUnfolded] = useState(defaultOpen);
@@ -431,4 +432,4 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
       </div>
     </article>
   );
-}
+});

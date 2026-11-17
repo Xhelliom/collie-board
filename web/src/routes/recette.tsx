@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useLoaderData, useSearchParams } from "react-router";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Link, UNSAFE_RouteContext, useLoaderData, useSearchParams } from "react-router";
 import { Check, ChevronDown, CircleDashed, CircleHelp, ListChecks, RotateCcw, Search, SkipForward, Sparkles, X, Images } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
@@ -89,132 +89,135 @@ export function RecetteRoute() {
   const setParam = (key: string, value: string | null) =>
     setParams((p) => (value === null ? p.delete(key) : p.set(key, value), p), { replace: key !== "session" || value === null ? true : false });
 
-  async function refresh() {
+  // Stable across poll ticks, so the memoised entries bail out (audit perf P8).
+  const refresh = useCallback(async () => {
     try {
       setGroups((await fetchRecette(repo)).groups);
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }
-  }
+  }, [repo]);
 
   const entry = (e: RecetteEntry) => <Entry key={e.cardId} entry={e} defaultOpen={e.cardId === openId} onChange={refresh} />;
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader children={<RepoTitle repos={repo ? [{ path: repo, name: repoName(repo) }] : []} subtitle={t("recette.count", { count: counts.todo })} />} />
-      <BoardTabs />
+    <StableRouteContext>
+      <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
+        <AppHeader children={<RepoTitle repos={repo ? [{ path: repo, name: repoName(repo) }] : []} subtitle={t("recette.count", { count: counts.todo })} />} />
+        <BoardTabs />
 
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 pb-24 lg:p-5">
-        <div className="flex w-full max-w-5xl flex-col gap-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <p className="flex flex-wrap items-baseline gap-x-3">
-                <span className="text-3xl font-semibold tabular-nums">{t("recette.today", { count: today })}</span>
-                <span className="text-xs tabular-nums text-muted-foreground">{t("recette.overall", { count: overall })}</span>
-              </p>
-              <h1 className="text-sm font-medium text-muted-foreground">{t(asideOnly ? "recette.headingAside" : everything ? "recette.headingAll" : "recette.heading")}</h1>
-              <p className="text-sm text-muted-foreground">{t("recette.summary", { count: flat.length, steps: flat.reduce((n, e) => n + e.steps.length, 0) })}</p>
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 pb-24 lg:p-5">
+          <div className="flex w-full max-w-5xl flex-col gap-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <p className="flex flex-wrap items-baseline gap-x-3">
+                  <span className="text-3xl font-semibold tabular-nums">{t("recette.today", { count: today })}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground">{t("recette.overall", { count: overall })}</span>
+                </p>
+                <h1 className="text-sm font-medium text-muted-foreground">{t(asideOnly ? "recette.headingAside" : everything ? "recette.headingAll" : "recette.heading")}</h1>
+                <p className="text-sm text-muted-foreground">{t("recette.summary", { count: flat.length, steps: flat.reduce((n, e) => n + e.steps.length, 0) })}</p>
+              </div>
+              {toCheck.some((e) => e.steps.some((s) => !s.verdict)) && (
+                <Button variant="brand" className="rounded-sm" onClick={() => setParam("session", "all")}>
+                  <ListChecks aria-hidden />
+                  {t("recette.oneByOne")}
+                </Button>
+              )}
             </div>
-            {toCheck.some((e) => e.steps.some((s) => !s.verdict)) && (
-              <Button variant="brand" className="rounded-sm" onClick={() => setParam("session", "all")}>
-                <ListChecks aria-hidden />
-                {t("recette.oneByOne")}
-              </Button>
-            )}
-          </div>
-          <Counter counts={counts} />
-          <Help />
-          <div className="flex flex-wrap items-center gap-2">
-            {phaseId && <Chip label={`✕ ${phaseName ?? t("recette.filter.phase")}`} active onClick={() => setParam("phase", null)} />}
-            <Chip label={t("recette.filter.todo")} active={!everything && !asideOnly} onClick={() => (setEverything(false), setAsideOnly(false))} />
-            <Chip label={t("recette.filter.all")} active={everything && !asideOnly} onClick={() => (setEverything(true), setAsideOnly(false))} />
-            {(asideCount > 0 || asideOnly) && <Chip label={t("recette.filter.aside", { count: asideCount })} active={asideOnly} onClick={() => setAsideOnly(!asideOnly)} />}
-            {(hasShared || mineOnly) && <Chip label={t("people.toMe")} active={mineOnly} onClick={() => setMineOnly(!mineOnly)} />}
-            {(hasBusiness || sort) && (
-              <>
-                <span className="mx-1 h-5 w-px bg-border" />
-                <Chip label={t("filter.code")} active={sort === "code"} onClick={() => pickSort(sort === "code" ? null : "code")} />
-                <Chip label={t("filter.business")} active={sort === "business"} onClick={() => pickSort(sort === "business" ? null : "business")} />
-              </>
-            )}
-            <span className="mx-1 h-5 w-px bg-border" />
-            <Chip label={t("recette.group.timeline")} active={grouping === "timeline"} onClick={() => pickGrouping("timeline")} />
-            <Chip label={t("recette.group.usage")} active={grouping === "usage"} onClick={() => pickGrouping("usage")} />
-            <Chip label={t("recette.group.delivery")} active={grouping === "delivery"} onClick={() => pickGrouping("delivery")} />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">{t("recette.search")}</span>
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("recette.search")}
-                className={cn("h-10 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-sm", FOCUS)}
-              />
-            </label>
-            {gallery.length > 0 && (
-              <button
-                type="button"
-                onClick={() => openLightbox(gallery, 0)}
-                className={cn("inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold hover:bg-muted/60", FOCUS, MOTION)}
-              >
-                <Images className="size-4" />
-                {t("recette.gallery", { count: gallery.length })}
-              </button>
-            )}
-          </div>
+            <Counter counts={counts} />
+            <Help />
+            <div className="flex flex-wrap items-center gap-2">
+              {phaseId && <Chip label={`✕ ${phaseName ?? t("recette.filter.phase")}`} active onClick={() => setParam("phase", null)} />}
+              <Chip label={t("recette.filter.todo")} active={!everything && !asideOnly} onClick={() => (setEverything(false), setAsideOnly(false))} />
+              <Chip label={t("recette.filter.all")} active={everything && !asideOnly} onClick={() => (setEverything(true), setAsideOnly(false))} />
+              {(asideCount > 0 || asideOnly) && <Chip label={t("recette.filter.aside", { count: asideCount })} active={asideOnly} onClick={() => setAsideOnly(!asideOnly)} />}
+              {(hasShared || mineOnly) && <Chip label={t("people.toMe")} active={mineOnly} onClick={() => setMineOnly(!mineOnly)} />}
+              {(hasBusiness || sort) && (
+                <>
+                  <span className="mx-1 h-5 w-px bg-border" />
+                  <Chip label={t("filter.code")} active={sort === "code"} onClick={() => pickSort(sort === "code" ? null : "code")} />
+                  <Chip label={t("filter.business")} active={sort === "business"} onClick={() => pickSort(sort === "business" ? null : "business")} />
+                </>
+              )}
+              <span className="mx-1 h-5 w-px bg-border" />
+              <Chip label={t("recette.group.timeline")} active={grouping === "timeline"} onClick={() => pickGrouping("timeline")} />
+              <Chip label={t("recette.group.usage")} active={grouping === "usage"} onClick={() => pickGrouping("usage")} />
+              <Chip label={t("recette.group.delivery")} active={grouping === "delivery"} onClick={() => pickGrouping("delivery")} />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">{t("recette.search")}</span>
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t("recette.search")}
+                  className={cn("h-10 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-sm", FOCUS)}
+                />
+              </label>
+              {gallery.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => openLightbox(gallery, 0)}
+                  className={cn("inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold hover:bg-muted/60", FOCUS, MOTION)}
+                >
+                  <Images className="size-4" />
+                  {t("recette.gallery", { count: gallery.length })}
+                </button>
+              )}
+            </div>
 
-          {shown.length === 0 ? (
-            <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t(counts.todo + counts.ko + counts.ok ? "recette.emptyFiltered" : "recette.empty")}</p>
-          ) : grouping === "timeline" ? (
-            <Timeline entries={flat} render={entry} />
-          ) : grouping === "usage" ? (
-            shown.map((g) => (
-              <section key={g.usage ?? ""} className="flex flex-col gap-2.5">
-                <div className="mx-1 mt-1 flex flex-wrap items-center gap-2">
-                  <SectionLabel>{g.usage ?? t("recette.otherUse")}</SectionLabel>
-                  <StatePills entries={g.entries} />
-                </div>
-                <div className="flex flex-col gap-2">{g.entries.map(entry)}</div>
-              </section>
-            ))
-          ) : (
-            // Phase › lot (its PR, its merge) › entries, the newest merge on top.
-            byDelivery(flat).map((p) => (
-              <section key={p.phase ?? ""} className="flex flex-col gap-2.5">
-                <div className="mx-1 mt-2 flex flex-wrap items-center gap-2">
-                  <SectionLabel>{p.phase ?? t("recette.noPhase")}</SectionLabel>
-                  <StatePills entries={p.lots.flatMap((l) => l.entries)} />
-                </div>
-                {p.lots.map((l) => (
-                  <div key={l.runId ?? l.lot ?? ""} className="flex flex-col gap-2 pl-3">
-                    <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">{l.lot ?? t("recette.noLot")}</span>
-                      {l.prUrl && <PrLink url={l.prUrl} />}
-                      <span>{t("recette.merged", { ago: ago(l.at) })}</span>
-                    </h3>
-                    {l.entries.map(entry)}
+            {shown.length === 0 ? (
+              <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t(counts.todo + counts.ko + counts.ok ? "recette.emptyFiltered" : "recette.empty")}</p>
+            ) : grouping === "timeline" ? (
+              <Timeline entries={flat} render={entry} />
+            ) : grouping === "usage" ? (
+              shown.map((g) => (
+                <section key={g.usage ?? ""} className="flex flex-col gap-2.5">
+                  <div className="mx-1 mt-1 flex flex-wrap items-center gap-2">
+                    <SectionLabel>{g.usage ?? t("recette.otherUse")}</SectionLabel>
+                    <StatePills entries={g.entries} />
                   </div>
-                ))}
-              </section>
-            ))
-          )}
-        </div>
-      </main>
-      {session && (
-        <RecetteSession
-          entries={toCheck}
-          device={session}
-          stepKey={params.get("step")}
-          onDevice={(d: SessionDevice) => setParams((p) => (p.set("session", d), p.delete("step"), p), { replace: true })}
-          onStep={(k) => setParam("step", k)}
-          onQuit={() => setParams((p) => (p.delete("session"), p.delete("step"), p), { replace: true })}
-          onChange={refresh}
-        />
-      )}
-    </div>
+                  <div className="flex flex-col gap-2">{g.entries.map(entry)}</div>
+                </section>
+              ))
+            ) : (
+              // Phase › lot (its PR, its merge) › entries, the newest merge on top.
+              byDelivery(flat).map((p) => (
+                <section key={p.phase ?? ""} className="flex flex-col gap-2.5">
+                  <div className="mx-1 mt-2 flex flex-wrap items-center gap-2">
+                    <SectionLabel>{p.phase ?? t("recette.noPhase")}</SectionLabel>
+                    <StatePills entries={p.lots.flatMap((l) => l.entries)} />
+                  </div>
+                  {p.lots.map((l) => (
+                    <div key={l.runId ?? l.lot ?? ""} className="flex flex-col gap-2 pl-3">
+                      <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">{l.lot ?? t("recette.noLot")}</span>
+                        {l.prUrl && <PrLink url={l.prUrl} />}
+                        <span>{t("recette.merged", { ago: ago(l.at) })}</span>
+                      </h3>
+                      {l.entries.map(entry)}
+                    </div>
+                  ))}
+                </section>
+              ))
+            )}
+          </div>
+        </main>
+        {session && (
+          <RecetteSession
+            entries={toCheck}
+            device={session}
+            stepKey={params.get("step")}
+            onDevice={(d: SessionDevice) => setParams((p) => (p.set("session", d), p.delete("step"), p), { replace: true })}
+            onStep={(k) => setParam("step", k)}
+            onQuit={() => setParams((p) => (p.delete("session"), p.delete("step"), p), { replace: true })}
+            onChange={refresh}
+          />
+        )}
+      </div>
+    </StableRouteContext>
   );
 }
 
@@ -341,4 +344,15 @@ export function RecetteChip({ repo }: { repo: string | null }) {
       {t("recette.chip", { count: n })}
     </Link>
   );
+}
+
+/**
+ * React Router hands the route a new RouteContext object on every poll tick, and every <Link> reads it:
+ * even inside a memoised entry they all re-rendered (audit perf P8). Same matched paths, same object.
+ */
+function StableRouteContext({ children }: { children: React.ReactNode }) {
+  const ctx = useContext(UNSAFE_RouteContext);
+  const paths = ctx.matches.map((m) => m.pathname).join("\n");
+  const stable = useMemo(() => ctx, [paths]); // keyed on the matched paths, not the object
+  return <UNSAFE_RouteContext.Provider value={stable}>{children}</UNSAFE_RouteContext.Provider>;
 }
