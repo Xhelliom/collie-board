@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794929614173.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Mise à jour : sans revérification, et l étape affichée","status":"backlog"},"ts":1794929603479}}
 {"v":1,"hlc":"1794929614176.0006.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"84f08030-751f-4002-b31f-82eea183085a"}}
 {"v":1,"hlc":"1794937598557.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794937617582.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/mise-a-jour-sans-reverification-et-l-etape-affic"}}
+{"v":1,"hlc":"1794937617583.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794937617583.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794937602504}}
+{"v":1,"hlc":"1794937617583.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794937617583.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794937608136}}
+{"v":1,"hlc":"1794937617583.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2485},"ts":1794937608448}}
