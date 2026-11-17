@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.350.0] - 2026-11-17
+
+### Added
+
+- La carte dont la vérification (gate) attend celle d'une autre dit « vérification en attente ». (794ff1f)
+
+### Changed
+
+- Un gate tourne en priorité basse (nice 19 sous Linux/macOS, classe IDLE sous Windows), un seul à la fois par machine. (794ff1f)
+
 ## [0.349.0] - 2026-11-17
 
 ### Changed
