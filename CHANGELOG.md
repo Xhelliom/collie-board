@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.351.2] - 2026-11-17
+
+### Fixed
+
+- Documents, page Projet et onglets de pages ne lancent plus ≈ 80 `git` par appel (≈ 300 ms de boucle bloquée) : la branche par défaut n'est résolue que pour « Nouvelle carte » (`/api/repos?branches=1`) (df1410e)
+
 ## [0.351.1] - 2026-11-17
 
 ### Changed
