@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { OutboundPeer } from "./pairing.ts";
 import { handleHerdRoute, herdOf, PeerHerd, READ_EVERY_MS, type HerdRouteDeps } from "./peer-herd.ts";
+import { conditionalJson } from "./http-cache.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const DEV: OutboundPeer = { name: "dev", url: "https://dev.example.ts.net", token: "t".repeat(43), pairedAt: "" };
@@ -169,6 +170,25 @@ describe("handleHerdRoute", () => {
     return { d, audited };
   }
   const post = (path: string, body: unknown) => new Request(`http://x${path}`, { method: "POST", body: JSON.stringify(body) });
+
+  it("GET /api/herd answers 304 while only the read clock moved, 200 once a peer changed", async () => {
+    let peer = { peer: "dev", state: "connected", error: null, agents: [], shellPanes: [], pair: null, at: 1, engine: null };
+    const route = (etag?: string | null) => {
+      const req = new Request("http://x/api/herd", etag ? { headers: { "if-none-match": etag } } : {});
+      const { d } = deps(fakeFetch(() => new Error("unused")).fetch, {
+        herd: { view: () => [peer] } as never,
+        json: (data, status, tag) => (status ? Response.json(data, { status }) : conditionalJson(data, req, tag)),
+      });
+      return handleHerdRoute("/api/herd", req, d);
+    };
+    const etag = (await route())!.headers.get("etag");
+    peer = { ...peer, at: 2 };
+    expect((await route(etag))!.status).toBe(304);
+    peer = { ...peer, state: "unreachable" };
+    const res = (await route(etag))!;
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { peers: { state: string }[] }).peers[0]!.state).toBe("unreachable");
+  });
 
   it("relays a pane read to the peer, token in the header and never in the answer", async () => {
     const { fetch, seen } = fakeFetch(() => Response.json({ paneId: "w1:p1", lines: ["hi"] }));

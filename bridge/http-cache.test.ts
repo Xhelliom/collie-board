@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { computeEtag, gzipJsonResponse, notModified } from "./http-cache.ts";
+import { computeEtag, conditionalJson, gzipJsonResponse, notModified } from "./http-cache.ts";
 
 // All three helpers are pure (no I/O), so we drive them directly.
 
@@ -107,5 +107,18 @@ describe("gzipJsonResponse", () => {
     const res = gzipJsonResponse(data, "gzip", { etag });
     expect(res.headers.get("content-encoding")).toBe("gzip");
     expect(res.headers.get("etag")).toBe(etag);
+  });
+});
+
+describe("conditionalJson with a tag source", () => {
+  const get = (etag?: string | null) => new Request("http://x/", etag ? { headers: { "if-none-match": etag } } : {});
+  test("a clock left out of the tag still gets a 304; a real change gets a 200", async () => {
+    const first = conditionalJson({ n: 1, ts: 1 }, get(), { n: 1 });
+    const etag = first.headers.get("etag");
+    expect(await first.json()).toEqual({ n: 1, ts: 1 });
+    expect(conditionalJson({ n: 1, ts: 2 }, get(etag), { n: 1 }).status).toBe(304);
+    const changed = conditionalJson({ n: 2, ts: 3 }, get(etag), { n: 2 });
+    expect(changed.status).toBe(200);
+    expect(await changed.json()).toEqual({ n: 2, ts: 3 });
   });
 });

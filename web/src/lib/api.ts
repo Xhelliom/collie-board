@@ -163,7 +163,8 @@ export async function fetchSnapshot(
   session?: string,
   signal?: AbortSignal,
 ): Promise<SnapshotResponse> {
-  const snap = await req<SnapshotResponse>(withSession("/api/snapshot", session), { signal });
+  // Conditional: polled on every screen, and an unchanged herd is most ticks (audit P11).
+  const snap = await conditionalGet<SnapshotResponse>(withSession("/api/snapshot", session), signal);
   // A snapshot whose herd link is UP is a provably-live moment — stamp the shared connection-health
   // anchor so escalation is measured from here. A snapshot that 200s but reports `bridge:
   // "disconnected"` is NOT live (the pill/banner still escalate on it), so it must NOT reset the
@@ -274,6 +275,7 @@ export async function conditionalGet<T>(url: string, signal?: AbortSignal): Prom
     signal: withTimeout(signal, GET_TIMEOUT_MS),
     headers: cached ? { "if-none-match": cached.etag } : {},
   });
+  captureBuild(res); // the snapshot's build header rides its 304 too (self-update)
 
   if (res.status === 304 && cached) return cached.body as T;
   // ApiError, not Error: the loaders detect an auth failure with an instanceof check, so a plain

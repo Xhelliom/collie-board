@@ -155,7 +155,8 @@ export interface HerdRouteDeps {
   guard: (level: "read" | "write") => Response | null;
   device: () => string | null;
   audit: (action: string, paneId: string, device: string | null, detail: Record<string, unknown>) => void;
-  json: (data: unknown, status?: number) => Response;
+  /** `tag`, when given, is what the GET's ETag is computed from (see `conditionalJson`). */
+  json: (data: unknown, status?: number, tag?: unknown) => Response;
   text: (body: string, status: number) => Response;
 }
 
@@ -166,7 +167,10 @@ export async function handleHerdRoute(pathname: string, req: Request, d: HerdRou
   if (pathname === "/api/herd") {
     const denied = d.guard("read");
     if (denied) return denied;
-    return req.method === "GET" ? d.json({ peers: d.herd.view(), local: d.local() }) : d.text("method not allowed", 405);
+    if (req.method !== "GET") return d.text("method not allowed", 405);
+    const view = { peers: d.herd.view(), local: d.local() };
+    // `at` moves on every read of a peer (each 5 s) even when nothing in its herd did.
+    return d.json(view, undefined, { ...view, peers: view.peers.map(({ at: _at, ...p }) => p) });
   }
   if (!pathname.startsWith("/api/herd/")) return null;
   const m = HERD_PANE_ROUTE.exec(pathname);

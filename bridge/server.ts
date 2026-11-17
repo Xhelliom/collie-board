@@ -264,7 +264,7 @@ export function startServer(opts: {
         guard: (level) => guard(req, cfg, level),
         device: () => deviceAuth(req, cfg).device,
         audit: (action, paneId, device, detail) => audit.record({ action, paneId, device, detail }),
-        json: (data, status) => (status ? secure(Response.json(data, { status })) : json(data, req.headers.get("accept-encoding"))),
+        json: (data, status, tag) => (status ? secure(Response.json(data, { status })) : secure(conditionalJson(data, req, tag))),
         text,
       });
       if (herdRes) return herdRes;
@@ -326,8 +326,7 @@ export function startServer(opts: {
         const agentViews = withCardFields(agents, openSessions, board);
         // Tag every snapshot poll with the on-disk build id so an open client notices a live rebuild
         // between polls — the no-service-worker self-update path (web/src/lib/self-update.ts).
-        return withBuildHeader(
-          json({
+        const snap = {
             bridge,
             // Only report device state when the feature is on, so an off deployment sends nothing new.
             ...(device.enforced ? { device } : {}),
@@ -345,8 +344,11 @@ export function startServer(opts: {
             leadPaneId: rt.isPrimary ? leadPaneId() : null,
             notifications: { snoozedUntil: snooze.until(), count: notifyLog.count() },
             update: { ...updateMonitor.status(), restartCommand: ctlCommand("restart", localEngine()) },
-            ts: Date.now(),
-          } satisfies SnapshotResponse, req.headers.get("accept-encoding")),
+          };
+        // Polled on every screen: an unchanged herd costs a 304. `ts` stays out of the tag, or no poll
+        // would ever match; the 304 carries the build header too (withBuildHeader), so self-update holds.
+        return withBuildHeader(
+          secure(conditionalJson({ ...snap, ts: Date.now() } satisfies SnapshotResponse, req, snap)),
           await buildId(),
         );
       }
