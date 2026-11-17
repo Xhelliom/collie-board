@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794949222504.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"b96b69a0-dc99-41f9-8e15-3e99b1696f8e"}}
 {"v":1,"hlc":"1794949222504.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"L orchestrateur est prévenu tout de suite des gestes qui l engagent","status":"backlog"},"ts":1794949221004}}
 {"v":1,"hlc":"1794949222505.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"4ef15013-ef61-49ad-8f0f-07021c043d12"}}
+{"v":1,"hlc":"1794950793442.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
