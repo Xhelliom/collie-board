@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.347.6] - 2026-11-17
+
+### Changed
+
+- Page Projet : chaque lot est un cadre à la couleur de son état (bleu en cours, orange prévu, vert fini) qui contient ses cartes, avec le mot « Lot » devant son nom (298c6ef)
+
 ## [0.347.5] - 2026-11-17
 
 ### Fixed
