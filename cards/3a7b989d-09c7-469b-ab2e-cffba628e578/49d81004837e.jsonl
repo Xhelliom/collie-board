@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794934492517.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"cc874e21-f8c1-4bf3-81c4-61061694cc97"}}
 {"v":1,"hlc":"1794934492518.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"0976fae8-a37c-4095-82d4-93203d3fab13"}}
 {"v":1,"hlc":"1794936219060.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794936229811.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/un-lot-lance-dans-une-phase-validee-reste-visibl"}}
+{"v":1,"hlc":"1794936229812.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794936229812.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794936222062}}
+{"v":1,"hlc":"1794936229812.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794936229812.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794936228177}}
+{"v":1,"hlc":"1794936229812.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2752},"ts":1794936228541}}
