@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { CardView, Phase } from "@/lib/board";
-import { projectOf, proposeMilestoneName } from "@/lib/project";
+import type { CardView, Lot, Phase } from "@/lib/board";
+import { currentPhases, projectOf, proposeMilestoneName } from "@/lib/project";
 
 let n = 0;
 const card = (o: Partial<CardView> & { id: string }): CardView =>
@@ -127,6 +127,27 @@ describe("projectOf: milestones (ADR 0025)", () => {
     expect(v.total).toBe(1);
     expect(v.awaiting.map((s) => s.id)).toEqual(["stray"]);
     expect(v.phases.at(-1)!.steps.map((s) => s.id)).toEqual(["stray"]);
+  });
+
+  it("a launched lot left unfinished in a validated phase keeps that phase on top, still validated", () => {
+    const lot = { id: "L", repoPath: "/r", phaseId: "v1", name: "Confort", position: 0, launchedAt: 500, cardIds: ["x", "y"] } as Lot;
+    const v = projectOf(
+      [
+        card({ id: "d", phaseId: "v1", status: "done" }),
+        card({ id: "x", phaseId: "v1", status: "review", runId: "L" }),
+        card({ id: "y", phaseId: "v1", status: "done", runId: "L" }),
+        card({ id: "o", phaseId: "p2", status: "ready" }),
+      ],
+      [ph("v1", 0, 1000), ph("p2", 1)],
+      [lot, { id: "old", repoPath: "/r", phaseId: "v1", name: "fini", position: 1, launchedAt: 1, cardIds: ["d"] } as Lot],
+    );
+    const live = v.phases.find((p) => p.key === "v1")!;
+    expect(live.phase!.closedAt).toBe(1000);
+    expect(live.lots.map((pl) => [pl.lot.id, pl.cards.map((c) => c.id)])).toEqual([["L", ["x", "y"]]]);
+    expect(live.steps.map((s) => s.id)).toEqual(["x"]);
+    expect(v.phases.some((p) => p.key === "loose")).toBe(false);
+    expect(v.closed[0]!.steps.map((s) => s.id)).toEqual(["d", "y"]);
+    expect(currentPhases(v.phases, new Set(["L"])).map((p) => p.key)).toEqual(["v1"]);
   });
 
   it("everything validated: nothing in progress, but what was delivered is kept", () => {

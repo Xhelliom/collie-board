@@ -95,11 +95,17 @@ export function projectOf(cards: CardView[], phaseRows: Phase[] = [], lotRows: L
     // A validated phase holds what was DELIVERED. An open step that got filed there afterwards is still
     // work in progress — it must not vanish from the figures or from "waiting for you".
     const frozen = (s: CardView) => !!s.phaseId && shutIds.has(s.phaseId) && s.status === "done";
-    const build = (p: Phase) =>
-      section(p.id, p.name, p.goal, p, null, steps.filter((s) => s.phaseId === p.id && (p.closedAt == null || frozen(s))));
-    phases = sorted.filter((p) => p.closedAt == null).map(build);
-    closed = sorted.filter((p) => p.closedAt != null).sort((a, b) => a.closedAt! - b.closedAt!).map(build);
-    const loose = steps.filter((s) => !frozen(s) && (!s.phaseId || !known.has(s.phaseId) || shutIds.has(s.phaseId)));
+    // A validated phase still holding a lot with cards left stays in progress for that lot — on the page
+    // only: its closedAt is untouched, its delivered steps stay in `closed`.
+    const unfinishedLot = (l: Lot) => l.cardIds.some((id) => { const c = byId.get(id); return !!c && c.status !== "done"; });
+    const stillRuns = new Set(lotRows.filter((l) => l.phaseId && shutIds.has(l.phaseId) && unfinishedLot(l)).map((l) => l.phaseId!));
+    const build = (open: boolean) => (p: Phase) => {
+      const sec = section(p.id, p.name, p.goal, p, null, steps.filter((s) => s.phaseId === p.id && frozen(s) !== open));
+      return open && p.closedAt != null ? { ...sec, lots: sec.lots.filter((pl) => unfinishedLot(pl.lot)) } : sec;
+    };
+    phases = sorted.filter((p) => p.closedAt == null || stillRuns.has(p.id)).map(build(true));
+    closed = sorted.filter((p) => p.closedAt != null).sort((a, b) => a.closedAt! - b.closedAt!).map(build(false));
+    const loose = steps.filter((s) => !frozen(s) && (!s.phaseId || !known.has(s.phaseId) || (shutIds.has(s.phaseId) && !stillRuns.has(s.phaseId))));
     // What no phase has taken keeps the shape it had: a dictation's steps stay a section of their own, so an
     // old project can be validated one dictation at a time, not only as one lump.
     const dictations = live.filter((c) => parents.has(c.id)).sort(byPosition);
