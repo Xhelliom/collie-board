@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794929614174.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Recette : ne plus tout redessiner à chaque rafraîchissement","status":"backlog"},"ts":1794929603529}}
 {"v":1,"hlc":"1794929614177.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e3700f11-dbe4-4a51-a59f-318f18dcbc88"}}
 {"v":1,"hlc":"1794944113506.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794944123625.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/recette-ne-plus-tout-redessiner-a-chaque-rafraic"}}
+{"v":1,"hlc":"1794944123625.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794944123626.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794944117264}}
+{"v":1,"hlc":"1794944123626.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794944123626.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794944123248}}
+{"v":1,"hlc":"1794944123626.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2333},"ts":1794944123557}}
