@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 
-import { useLoadingStalled } from "./use-loading-stalled";
+import { NAV_STALL_MS, useLoadingStalled } from "./use-loading-stalled";
 
 // Drive useRevalidator/useNavigation directly (hoisted so the vi.mock factory can close over the
 // holder), so we can pin each into "loading"/"idle" without a real router.
@@ -42,12 +42,19 @@ describe("useLoadingStalled", () => {
     expect(result.current).toBe(true);
   });
 
-  it("also trips on a navigation-only stall (revalidator idle)", () => {
-    // A pane-open tap is a router navigation that waits on the loader — this is the case that used
-    // to look completely dead when black-holed.
+  it("a slow navigation is not a lost connection (audit perf 2026-11 §1.1)", () => {
+    // A page change waiting 3s behind a busy bridge used to gallop the dog as "reconnecting".
     h.nav = "loading";
     const { result } = renderHook(() => useLoadingStalled(THRESHOLD));
-    act(() => vi.advanceTimersByTime(THRESHOLD));
+    act(() => vi.advanceTimersByTime(NAV_STALL_MS - 1));
+    expect(result.current).toBe(false);
+  });
+
+  it("still trips on a hung navigation (revalidator idle)", () => {
+    // A black-holed pane-open tap must not look completely dead until the loader's own timeout.
+    h.nav = "loading";
+    const { result } = renderHook(() => useLoadingStalled(THRESHOLD));
+    act(() => vi.advanceTimersByTime(NAV_STALL_MS));
     expect(result.current).toBe(true);
   });
 
