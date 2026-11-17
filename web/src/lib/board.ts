@@ -1583,10 +1583,10 @@ export interface Roadmap {
 
 /** No repo: every repo's phases in one request. */
 export const fetchPhases = (repo: string | undefined, signal?: AbortSignal): Promise<{ phases: Phase[] }> =>
-  apiRequest(repo ? `/api/phases?repo=${encodeURIComponent(repo)}` : "/api/phases", { signal });
+  conditionalGet(repo ? `/api/phases?repo=${encodeURIComponent(repo)}` : "/api/phases", signal);
 /** No repo: every repo's lots in one request. */
 export const fetchLots = (repo: string | undefined, signal?: AbortSignal): Promise<{ runs: Lot[] }> =>
-  apiRequest(repo ? `/api/runs?repo=${encodeURIComponent(repo)}` : "/api/runs", { signal });
+  conditionalGet(repo ? `/api/runs?repo=${encodeURIComponent(repo)}` : "/api/runs", signal);
 /** Null `roadmap`: nothing written yet for this repo. */
 export const fetchRoadmap = (repo: string, signal?: AbortSignal): Promise<{ roadmap: Roadmap | null }> =>
   apiRequest(`/api/roadmap?repo=${encodeURIComponent(repo)}`, { signal });

@@ -1346,6 +1346,8 @@ CREATE TABLE IF NOT EXISTS event (
 CREATE INDEX IF NOT EXISTS event_card_idx ON event(card_id, ts);
 -- listPrEvents reads each card's newest card.pr_opened every tick.
 CREATE INDEX IF NOT EXISTS event_type_idx ON event(type, card_id);
+-- runFinishedAt's fallback for the lots finished before run.finished_at existed (no backfill, ADR 0048 §7).
+CREATE INDEX IF NOT EXISTS event_run_finished_idx ON event(json_extract(payload, '$.runId')) WHERE type = 'run.finished';
 
 -- The ONLY thing stored about a repository, and deliberately so.
 --
@@ -1942,6 +1944,8 @@ export class BoardDb {
       if (cols.some((c) => c.name === column)) continue;
       this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
     }
+    // Here, not in SCHEMA: an old card table only has run_id once the loop above added it. runMembers per lot.
+    this.db.exec("CREATE INDEX IF NOT EXISTS card_run_idx ON card(run_id)");
     // The Claude-only default (model, effort) becomes Claude's entry in `models`; idempotent, the old columns end NULL.
     this.db.exec(
       `UPDATE repo_pref SET models = json_set(COALESCE(models, '{}'), '$.claude', json_object('provider', NULL, 'model', model, 'effort', effort)), model = NULL, effort = NULL
@@ -2506,13 +2510,13 @@ export class BoardDb {
     return { start: at("start")?.percent ?? null, end: at("end")?.percent ?? null, tokens: at("end")?.tokens ?? null };
   }
 
-  /** When this run finished: the local `run.finished` event's ts, else the shared `finished_at` another pair pushed. */
+  /** When this run finished: its `finished_at` (written with the `run.finished` event, or pushed by another pair), else the event's ts. */
   runFinishedAt(id: string): number | null {
     return (
       this.db
         .query<{ ts: number | null }, [string]>(
-          `SELECT COALESCE((SELECT MIN(ts) FROM event WHERE type = 'run.finished' AND json_extract(payload, '$.runId') = ?1),
-                           (SELECT finished_at FROM run WHERE id = ?1)) AS ts`,
+          `SELECT COALESCE((SELECT finished_at FROM run WHERE id = ?1),
+                           (SELECT MIN(ts) FROM event WHERE type = 'run.finished' AND json_extract(payload, '$.runId') = ?1)) AS ts`,
         )
         .get(id)?.ts ?? null
     );
