@@ -101,6 +101,8 @@ const audit = new AuditLog(fileAuditAppender(join(cfg.stateDir, "audit.log")));
 const board = new BoardDb(join(cfg.stateDir, "board.db"));
 // Cards filed before every card had a base get their repo's default once (git.ts). Idempotent.
 void backfillBaseRefs(board).catch(() => {});
+// Lots planned with a phase before their cards were filed in it (Projet counted 0 sur 0). Idempotent.
+board.repairLotPhases();
 
 // Per-agent divergence, resolved once at boot: shipped adapters/agents.toml, then the operator's.
 const adapters = loadAdapters(cfg.adapterPaths);

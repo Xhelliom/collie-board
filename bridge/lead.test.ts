@@ -213,6 +213,8 @@ describe("the lead is silent only when a typed request ran out its deadline", ()
         const rel = readFileSync(join(dir, /Read (\S+\.md)/.exec(opts.text)![1]!), "utf8").match(/\.board\/out\/\w+\.json/)![0];
         const body = reply(++n);
         if (body !== null) writeFileSync(join(dir, rel), body);
+        // The submission confirmed, as hc says it: no real 1.5 s settle per request, which a loaded gate ran past 5 s.
+        return true;
       },
       async sendPaneKeys() {},
     };
