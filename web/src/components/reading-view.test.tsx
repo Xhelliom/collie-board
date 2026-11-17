@@ -101,6 +101,14 @@ describe("ReadingView", () => {
     vi.restoreAllMocks();
   });
 
+  // A slot that came and went with the pin resized the scroller and made the pin flicker on a phone.
+  it("keeps the pin's slot in place while no prompt is pinned", async () => {
+    const { container } = render(<ReadingView {...props} />);
+    await screen.findByText("One commit: abc1234.");
+    expect(container.querySelector("[data-slot=prompt-pin]")).toBeNull();
+    expect(container.querySelector("[data-slot=prompt-pin-slot]")).toBeInTheDocument();
+  });
+
   it("renders the transcript's prose (the default MSW history fixture)", async () => {
     render(<ReadingView {...props} />);
     expect(await screen.findByText("One commit: abc1234.")).toBeInTheDocument();

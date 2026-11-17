@@ -231,13 +231,15 @@ export function ReadingView({
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       {/* Phone: in the flow, above the scroller — laid over it, it hid the answer scrolling under it.
-          The scroller moves down with its rows, so the turn at its top edge (and the pin) holds.
-          Desktop keeps its overlay as it was (lg:absolute). */}
-      {pin && (
-        <div className="mx-auto w-full max-w-[784px] shrink-0 px-3 pt-1 lg:pointer-events-none lg:absolute lg:inset-x-0 lg:top-0 lg:z-10">
-          <PromptPin pin={pin} onTap={backToPrompt} />
-        </div>
-      )}
+          Its slot is ALWAYS there, even empty: a slot that came and went resized the scroller, which
+          moved the rows, which moved the turn at the edge, which toggled the pin — it shook.
+          Desktop keeps its overlay as it was (lg:absolute, out of the flow). */}
+      <div
+        data-slot="prompt-pin-slot"
+        className="mx-auto h-15 w-full max-w-[784px] shrink-0 px-3 pt-1 lg:pointer-events-none lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:h-auto"
+      >
+        {pin && <PromptPin pin={pin} onTap={backToPrompt} />}
+      </div>
       <div className="relative min-h-0 min-w-0 flex-1">
         <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">
           {/* A reading column (~80 characters), centred: a full-width line on a wide screen is unreadable. */}
