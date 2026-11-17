@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.350.3] - 2026-11-17
+
+### Changed
+
+- Chaque écran se charge à la demande : le bundle d'entrée passe de 1 448 à 349 Ko (108 Ko gzip) (2beaa4c)
+- Le build échoue si le bundle d'entrée dépasse 450 Ko (2beaa4c)
+
 ## [0.350.2] - 2026-11-17
 
 ### Changed
