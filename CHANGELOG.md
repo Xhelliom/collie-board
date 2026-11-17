@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.350.2] - 2026-11-17
+
+### Changed
+
+- Page Projet : un lot n'est plus un cadre dans la carte de phase — une ligne d'en-tête, ses cartes en retrait, un filet entre les lots (cb3903a)
+- Plus de liseré latéral : fiches de la Recette, vérification de À propos, encadré du terminal (cb3903a)
+- Conversation : « où est ce terminal » passe dans le menu « ⋯ », point orange sur « ⋯ » quand herdr-app ne le voit pas (cb3903a)
+
 ## [0.350.1] - 2026-11-17
 
 ### Fixed
