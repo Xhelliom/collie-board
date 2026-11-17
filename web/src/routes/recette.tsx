@@ -189,7 +189,7 @@ export function RecetteRoute() {
                   <StatePills entries={p.lots.flatMap((l) => l.entries)} />
                 </div>
                 {p.lots.map((l) => (
-                  <div key={l.runId ?? l.lot ?? ""} className="flex flex-col gap-2 border-l-2 border-border pl-3">
+                  <div key={l.runId ?? l.lot ?? ""} className="flex flex-col gap-2 pl-3">
                     <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">{l.lot ?? t("recette.noLot")}</span>
                       {l.prUrl && <PrLink url={l.prUrl} />}

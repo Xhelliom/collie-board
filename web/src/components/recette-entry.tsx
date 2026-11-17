@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 // and the verdict. Shared with the one-by-one session (recette-session.tsx).
 
 export const STATE_TONE = { todo: "bg-brand", ok: "bg-status-done", ko: "bg-destructive" } as const;
-const STATE_EDGE = { todo: "border-l-brand", ok: "border-l-status-done", ko: "border-l-destructive" } as const;
+const STATE_EDGE = { todo: "border-brand/40", ok: "border-status-done/40", ko: "border-destructive/40" } as const;
 export const FOCUS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 export const MOTION = "transition-colors duration-150 motion-reduce:transition-none";
 
@@ -292,7 +292,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
 
   if (!unfolded) {
     return (
-      <article className={cn("flex min-w-0 items-center gap-3 rounded-sm border border-l-4 bg-card p-2.5", STATE_EDGE[e.state], validated && "bg-status-done/5")}>
+      <article className={cn("flex min-w-0 items-center gap-3 rounded-xl border bg-card p-2.5", STATE_EDGE[e.state], validated && "bg-status-done/5")}>
         <button
           type="button"
           tabIndex={-1}
@@ -321,7 +321,7 @@ export function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry
   }
 
   return (
-    <article className={cn("flex min-w-0 flex-col overflow-hidden rounded-sm border border-l-4 bg-card", STATE_EDGE[e.state], e.state === "ko" && "bg-destructive/5")}>
+    <article className={cn("flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card", STATE_EDGE[e.state], e.state === "ko" && "bg-destructive/5")}>
       <div className={cn("flex flex-col", shots.length > 0 && "lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]")}>
         {shots.length > 0 && (
           // What to look at: one capture large, the others as thumbnails — each capture shown once.

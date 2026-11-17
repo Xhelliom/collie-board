@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { setPreference } from "@/i18n";
 import type { AgentView } from "@/lib/types";
-import { PanePlace } from "./pane-place";
+import { PanePlace, placeHidden } from "./pane-place";
 
 const base: AgentView = { paneId: "t3", workspaceId: "hc", workspaceLabel: "hc", workspaceNumber: 1, tabId: "hc", agent: "shell", status: "idle", cwd: "/r/app", focused: false, kind: "shell" };
 
@@ -27,5 +27,12 @@ describe("PanePlace", () => {
   it("a herdr 0.9-only machine: blue, nothing to miss", () => {
     render(<PanePlace agent={{ ...base, workspaceId: "w2", workspaceLabel: "work" }} />);
     expect(screen.getByRole("status")).toHaveAttribute("data-tone", "info");
+  });
+
+  it("the orange dot on « ⋯ »: only a 0.9 pane invisible in herdr-app, never an hc pane nor a peer's", () => {
+    expect(placeHidden({ ...base, workspaceId: "w2", engine: "herdr09" })).toBe(true);
+    expect(placeHidden({ ...base, appPlace: { space: "s", tab: "t" } })).toBe(false);
+    expect(placeHidden({ ...base, workspaceId: "w2" })).toBe(false);
+    expect(placeHidden({ ...base, workspaceId: "w2", engine: "herdr09", peer: "dev" } as AgentView)).toBe(false);
   });
 });

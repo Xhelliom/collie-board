@@ -32,11 +32,11 @@ const DOT: Record<AboutState, string> = {
   down: "bg-destructive",
   off: "bg-status-idle/60",
 };
-const EDGE: Record<AboutState, string> = {
-  ok: "border-l-transparent",
-  todo: "border-l-status-blocked",
-  down: "border-l-destructive",
-  off: "border-l-transparent",
+const TINT: Record<AboutState, string> = {
+  ok: "",
+  todo: "bg-status-blocked/5",
+  down: "bg-destructive/5",
+  off: "",
 };
 
 export function AboutControl() {
@@ -77,7 +77,7 @@ export function AboutControl() {
           {rows.map((r) => {
             const fix = (r.state === "todo" || r.state === "down") && r.key !== "updating" && (`about.${r.id}.${r.key}.fix` as MessageKey);
             return (
-              <li key={r.id} className={cn("flex gap-3 border-l-[3px] px-4 py-3", EDGE[r.state])}>
+              <li key={r.id} className={cn("flex gap-3 px-4 py-3", TINT[r.state])}>
                 <span aria-hidden className={cn("mt-1.5 size-2.5 shrink-0 rounded-full", DOT[r.state])} />
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-baseline justify-between gap-2">
