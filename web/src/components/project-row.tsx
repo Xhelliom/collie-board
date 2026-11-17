@@ -27,7 +27,7 @@ export function CardRow({ card, hold = null, note }: { card: CardView; hold?: Lo
       <StatusSignal status={cardSignal(card.status)} decorative />
       {/* Never cut to a few letters: two lines on a wide screen, whole on a phone with the status under it. */}
       <span className="flex min-w-0 flex-col gap-x-3 sm:flex-row sm:items-center">
-        <Link to={cardPath(card.id)} className="min-w-0 text-sm sm:line-clamp-2 font-medium leading-snug hover:underline sm:flex-1">
+        <Link to={cardPath(card.id)} className="min-w-0 text-sm sm:line-clamp-2 leading-snug hover:underline sm:flex-1">
           {card.title}
         </Link>
         <span className={cn("shrink-0 text-xs sm:max-w-[13rem] sm:text-right", group === "waiting" ? "font-semibold text-status-blocked" : "text-muted-foreground")}>
