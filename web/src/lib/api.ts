@@ -9,6 +9,7 @@ import type {
   ArtifactInfo,
   BridgeConfig,
   CreateResponse,
+  OpenInRepoResponse,
   GalleryDoc,
   GalleryImage,
   GalleryListing,
@@ -418,11 +419,11 @@ export function createWorkspace(
   });
 }
 
-export type OpenInRepo = { open: "terminal" } | { open: "agent"; agentKind?: string | null; templateId?: string | null };
+export type OpenInRepo = { open: "terminal"; space?: string } | { open: "agent"; agentKind?: string | null; templateId?: string | null };
 
 /** Open a terminal, or start an agent, in a repo's folder and outside any card (bridge/open-routes.ts). */
-export function openInRepo(repoPath: string, opts: OpenInRepo): Promise<CreateResponse> {
-  return req<CreateResponse>("/api/project/open", { method: "POST", body: JSON.stringify({ repoPath, ...opts }) });
+export function openInRepo(repoPath: string, opts: OpenInRepo): Promise<OpenInRepoResponse> {
+  return req<OpenInRepoResponse>("/api/project/open", { method: "POST", body: JSON.stringify({ repoPath, ...opts }) });
 }
 
 export function fetchConfig(): Promise<BridgeConfig> {

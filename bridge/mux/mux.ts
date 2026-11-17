@@ -71,6 +71,8 @@ export interface WirePane {
   children?: string[];
   /** The engine this pane lives on — stamped by {@link CompositeMux}, never by an engine itself. */
   engine?: MuxKind;
+  /** hc only: where herdr-app shows it (space name, tab title), read off the labels the board put on it. */
+  app_place?: { space: string; tab: string };
   /**
    * The agent's OWN session identity, as the agent reported it to Herdr (herdr ≥ 0.7.2). For Claude
    * this is `{kind:"id", value:"<uuid>"}` — the uuid naming its on-disk session log, which is how
@@ -163,6 +165,8 @@ export interface WireAgent extends WirePane {
 export interface BoardTab {
   tab: string;
   title: string;
+  /** The herdr-app space to file it in, by name; absent = « Collie Board ». */
+  space?: string;
 }
 
 /** « <dépôt> · <quoi> » — the title every board tab carries. */

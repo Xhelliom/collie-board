@@ -5,7 +5,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { DialHandlers, SockHandle } from "../dial.ts";
 import { MuxUnsupported, type Mux } from "./mux.ts";
-import { decodeHcLine, Hc, hcAgent, hcKey, hcSnapshot, hcStatus, nameAppTabs, shellLine, type HcTerminal } from "./hc.ts";
+import { appSpaceId, decodeHcLine, Hc, hcAgent, hcKey, hcSnapshot, hcStatus, nameAppTabs, shellLine, type HcTerminal } from "./hc.ts";
 import { launchAgent, promptAndConfirm } from "../cards.ts";
 import type { GitRunner } from "../git.ts";
 import { normalizePath } from "../paths.ts";
@@ -214,6 +214,7 @@ describe("hc writes", () => {
       "collie.cwd": "/wt",
       "collie.name": "Carte",
       "herdr.space": "collie-board",
+      "collie.space": "Collie Board",
       "herdr.tab": "collie-c1",
       "collie.tab": "collie-board · Carte",
     });
@@ -222,6 +223,17 @@ describe("hc writes", () => {
     expect(set.version).toBe(4); // compare-and-set against the app's own writes
     expect(set.value.spaces[1]).toMatchObject({ name: "Collie Board", tabs: [{ name: "collie-board · Carte" }, { name: "à moi" }] });
     expect(set.value.spaces[0]).toEqual(doc.spaces[0]!); // the operator's own space is not ours to name
+  });
+
+  it("a typed space gets its own id and name; « Collie Board » or nothing is the board's", () => {
+    expect(appSpaceId("Revue de code")).toBe("collie-revue-de-code");
+    expect(appSpaceId("Équipe")).toBe("collie-equipe");
+    expect(appSpaceId(" collie board ")).toBe("collie-board");
+    expect(appSpaceId(undefined)).toBe("collie-board");
+    expect(appSpaceId("!!")).toBeNull();
+    const doc = { spaces: [{ id: "collie-revue", name: "", tabs: [{ id: "collie-c1", name: "" }] }] };
+    expect(nameAppTabs(doc, new Map([["collie-c1", "app · terminal"]]), "collie-revue", "Revue")).toEqual({ changed: true, pending: false });
+    expect(doc.spaces[0]).toMatchObject({ name: "Revue", tabs: [{ name: "app · terminal" }] });
   });
 
   it("names nothing ahead of the app: a tab it has not adopted yet stays pending", () => {

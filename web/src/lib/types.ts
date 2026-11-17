@@ -22,6 +22,8 @@ export interface AgentView {
   paneLabel?: string;
   /** The engine the pane runs on — present only while the herd mixes herdr 0.9 and hc. */
   engine?: "herdr09" | "hc";
+  /** hc only: the herdr-app space and tab the board filed it in — absent for a terminal it did not start. */
+  appPlace?: { space: string; tab: string };
   /**
    * Claude's OWN session name (set in-agent via `/rename`), derived bridge-side from the pane text.
    * Claude-only; absent for unnamed sessions and non-claude panes. Shown below an explicit `paneLabel`
@@ -345,6 +347,16 @@ export interface CreatedPane {
 
 /** Result of creating a new tab/space — on success `pane` is the fresh shell to navigate into. */
 export type CreateResponse = { ok: true; pane: CreatedPane } | { ok: false; error: string };
+
+/** Where a pane opened from a Project page landed: hc (in herdr-app) or herdr 0.9, and whether `auto` fell back to 0.9. */
+export interface OpenedPlace {
+  engine: "hc" | "herdr09";
+  fallback: boolean;
+  /** hc: herdr-app's space and tab; herdr 0.9: its workspace, no tab. */
+  place: { space: string; tab: string | null };
+}
+
+export type OpenInRepoResponse = ({ ok: true; pane: CreatedPane } & OpenedPlace) | { ok: false; error: string };
 
 export interface BridgeConfig {
   push: boolean;

@@ -55,12 +55,29 @@ const NAME_LABEL = "collie.name";
  * the tab should carry — the app names nothing from a label, the name is written in its document.
  */
 const APP_SPACE = "collie-board";
-const APP_SPACE_NAME = "Collie Board";
+export const APP_SPACE_NAME = "Collie Board";
 const SPACE_LABEL = "herdr.space";
 const TAB_LABEL = "herdr.tab";
 const TITLE_LABEL = "collie.tab";
+/** The space's name as the operator typed it (`BoardTab.space`): what the app is told, and what the board shows. */
+const SPACE_NAME_LABEL = "collie.space";
+
+/** herdr-app's space id for a name: « Collie Board » is the board's own, any other is `collie-<slug>`; null = no letter or digit in it. */
+export function appSpaceId(name?: string | null): string | null {
+  if (!name || name.trim().toLowerCase() === APP_SPACE_NAME.toLowerCase()) return APP_SPACE;
+  const slug = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return slug ? `collie-${slug}` : null;
+}
+
 const appLabels = (show?: BoardTab): Record<string, string> =>
-  show ? { [SPACE_LABEL]: APP_SPACE, [TAB_LABEL]: `collie-${show.tab}`, [TITLE_LABEL]: show.title } : {};
+  show
+    ? {
+        [SPACE_LABEL]: appSpaceId(show.space) ?? APP_SPACE,
+        [SPACE_NAME_LABEL]: show.space?.trim() || APP_SPACE_NAME,
+        [TAB_LABEL]: `collie-${show.tab}`,
+        [TITLE_LABEL]: show.title,
+      }
+    : {};
 
 /** The part of herdr-app's `herdr-app` document this engine names things in; the rest is carried through untouched. */
 export interface AppDoc {
@@ -71,10 +88,15 @@ export interface AppDoc {
  * Name the board's space and its tabs in herdr-app's document, in place. Only what nobody named: a
  * name the operator gave stays. `pending` = a tab the app has not adopted yet (or the app is closed).
  */
-export function nameAppTabs(doc: AppDoc | null, titles: Map<string, string>): { changed: boolean; pending: boolean } {
-  const space = doc?.spaces?.find((s) => s.id === APP_SPACE);
+export function nameAppTabs(
+  doc: AppDoc | null,
+  titles: Map<string, string>,
+  spaceId = APP_SPACE,
+  spaceName = APP_SPACE_NAME,
+): { changed: boolean; pending: boolean } {
+  const space = doc?.spaces?.find((s) => s.id === spaceId);
   let changed = false;
-  if (space && !space.name) (space.name = APP_SPACE_NAME), (changed = true);
+  if (space && !space.name) (space.name = spaceName), (changed = true);
   let pending = false;
   for (const [id, title] of titles) {
     const tab = space?.tabs?.find((t) => t.id === id);
@@ -155,6 +177,9 @@ export function toWirePane(t: HcTerminal): WirePane {
     ...(typeof t.status_ms === "number" ? { status_ms: t.status_ms } : {}),
     label: t.labels?.[NAME_LABEL] || t.name || null,
     revision: t.turn ?? 0,
+    ...(t.labels?.[TITLE_LABEL]
+      ? { app_place: { space: t.labels[SPACE_NAME_LABEL] || APP_SPACE_NAME, tab: t.labels[TITLE_LABEL] } }
+      : {}),
   };
 }
 
@@ -433,7 +458,7 @@ export class Hc implements Mux {
     // writes no transcript; `env` only adds, so force it back (HERDR_CORE_API.md §3, measured).
     const env = { CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: "1" };
     const { address } = await this.request<{ address: string }>("terminal.run", { cwd, labels, env, no_parent: true });
-    if (show) void this.nameTabs();
+    if (show) void this.nameTabs(show.space);
     return address;
   }
 
@@ -442,14 +467,15 @@ export class Hc implements Mux {
    * terminal becomes a second, empty one (measured). The app adopts within a second or two — a few
    * tries, then give up: every later launch names what an earlier one could not (app closed).
    */
-  private async nameTabs(): Promise<void> {
+  private async nameTabs(spaceName?: string): Promise<void> {
+    const spaceId = appSpaceId(spaceName) ?? APP_SPACE;
     for (let i = 0; i < 6; i++) {
       await this.pause(700);
       try {
-        const { terminals } = await this.request<{ terminals: HcTerminal[] }>("terminal.list", { labels: { [SPACE_LABEL]: APP_SPACE } });
+        const { terminals } = await this.request<{ terminals: HcTerminal[] }>("terminal.list", { labels: { [SPACE_LABEL]: spaceId } });
         const titles = new Map(terminals.filter((t) => t.state === "live").map((t) => [t.labels?.[TAB_LABEL] ?? "", t.labels?.[TITLE_LABEL] ?? ""]));
         const doc = await this.request<{ value: AppDoc | null; version: number }>("doc.get", { name: "herdr-app" });
-        const { changed, pending } = nameAppTabs(doc.value, titles);
+        const { changed, pending } = nameAppTabs(doc.value, titles, spaceId, spaceName?.trim() || APP_SPACE_NAME);
         // `version` makes it a compare-and-set: the app writing at the same moment is a conflict, retried.
         if (changed) await this.request("doc.set", { name: "herdr-app", value: doc.value, version: doc.version });
         if (!pending) return;
@@ -516,7 +542,7 @@ export class Hc implements Mux {
     // A shell from before the labels (or before herdr-app): labelling it after the fact files it too (measured).
     if (live && opts.show && !live.labels?.[TAB_LABEL]) {
       await this.request("terminal.label", { terminal: live.address, labels: appLabels(opts.show) }).catch(() => {});
-      void this.nameTabs();
+      void this.nameTabs(opts.show.space);
     }
     return this.worktree(checkout, opts.branch, live?.address ?? (await this.shell(checkout, opts.label, opts.show)), !!live);
   }

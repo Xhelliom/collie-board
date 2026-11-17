@@ -27,6 +27,33 @@ export const project = defineMessages({
   "project.migrateAll.done": { en: "{ok} migrated to herdr-core", fr: "{ok} migré(s) vers herdr-core" },
   "project.migrateAll.refused": { en: "Not migrated:", fr: "Non migrés :" },
   "project.open.readyTerminal": { en: "Terminal ready", fr: "Terminal prêt" },
+  "project.open.terminalSheet": { en: "New terminal in {repo}", fr: "Nouveau terminal dans {repo}" },
+  "project.open.space": { en: "herdr-app space", fr: "Espace herdr-app" },
+  "project.open.spaceHint": {
+    en: "Empty: Collie Board. A name files the terminal in that space, created if needed.",
+    fr: "Vide : Collie Board. Un nom range le terminal dans cet espace, créé au besoin.",
+  },
+  "project.open.spaceOff": {
+    en: "This machine opens on herdr 0.9: the terminal gets its own workspace there, no herdr-app space to pick.",
+    fr: "Cette machine ouvre sous herdr 0.9 : le terminal y a son propre espace, pas d'espace herdr-app à choisir.",
+  },
+  "project.open.spaceFallback": {
+    en: "herdr-core is not answering: the terminal will open in herdr 0.9, invisible in herdr-app.",
+    fr: "herdr-core ne répond pas : le terminal s'ouvrira dans herdr 0.9, invisible dans herdr-app.",
+  },
+  "project.open.openTerminal": { en: "Open the terminal", fr: "Ouvrir le terminal" },
+  "project.open.opening": { en: "Opening…", fr: "Ouverture…" },
+  "project.open.inApp": { en: "Terminal opened in herdr-app", fr: "Terminal ouvert dans herdr-app" },
+  "project.open.inApp.where": { en: "Space « {space} », tab « {tab} ».", fr: "Espace « {space} », onglet « {tab} »." },
+  "project.open.in09": { en: "Terminal opened in herdr 0.9", fr: "Terminal ouvert dans herdr 0.9" },
+  "project.open.in09.where": { en: "Workspace « {space} ».", fr: "Espace « {space} »." },
+  "project.open.fellBack": { en: "Opened in herdr 0.9, not herdr-app", fr: "Ouvert dans herdr 0.9, pas dans herdr-app" },
+  "project.open.fellBack.where": {
+    en: "herdr-core was not answering: opened in herdr 0.9, workspace « {space} » — invisible in herdr-app.",
+    fr: "herdr-core ne répondait pas : ouvert dans herdr 0.9, espace « {space} » — invisible dans herdr-app.",
+  },
+  "project.open.enter": { en: "Open in Collie", fr: "Ouvrir dans Collie" },
+  "project.open.dismiss": { en: "Dismiss", fr: "Fermer" },
   "project.noPhase": { en: "No phase", fr: "Sans phase" },
   "project.fold.figures": { en: "Key figures", fr: "Chiffres clés" },
   "project.fold.loose": {

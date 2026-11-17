@@ -32,6 +32,8 @@ export interface AgentView {
   paneLabel?: string;
   /** The engine the pane runs on (ADR 0052 §4.2) — set only while the herd mixes engines, for the badge. */
   engine?: "herdr09" | "hc";
+  /** hc only: the herdr-app space and tab the board filed it in — absent for a terminal it did not start. */
+  appPlace?: { space: string; tab: string };
   /**
    * Claude's OWN session name, set in-agent via `/rename` and read out of the pane's rendered text
    * (see `extractClaudeSessionName` in state-engine.ts). Claude-only and derived, not a wire field —

@@ -251,6 +251,7 @@ export class StateEngine {
           // A user-set pane label (herdr pane.rename); omitted when unset so "absent stays absent".
           ...(typeof p.label === "string" && p.label.length > 0 ? { paneLabel: p.label } : {}),
           ...(mixed && p.engine ? { engine: p.engine } : {}),
+          ...(p.app_place ? { appPlace: p.app_place } : {}),
           // hc's children_of (mux/hc.ts): the subagents, read off the engine instead of a transcript.
           ...(p.children?.length ? { subagents: p.children } : {}),
           // The agent's own session, in either kind herdr defines: an "id" naming an on-disk
