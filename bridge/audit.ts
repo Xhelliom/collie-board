@@ -72,12 +72,21 @@ export function fileAuditAppender(path: string): AppendFn {
  * never break the user action it was auditing.
  */
 export class AuditLog {
+  /** Who hears each entry as it is recorded (the orchestrator nudger) — a throw never reaches the action. */
+  readonly listeners: ((entry: AuditEntry) => void)[] = [];
+
   constructor(
     private readonly append: AppendFn,
     private readonly now: () => number = Date.now,
   ) {}
 
   record(entry: AuditEntry): void {
+    for (const l of this.listeners)
+      try {
+        l(entry);
+      } catch (err) {
+        console.warn(`[audit] listener failed on ${entry.action}: ${(err as Error).message}`);
+      }
     let line: string;
     try {
       line = formatAuditLine(entry, this.now());

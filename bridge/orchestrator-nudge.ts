@@ -17,6 +17,7 @@ import { consumedLine } from "./cost.ts";
 import { weekPercent } from "./goal-routes.ts";
 import { usageTracker } from "./usage.ts";
 import { LATE_COMMITS } from "./late-commits.ts";
+import type { AuditEntry } from "./audit.ts";
 
 const FILED = new Set<string>(["done", "archived"]);
 const line = (c: Card) => `- « ${c.title} » (${c.id}) : ${c.status}`;
@@ -108,6 +109,57 @@ export function phaseMessage(kind: "closed" | "sealed" | "reopened", name: strin
   return `La phase « ${name} » a été ${kind === "closed" ? "validée" : "scellée"} par l'opérateur ; les étapes ouvertes sont allées dans ${where}. Mets la roadmap et ta note à jour, puis propose le découpage de la phase suivante.`;
 }
 
+const GOAL_VERB: Record<string, string> = {
+  "goal.create": "posé",
+  "goal.edit": "modifié",
+  "goal.activate": "activé",
+  "goal.pause": "mis en pause",
+  "goal.resume": "repris",
+  "goal.abandon": "abandonné",
+  "goal.achieve": "validé",
+  "goal.delete": "retiré",
+};
+
+/** Closes every message of {@link gestureLine}: the operator expects the orchestrator to have heard, not to act. */
+export const GESTURE_ACK = "Accuse réception d'UNE ligne à l'opérateur (ex. « Lot X lancé, je suis »), sans rien relancer.";
+
+/**
+ * One line telling the orchestrator of an operator's gesture it would otherwise read only in « quoi de
+ * neuf » (since.ts), or null: not one it hears, or its own (a pane header, an autonomous launch). Reads
+ * the db, writes nothing. Retouches (card, phase, lot, roadmap) stay in « quoi de neuf ».
+ */
+export function gestureLine(db: BoardDb, e: AuditEntry): { repoPath: string; text: string } | null {
+  const d = (e.detail ?? {}) as Record<string, unknown>;
+  if (d.pane || d.autonomous) return null;
+  const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : null);
+  if (e.action === "run.launch" || e.action === "run.resume") {
+    const run = db.getRun(str("runId") ?? "");
+    if (!run) return null;
+    const what = e.action === "run.launch" ? "lancé" : `repris (${typeof d.resumed === "number" ? d.resumed : "?"} carte(s) relancée(s))`;
+    return { repoPath: run.repoPath, text: `L'opérateur a ${what} le lot « ${run.name ?? "sans nom"} » (${run.id}).` };
+  }
+  const verb = GOAL_VERB[e.action];
+  const repoPath = str("repoPath");
+  if (verb && repoPath) {
+    const g = db.getGoal(str("goalId") ?? "");
+    // An objective started with no lot running already wakes it (messageFor, goal.created/goal.resumed): said once.
+    const woken = (e.action === "goal.create" || e.action === "goal.activate" || e.action === "goal.resume") && g?.status === "active" && !db.listOpenRuns().some((r) => r.repoPath === repoPath);
+    if (woken) return null;
+    const which = g ? `l'objectif${g.status === "queued" ? " suivant" : ""} « ${g.text} »` : "l'objectif suivant";
+    const comment = str("comment");
+    return { repoPath, text: `L'opérateur a ${verb} ${which}${comment ? ` : « ${comment} »` : ""}.` };
+  }
+  if (e.action === "card.check" && d.status === "ko" && str("followUp")) {
+    const card = db.getCard(str("cardId") ?? "");
+    if (!card?.repoPath) return null;
+    const note = str("note");
+    return { repoPath: card.repoPath, text: `Recette KO par l'opérateur sur « ${card.title} » (${card.id})${note ? ` : « ${note} »` : ""} — carte de suite « ${str("followUpTitle") ?? ""} » (${str("followUp")}).` };
+  }
+  if (e.action === "orchestrator.autonomy" && repoPath)
+    return { repoPath, text: `L'opérateur a réglé l'autonomie : ${d.enabled ? "activée" : "coupée"}, lancement quand rien ne tourne : ${d.startWhenIdle ? "oui" : "non"}.` };
+  return null;
+}
+
 export class OrchestratorNudger {
   private goalWake(id: string): GoalWake | null {
     const g = this.db.getGoal(id);
@@ -130,8 +182,25 @@ export class OrchestratorNudger {
     this.cursor = db.lastEventId();
   }
 
+  /** The operator's gestures heard since the last tick, composed when heard (the state they speak of). */
+  private gestures: { repoPath: string; text: string }[] = [];
+
+  /** An audited action (AuditLog listener): kept for the next tick, which knows where the orchestrator lives. */
+  heard(e: AuditEntry): void {
+    const g = gestureLine(this.db, e);
+    if (g) this.gestures.push(g);
+  }
+
   update(snap: EngineSnapshot): void {
     if (snap.bridge === "disconnected") return;
+    // One message per repo per tick: a gesture that audits twice (validate, then the next objective started) is one wake.
+    const byRepo = new Map<string, string[]>();
+    for (const g of this.gestures.splice(0)) byRepo.set(g.repoPath, [...(byRepo.get(g.repoPath) ?? []), g.text]);
+    for (const [repoPath, lines] of byRepo) {
+      const paneId = findOrchestrator(snap, repoPath);
+      // No orchestrator: dropped, « quoi de neuf » tells the next one.
+      if (paneId) void promptAndConfirm(this.herdr, paneId, [...lines, GESTURE_ACK].join("\n")).catch((err) => console.warn(`[orchestrator] gesture nudge failed: ${(err as Error).message}`));
+    }
     for (const e of this.db.eventsAfter(this.cursor)) {
       this.cursor = e.id;
       void this.messageFor(e)
