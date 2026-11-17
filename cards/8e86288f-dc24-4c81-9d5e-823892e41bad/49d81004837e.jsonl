@@ -9,3 +9,4 @@
 {"v":1,"hlc":"1794946781572.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2383},"ts":1794946771118}}
 {"v":1,"hlc":"1794946781572.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794946781572.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794946774026}}
+{"v":1,"hlc":"1794947666863.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"8e86288f-dc24-4c81-9d5e-823892e41bad","name":"mesure-p11-herd-snapshot.md","size":1743,"by":"agent","pane":"t13n"},"ts":1794947665171}}
