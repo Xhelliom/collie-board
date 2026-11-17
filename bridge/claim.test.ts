@@ -31,6 +31,9 @@ function install(repo: string, pairId: string, clock: { t: number }) {
 }
 
 /** Two pairs sharing one repo's board, B having read the card A filed. */
+// Real git repos pushing to each other: ≈ 1 s alone, past 5 s when the gate runs on a loaded machine.
+const REAL_GIT_MS = 30_000;
+
 async function twoPairs() {
   const root = mkdtempSync(join(tmpdir(), "claim-"));
   const bare = join(root, "remote.git");
@@ -73,13 +76,13 @@ describe("claiming a shared card (§ 7)", () => {
     expect(pa.db.getCard(id)!.claim!.pair).toBe(A);
     // Claiming again your own card does not push: it is already yours on the remote.
     expect(await pa.sync.claim(a, id)).toEqual({ ok: true });
-  });
+  }, REAL_GIT_MS);
 
   test("raced at once: exactly one claim wins", async () => {
     const { a, b, pa, pb, id } = await twoPairs();
     const [ra, rb] = await Promise.all([pa.sync.claim(a, id), pb.sync.claim(b, id)]);
     expect([ra.ok, rb.ok].filter(Boolean)).toHaveLength(1);
-  });
+  }, REAL_GIT_MS);
 
   test("done releases the claim; « reprendre la main » takes it over", async () => {
     const { a, b, clock, pa, pb, id } = await twoPairs();
@@ -97,7 +100,7 @@ describe("claiming a shared card (§ 7)", () => {
     await pa.tick();
     expect(pa.db.getCard(id)!.status).toBe("done");
     expect(claimHolder(pa.db.getCard(id)!, A)).toBeNull();
-  });
+  }, REAL_GIT_MS);
 
   test("offline: refused, unless the card is assigned to this pair", async () => {
     const { root, a, pa, id } = await twoPairs();
@@ -110,7 +113,7 @@ describe("claiming a shared card (§ 7)", () => {
     expect(await claimForLaunch(pa.db, pa.db.getCard(id)!)).toBeNull();
     pa.db.patchCard(id, { assignee: "someone@else" });
     expect(await claimForLaunch(pa.db, pa.db.getCard(id)!)).toMatch(/^offline: /);
-  });
+  }, REAL_GIT_MS);
 
   test("an unshared repo is untouched: nothing claimed, nothing pushed", async () => {
     const db = new BoardDb(":memory:");

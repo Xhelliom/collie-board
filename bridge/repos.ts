@@ -246,11 +246,17 @@ export async function listRepos(
     const flow = flows.get(choice.path);
     if (flow) choice.flowId = flow;
   }
+  return choices;
+}
 
-  // Resolve default branches in parallel — it pre-fills the card's base ref, which is the OTHER
-  // field nobody wants to type on a phone. Best-effort: an unresolvable one just stays blank.
-  // Only for the ones that will actually be offered — a hidden repo's base ref is never used, and on
-  // a machine with 200 repos that is 200 subprocesses saved.
+/**
+ * Resolve default branches in parallel — it pre-fills the card's base ref, which is the OTHER field
+ * nobody wants to type on a phone. Best-effort: an unresolvable one just stays blank. Only for the
+ * ones that will actually be offered — a hidden repo's base ref is never used. Kept out of
+ * {@link listRepos}: its other callers only want paths, and each `git` spawned costs the event loop
+ * ≈ 4 ms synchronously — 81 of them blocked it ≈ 300 ms per call (docs/dev/mesure-p13-p14.md).
+ */
+export async function withDefaultBranches(choices: RepoChoice[], git: GitRunner = runGit): Promise<RepoChoice[]> {
   await Promise.all(
     choices
       .filter((c) => !c.hidden)

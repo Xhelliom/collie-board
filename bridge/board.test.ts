@@ -90,6 +90,7 @@ import {
   basename,
   withDefaultBaseRef,
   listRepos,
+  withDefaultBranches,
   mergeRepoChoices,
   repoRootOf,
   scanRootsFor,
@@ -2202,7 +2203,7 @@ describe("repo picker", () => {
     };
     // Four panes, one directory.
     const panes = ["w1:p1", "w1:p2", "w1:p3", "w1:p4"].map((id) => pane(id, "idle", { cwd: "/repo" }));
-    const repos = await listRepos(store, snapshot(panes), [], git);
+    const repos = await withDefaultBranches(await listRepos(store, snapshot(panes), [], git), git);
 
     expect(seen).toEqual(["/repo"]);
     expect(repos.map((r) => r.path)).toEqual([normalizePath("/repo")]);
@@ -2295,8 +2296,21 @@ describe("repo preferences", () => {
       if (args[0] === "symbolic-ref") branchCalls++;
       return { ok: true, stdout: "main\n", stderr: "" };
     };
-    await listRepos(store, snapshot([]), [], git);
+    await withDefaultBranches(await listRepos(store, snapshot([]), [], git), git);
     expect(branchCalls).toBe(0);
+  });
+
+  it("listRepos alone resolves no default branch — the callers that only want paths spawn no git for it", async () => {
+    const store = db();
+    store.createCard({ title: "y", repoPath: "/repo/kept" });
+    let branchCalls = 0;
+    const git: GitRunner = async (args) => {
+      if (args[0] === "symbolic-ref" || args[0] === "rev-parse") branchCalls++;
+      return { ok: true, stdout: "main\n", stderr: "" };
+    };
+    const repos = await listRepos(store, snapshot([]), [], git);
+    expect(branchCalls).toBe(0);
+    expect(repos[0]!.defaultBranch).toBeUndefined();
   });
 
   it("survives a hidden repo that no longer exists anywhere — the row is simply inert", async () => {
