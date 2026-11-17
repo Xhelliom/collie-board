@@ -44,9 +44,10 @@ describe("quickAccess (the sidebar's quick access)", () => {
       .run(lot("/shared")); // finished by another pair's `finished_at` only
     db.launchRun(db.createRun({ repoPath: "/empty", cardIds: [], foldInCap: 0 }).id);
     const later = Date.now() + 8 * day;
-    expect(db.quickRuns(0).map((r) => [r.run.repoPath, r.finished])).toEqual([
-      ["/open", false],
+    // Lots made in the same ms tie on (position, created_at): the filter is checked, not the order.
+    expect(db.quickRuns(0).map((r) => [r.run.repoPath, r.finished]).sort()).toEqual([
       ["/event", true],
+      ["/open", false],
       ["/shared", true],
     ]);
     expect(db.quickRuns(later - 7 * day).map((r) => r.run.repoPath)).toEqual(["/open"]);
