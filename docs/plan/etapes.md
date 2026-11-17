@@ -232,18 +232,18 @@ Solder les constats G3 de l audit de novembre (docs/dev/audit-perf-2026-11.md, P
   - [x] Un lancement fait par l orchestrateur lui-même ne le réveille pas
   - [x] Rien n est envoyé quand aucun orchestrateur ne tourne
 
-### Lot — Tests rapides et mesures du reste (planned)
+### Lot — Tests rapides et mesures du reste (launched)
 
-- **Mesurer les routes lentes et le git fetch périodique, puis trancher** — backlog
+- **Mesurer les routes lentes et le git fetch périodique, puis trancher** — done
 
   Audit P13 et P14. P13 : docs/page-tabs 0,24-0,34 s, repos 0,18-0,22 s, recette 0,14-0,18 s à chaque navigation ; mesurer leur part synchrone maintenant que P1-P4 sont faits (/api/diag/routes) ; ne rien faire si la boucle est libérée. P14 : 5 092 événements copilot.review_failed, git fetch x5 dépôts toutes les 60 s qui réveillent gh à ~300 % CPU ; mesurer le coût réel. Livrer une courte note (docs/dev/) avec les chiffres et, pour chaque point, corriger si c est petit et net, sinon proposer une carte.
 
-  - [ ] Chiffres P13 et P14 mesurés et publiés
-  - [ ] Pour chaque point : corrigé, ou carte proposée, ou « rien à faire » justifié
-- **Tests web plus rapides (Vitest)** — backlog
+  - [x] Chiffres P13 et P14 mesurés et publiés
+  - [x] Pour chaque point : corrigé, ou carte proposée, ou « rien à faire » justifié
+- **Tests web plus rapides (Vitest)** — done
 
   Audit P10 : Vitest prend 119 s, dont 161 s d environnement et 86 s de setup cumulés pour 124 s de tests. Essayer happy-dom ou isolate:false sur les fichiers purs ; mesurer avant d adopter ; ne garder que ce qui accélère sans rendre un test instable (3 passes vertes d affilée).
 
-  - [ ] Durée de cd web && bun run test mesurée avant/après
-  - [ ] 3 passes complètes vertes d affilée après le changement
-  - [ ] Rien adopté qui ne fait pas gagner
+  - [x] Durée de cd web && bun run test mesurée avant/après
+  - [x] 3 passes complètes vertes d affilée après le changement
+  - [x] Rien adopté qui ne fait pas gagner
