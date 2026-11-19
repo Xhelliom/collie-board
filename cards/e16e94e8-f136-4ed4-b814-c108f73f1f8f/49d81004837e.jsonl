@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1795117081831.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"808ffc66-8b70-4006-97f8-24fffbb1f14a"}}
 {"v":1,"hlc":"1795117081831.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Pas de revue copilote sur une carte déjà validée par le lead","status":"backlog"},"ts":1795117073743}}
 {"v":1,"hlc":"1795117081834.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"853ddb7f-673b-4079-b26b-406e9f1582d6"}}
+{"v":1,"hlc":"1795118630709.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
