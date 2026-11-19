@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1795094895698.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"8fcfc1de-db7e-4772-bb85-69bc95d42f70"}}
 {"v":1,"hlc":"1795094895698.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Où part le quota : mesurer par poste et proposer des freins","status":"backlog"},"ts":1795094890990}}
 {"v":1,"hlc":"1795094895701.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"ab9c4fbb-a396-4405-960d-84bc63808334"}}
+{"v":1,"hlc":"1795096037302.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
