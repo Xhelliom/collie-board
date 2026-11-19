@@ -826,7 +826,13 @@ launches only, never « Nouvel agent » or the orchestrator. Unset: the CLI's ow
 read from Claude's aliases and OpenCode's own files. The user's setting alone (`POST /api/repos/model` with
 `{path, kind, provider, model, effort}` is refused from a pane).
 
+A card's agent, its lead and the copilot (Claude) start with **only the collie-board MCP**: the user's other MCP
+servers (user, project, `.mcp.json`, claude.ai connectors) and plugins are left out — they cost tokens on every call.
+A repo keeps named ones (a server or plugin name). The orchestrator and « Nouvel agent » are untouched. The user's
+setting alone (`POST /api/repos/kept-mcp` with `{path, kept: [names]}` is refused from a pane).
+
 ```bash
+curl -s "$B/api/repos/kept-mcp?repo=/abs/repo"             # {"kept":[…], "available":{"mcp":[…],"plugins":[…]}}
 curl -s "$B/api/repos" | jq '.repos[] | {path, gate}'        # gate = the command, or absent
 curl -s "$B/api/repos/integration?repo=/abs/repo"           # {"integration":"pr"|"direct"}
 curl -s "$B/api/repos/plan-export?repo=/abs/repo"           # {"enabled":true|false} — the end-of-lot plan PR

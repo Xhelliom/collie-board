@@ -1039,6 +1039,16 @@ export const fetchPlanExport = (repo: string, signal?: AbortSignal): Promise<{ e
 export const setPlanExport = (path: string, enabled: boolean): Promise<{ ok: true; enabled: boolean }> =>
   apiRequest("/api/repos/plan-export", { method: "POST", body: JSON.stringify({ path, enabled }) });
 
+/** The MCP servers / plugins a board agent of this repo keeps beside collie-board; `available` = the names it could keep. */
+export interface KeptMcp {
+  kept: string[];
+  available: { mcp: string[]; plugins: string[] };
+}
+export const fetchKeptMcp = (repo: string, signal?: AbortSignal): Promise<KeptMcp> =>
+  apiRequest(`/api/repos/kept-mcp?repo=${encodeURIComponent(repo)}`, { signal });
+export const setKeptMcp = (path: string, kept: string[]): Promise<{ ok: true; kept: string[] }> =>
+  apiRequest("/api/repos/kept-mcp", { method: "POST", body: JSON.stringify({ path, kept }) });
+
 /** A repo's default for one harness's launches whose template names no model. Null fields: the CLI's own default. */
 export interface RepoModel {
   provider: string | null;

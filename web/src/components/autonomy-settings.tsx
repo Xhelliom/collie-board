@@ -18,6 +18,7 @@ import {
 } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 import { RepoModelSettings } from "@/components/repo-model-settings";
+import { KeptMcpSettings } from "@/components/kept-mcp-settings";
 
 // The Claude Code allow rule an autonomous launch needs, or each one waits on a prompt in the
 // orchestrator's pane. Shown, never written: the bridge does not touch the user's Claude settings.
@@ -193,6 +194,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
           </>
         )}
         <RepoModelSettings repo={repo} />
+        <KeptMcpSettings repo={repo} />
       </div>
     </section>
   );

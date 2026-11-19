@@ -23,6 +23,7 @@ const PERSISTENCE: Record<string, string> = {
   "db.ts": "board.db — row dump via dump()",
   "deliverables.ts": "deliverables/<cardId>/ under the state dir — walked by collectFiles",
   "git.ts": "a repo's .git/info/exclude — the operator's repo, not Collie state",
+  "lean-launch.ts": "lean-launch/*.json under the state dir — derived from repo_pref (in board.db) and Claude's own files, rewritten at each launch",
   "journal.ts": "state dir file (pair-id) — walked by collectFiles",
   "notify-prefs.ts": "state dir file — walked by collectFiles",
   "cards.ts": "~/.claude.json trust flag for a launched checkout — Claude Code's file, not Collie state",
