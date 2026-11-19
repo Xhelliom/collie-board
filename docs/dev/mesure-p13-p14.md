@@ -44,6 +44,11 @@ lecteurs ne lancent plus ces ≈ 80 `git`.
   proposée** : « Branche par défaut sans sous-processus » — lire `refs/remotes/origin/HEAD` et
   `refs/heads/{main,master}` sur disque (fichier ou `packed-refs`) au lieu de 1 à 3 `git` par dépôt ;
   `bump: patch`.
+  **Fait le 19/11** : `declaredDefaultBranchOf` lit ces refs sur disque (dépôt ou worktree lié, backend
+  `files` seulement ; sinon `git` comme avant). [banc] `withDefaultBranches` sur les 65 dépôts de `~/git`,
+  médianes de 9, load ≈ 8-9 (moins chargée que le 17/11) : mur 96 → 16 ms, plus long blocage
+  86 → 10 ms, blocage cumulé 90 → 10 ms ; branches renvoyées identiques pour les 65. Le reste : les
+  dépôts sans `origin/HEAD` ni `main`/`master` demandent encore leur branche courante à `git`.
 - `recette` : ≈ 75 ms de blocage sur un dépôt (lecture de toutes les cartes, ≈ 30 ms, puis
   `listEvents` par carte livrée, 188 cartes, ≈ 35 ms) ; ≈ 140 ms tous dépôts, dont ≈ 54 ms de `lotOf`
   recalculé pour chaque carte d'un même lot (64 appels, 261 lectures d'événements de membres).
