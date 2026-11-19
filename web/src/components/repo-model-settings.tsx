@@ -50,7 +50,7 @@ function Harness({ h, onSave }: { h: HarnessModel; onSave: (v: RepoModel) => voi
           {(efforts.length > 0 || v.effort) && <Pick label={t("orch.effort")} value={v.effort} options={efforts.map((id) => ({ id }))} none={t("orch.effortNone")} onPick={(effort) => onSave({ ...v, effort })} />}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">{h.provider ? t("orch.modelHintFile") : t("orch.modelHint")}</p>
+      <p className="text-xs text-muted-foreground">{h.kind === "lead" ? t("orch.leadModelHint") : h.provider ? t("orch.modelHintFile") : t("orch.modelHint")}</p>
     </div>
   );
 }

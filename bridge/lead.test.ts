@@ -3,6 +3,8 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { BUILTIN_ADAPTERS } from "./adapters.ts";
+
 import {
   BILAN_REL_PATH,
   bilanPrompt,
@@ -175,7 +177,7 @@ describe("the lead has no path to act", () => {
 describe("a malformed answer is asked again", () => {
   /** A Lead whose `ask` answers from a queue and records the prompts it was given. */
   function lead(answers: unknown[]) {
-    const l = new Lead(...([null, null, "/tmp/unused", () => null] as unknown as ConstructorParameters<typeof Lead>));
+    const l = new Lead(...([null, { boardAgentKind: "claude" }, "/tmp/unused", () => null] as unknown as ConstructorParameters<typeof Lead>));
     const prompts: string[] = [];
     (l as unknown as { request: (b: (o: string) => string) => Promise<unknown> }).request = async (b) => (prompts.push(b("out.json")), { answer: answers.shift() });
     return { l, prompts };
@@ -210,7 +212,9 @@ describe("the lead is silent only when a typed request ran out its deadline", ()
       },
       async promptAgent(opts: { text: string }) {
         if (failPrompt) throw new Error("herdr agent.prompt: agent_blocked");
-        const rel = readFileSync(join(dir, /Read (\S+\.md)/.exec(opts.text)![1]!), "utf8").match(/\.board\/out\/\w+\.json/)![0];
+        const req = /Read (\S+\.md)/.exec(opts.text);
+        if (!req) return true; // the /clear and /model typed before a request
+        const rel = readFileSync(join(dir, req[1]!), "utf8").match(/\.board\/out\/\w+\.json/)![0];
         const body = reply(++n);
         if (body !== null) writeFileSync(join(dir, rel), body);
         // The submission confirmed, as hc says it: no real 1.5 s settle per request, which a loaded gate ran past 5 s.
@@ -288,5 +292,53 @@ describe("a lead adopted at startup is known before its first request", () => {
     expect(l.paneId).toBe("w8B:p1");
     l.observe(snap([]));
     expect(l.paneId).toBeNull();
+  });
+});
+
+describe("each request of the lead starts from an empty context, on Sonnet unless its repo says otherwise", () => {
+  function launched(modelOf: (repo: string) => string | null = () => null) {
+    const dir = mkdtempSync(join(tmpdir(), "lead-clear-"));
+    const snap = { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" };
+    const typed: string[] = [];
+    const started: unknown[] = [];
+    const herdr = {
+      async createWorkspace() {
+        return { paneId: "wL:p1", workspaceId: "wL", tabId: "wL:t1", cwd: dir };
+      },
+      async startAgent(opts: { args?: string[] }) {
+        started.push(opts.args ?? []);
+      },
+      async getAgent() {
+        return { agent: "claude", interactive_ready: true, agent_status: "working" };
+      },
+      async promptAgent(opts: { text: string }) {
+        const req = /Read (\S+\.md)/.exec(opts.text);
+        typed.push(req ? "request" : opts.text);
+        if (req) writeFileSync(join(dir, readFileSync(join(dir, req[1]!), "utf8").match(/\.board\/out\/\w+\.json/)![0]), '{"decision": "finished", "reason": "ok"}');
+        return true;
+      },
+      async sendPaneKeys() {},
+    };
+    const cfg = { boardAgentKind: "claude", boardCopilotKind: "" };
+    const l = new Lead(...([herdr, cfg, dir, () => snap, BUILTIN_ADAPTERS, { timeoutMs: 500, pollMs: 5 }] as unknown as ConstructorParameters<typeof Lead>));
+    l.modelOf = modelOf;
+    return { l, typed, started };
+  }
+  const input = { ...brief, repoPath: "/r", statSummary: " a.ts | 1 +" };
+
+  it("the second review of the same lead is typed after a /clear, and a new lead starts on Sonnet", async () => {
+    const { l, typed, started } = launched();
+    await l.check(input);
+    await l.check(input);
+    expect(started).toEqual([["--model", "sonnet"]]);
+    expect(typed).toEqual(["request", "/clear", "request"]);
+  });
+
+  it("the repo's own lead model is switched to before its request", async () => {
+    const { l, typed, started } = launched((repo) => (repo === "/o" ? "opus" : null));
+    await l.check(input);
+    await l.check({ ...input, repoPath: "/o" });
+    expect(started).toEqual([["--model", "sonnet"]]);
+    expect(typed).toEqual(["request", "/clear", "/model opus", "request"]);
   });
 });

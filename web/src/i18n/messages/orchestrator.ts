@@ -87,6 +87,10 @@ export const orchestrator = defineMessages({
     en: "For every Claude launch in this repo whose template names no model: cards, « New agent », handoffs, the orchestrator. A template's model wins. None: Claude Code's own default, which changes with each release.",
     fr: "Pour tout lancement Claude de ce dépôt dont le gabarit n'a pas de modèle : cartes, « Nouvel agent », relais, orchestrateur. Le modèle d'un gabarit l'emporte. Aucun : le défaut de Claude Code, qui change à chaque sortie.",
   },
+  "orch.leadModelHint": {
+    en: "The lead that reviews this repo's cards in a run. None: Sonnet.",
+    fr: "Le lead qui relit les cartes de ce dépôt pendant un lot. Aucun : Sonnet.",
+  },
   "orch.autoRed": { en: "Stop when a gate or CI is red", fr: "S'arrêter si un gate ou une CI est rouge" },
   "orch.rounds": { en: "Rounds before calling me", fr: "Allers-retours avant de m'appeler" },
   "orch.roundsHint": {
