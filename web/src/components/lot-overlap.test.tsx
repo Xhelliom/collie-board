@@ -14,6 +14,15 @@ it("warns on a lot whose cards cite the same file, and proposes a chain or one a
   expect(screen.getByRole("note")).toHaveTextContent(/« step a » and « step b » cite the same files \(bridge\/lot\.ts\).*Chain them.*one at a time/);
 });
 
+it("folds every pair of a lot into one line that opens on the full list", () => {
+  show(lot({ overlaps: [{ cardIds: ["a", "b"], files: ["x.ts"] }, { cardIds: ["b", "a"], files: ["y.ts"] }] }));
+  const note = screen.getByRole("note");
+  expect(note.tagName).toBe("DETAILS");
+  expect(note).not.toHaveAttribute("open");
+  expect(note.querySelector("summary")).toHaveTextContent("2 pairs of cards may conflict");
+  expect(note.querySelectorAll("li")).toHaveLength(2);
+});
+
 it("shows nothing without an overlap", () => {
   show(lot({ overlaps: [] }));
   expect(screen.queryByRole("note")).toBeNull();
