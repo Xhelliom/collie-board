@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1795117081826.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"808ffc66-8b70-4006-97f8-24fffbb1f14a"}}
 {"v":1,"hlc":"1795117081826.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Agents du board lancés avec moins de MCP et de plugins","status":"backlog"},"ts":1795117073664}}
 {"v":1,"hlc":"1795117081834.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"853ddb7f-673b-4079-b26b-406e9f1582d6"}}
+{"v":1,"hlc":"1795118634688.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
