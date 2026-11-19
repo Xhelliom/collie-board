@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1795117081823.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bouton « Reprendre le lot » dans les boutons de l'orchestrateur","status":"backlog"},"ts":1795117073627}}
 {"v":1,"hlc":"1795117081833.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"7679bc80-ddc5-4d02-90e5-43c85f1e8eca"}}
 {"v":1,"hlc":"1795117084564.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795117088925.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/bouton-reprendre-le-lot-dans-les-boutons-de-l-or"}}
+{"v":1,"hlc":"1795117088925.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795117088925.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795117087701}}
+{"v":1,"hlc":"1795117096718.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795117096718.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795117094881}}
+{"v":1,"hlc":"1795117096718.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2654},"ts":1795117094927}}
