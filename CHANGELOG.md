@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.354.0] - 2026-11-19
+
+### Added
+
+- Réglages du projet : « Outils gardés par les agents du board » — MCP ou plugins qu'un dépôt garde. (90320e6)
+
+### Changed
+
+- Les agents de carte, le lead et le copilote démarrent avec le seul MCP collie-board, sans les MCP ni plugins tiers (≈ −21 k tokens par appel). (90320e6)
+
 ## [0.353.0] - 2026-11-19
 
 ### Added
