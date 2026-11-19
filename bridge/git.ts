@@ -21,7 +21,7 @@
 // the world: a merge, a push, and a branch delete. Each one refuses before it acts rather than
 // unwinding afterwards — see `checkIntegration`, which is the gate all three share.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, posix, resolve, win32 } from "node:path";
 import { boardBranchPrefix } from "./config.ts";
@@ -622,16 +622,67 @@ export async function currentBranch(repoPath: string, git: GitRunner = runGit): 
  * off it would silently chain unrelated work. Undefined when the repo declares none.
  */
 async function declaredDefaultBranchOf(root: string, git: GitRunner): Promise<string | undefined> {
-  const remote = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], root);
-  const declared = remote.ok ? remote.stdout.trim().replace(/^origin\//, "") : "";
+  const refs = filesRefStore(root);
+  let declared: string;
+  if (refs) {
+    declared = refs.originHead() ?? "";
+  } else {
+    const remote = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], root);
+    declared = remote.ok ? remote.stdout.trim().replace(/^origin\//, "") : "";
+  }
   // An origin/HEAD on a board branch is a previous card's work, not a default: main/master come next.
   const prefix = boardBranchPrefix();
   if (declared && !(prefix && declared.startsWith(prefix))) return declared;
   for (const candidate of ["main", "master"]) {
+    if (refs) {
+      if (refs.hasBranch(candidate)) return candidate;
+      continue;
+    }
     const verify = await git(["rev-parse", "--verify", "--quiet", `refs/heads/${candidate}`], root);
     if (verify.ok && verify.stdout.trim()) return candidate;
   }
   return undefined;
+}
+
+/**
+ * The repo's refs read straight from disk — each `git` spawned costs the event loop ≈ 4 ms synchronously,
+ * and « Nouvelle carte » asks this of every repo (docs/dev/mesure-p13-p14.md). Only for the plain
+ * `files` ref backend; null (→ ask `git`) for anything else: no `.git`, a bare repo, reftable, an
+ * unreadable layout.
+ */
+function filesRefStore(root: string): { originHead(): string | undefined; hasBranch(name: string): boolean } | null {
+  try {
+    let gitDir = join(root, ".git");
+    if (!statSync(gitDir).isDirectory()) {
+      const pointer = /^gitdir:\s*(.+)$/m.exec(readFileSync(gitDir, "utf8"))?.[1]?.trim();
+      if (!pointer) return null;
+      gitDir = resolve(root, pointer);
+    }
+    // A linked worktree keeps its refs in the main repo's directory.
+    const commonFile = join(gitDir, "commondir");
+    const common = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, "utf8").trim()) : gitDir;
+    if (existsSync(join(common, "reftable")) || !existsSync(join(common, "refs"))) return null;
+    const loose = (ref: string): string | undefined => {
+      try {
+        return readFileSync(join(common, ref), "utf8").trim();
+      } catch {
+        return undefined;
+      }
+    };
+    let packed: string | undefined;
+    return {
+      // A symbolic ref is never packed: no loose file means no origin/HEAD.
+      originHead: () => /^ref: refs\/remotes\/origin\/(.+)$/.exec(loose("refs/remotes/origin/HEAD") ?? "")?.[1],
+      hasBranch: (name) => {
+        const ref = `refs/heads/${name}`;
+        if (/^[0-9a-f]{40,64}$/.test(loose(ref) ?? "")) return true;
+        packed ??= loose("packed-refs") ?? "";
+        return packed.split("\n").some((line) => line.endsWith(` ${ref}`) && /^[0-9a-f]{40,64} /.test(line));
+      },
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
