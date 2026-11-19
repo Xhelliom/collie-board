@@ -16,6 +16,7 @@
 // (`COLLIE_BOARD_COPILOT=on`) and serialised to exactly one request at a time — one pane is one
 // queue, which is free rate limiting.
 
+import { leanArgs } from "./lean-launch.ts";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -1233,7 +1234,7 @@ export class Copilot {
     // Same pre-approval as a card's checkout: on a fresh install nobody ever answered Claude Code's
     // trust screen here, and its default « No, exit » leaves the copilot — and the lead — mute.
     if (kind === "claude") trustFolder(this.workDir);
-    await launchAgent(this.herdr, paneId, kind, agentNameFor(label));
+    await launchAgent(this.herdr, paneId, kind, agentNameFor(label), undefined, leanArgs(kind, this.cfg, null, [], this.workDir));
     this._paneId = paneId;
     this.launchedAt = Date.now();
     this.requestsSinceReset = 0;

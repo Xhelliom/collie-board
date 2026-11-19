@@ -73,6 +73,12 @@ export const orchestrator = defineMessages({
     en: "On (default): when a lot ends, the board opens a « docs(plan) » PR updating docs/plan/ — roadmap, steps and the lot's bilan. You merge it; nothing lands on main without you.",
     fr: "Allumé (défaut) : à la fin d'un lot, le board ouvre une PR « docs(plan) » qui met docs/plan/ à jour — roadmap, étapes et bilan du lot. Tu la merges ; rien n'arrive sur main sans toi.",
   },
+  "orch.keptMcp": { en: "Tools kept by the board's agents", fr: "Outils gardés par les agents du board" },
+  "orch.keptMcpHint": {
+    en: "A card's agent, its lead and the copilot start with the board's own MCP only — your other MCP servers and plugins cost tokens on every call. Tick the ones this project's work needs.",
+    fr: "L'agent d'une carte, son lead et le copilote démarrent avec le seul MCP du board — tes autres MCP et plugins coûtent des tokens à chaque appel. Coche ceux dont le travail de ce projet a besoin.",
+  },
+  "orch.keptMcpNone": { en: "No other MCP server or plugin found.", fr: "Aucun autre MCP ni plugin trouvé." },
   "orch.model": { en: "Default model", fr: "Modèle par défaut" },
   "orch.modelNone": { en: "None", fr: "Aucun" },
   "orch.effort": { en: "Effort", fr: "Effort" },

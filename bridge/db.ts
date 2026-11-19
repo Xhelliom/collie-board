@@ -1380,6 +1380,8 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   page_tabs  TEXT,
   -- The one ticked page shown at the head of the Project page (a page_tabs key). NULL: none.
   showcase   TEXT,
+  -- The MCP servers / plugins a board agent of this repo keeps (lean-launch.ts), JSON array. NULL: none.
+  kept_mcp   TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -1887,6 +1889,8 @@ export class BoardDb {
       // The pages shown as tabs: none was chosen before (docs/pages were all shown by default).
       { table: "repo_pref", column: "page_tabs", ddl: "TEXT" },
       { table: "repo_pref", column: "showcase", ddl: "TEXT" },
+      // The MCP servers a board agent keeps: none before, every one was loaded.
+      { table: "repo_pref", column: "kept_mcp", ddl: "TEXT" },
       // Phases, lots, roadmap (ADR 0021).
       { table: "card", column: "phase_id", ddl: "TEXT" },
       { table: "run", column: "phase_id", ddl: "TEXT" },
@@ -3463,6 +3467,28 @@ export class BoardDb {
     this.pruneRepoPref(path);
   }
 
+  /** The MCP servers / plugins a board agent of this repo keeps beside collie-board (lean-launch.ts). */
+  repoKeptMcp(path: string | null | undefined): string[] {
+    const raw = path ? this.db.query<{ kept_mcp: string | null }, [string]>("SELECT kept_mcp FROM repo_pref WHERE path = ?").get(path)?.kept_mcp : null;
+    try {
+      const v: unknown = raw ? JSON.parse(raw) : [];
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  setRepoKeptMcp(path: string, names: readonly string[]): void {
+    const kept = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, kept_mcp, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET kept_mcp = excluded.kept_mcp, updated_at = excluded.updated_at`,
+      )
+      .run(path, kept.length ? JSON.stringify(kept) : null, this.now());
+    this.pruneRepoPref(path);
+  }
+
   /** The pages the operator shows as tabs on this repo, in the order they were ticked. */
   repoPageTabs(path: string): string[] {
     const raw = this.db.query<{ page_tabs: string | null }, [string]>("SELECT page_tabs FROM repo_pref WHERE path = ?").get(path)?.page_tabs;
@@ -3500,7 +3526,7 @@ export class BoardDb {
   }
 
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND recette_aside_days IS NULL AND model IS NULL AND effort IS NULL AND models IS NULL AND page_tabs IS NULL AND showcase IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND recette_aside_days IS NULL AND model IS NULL AND effort IS NULL AND models IS NULL AND page_tabs IS NULL AND showcase IS NULL AND kept_mcp IS NULL").run(path);
   }
 
   // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────

@@ -33,6 +33,7 @@ import { createWarnings, unknownCardFields } from "./card-fields.ts";
 import { hcSocketPath, type Config } from "./config.ts";
 import { Hc } from "./mux/hc.ts";
 import { CompositeMux } from "./mux/composite.ts";
+import { keepableNames } from "./lean-launch.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type {
   BoardDb,
@@ -127,6 +128,7 @@ const REPOS_GATE_ROUTE = "/api/repos/gate";
 /** `/api/repos/integration` — how a run lands a repo's cards: a PR, or a merge direct (ADR 0043). */
 const REPOS_INTEGRATION_ROUTE = "/api/repos/integration";
 const REPOS_PLAN_EXPORT_ROUTE = "/api/repos/plan-export";
+const REPOS_KEPT_MCP_ROUTE = "/api/repos/kept-mcp";
 const REPOS_RECETTE_ASIDE_ROUTE = "/api/repos/recette-aside";
 const REPOS_MODEL_ROUTE = "/api/repos/model";
 /** `/api/repos/gate/suggest` — the copilot's suggestion for it. Returned, never saved. */
@@ -683,6 +685,29 @@ async function route(
     ctx.db.setPlanExport(path.trim(), enabled);
     ctx.audit.record({ action: "repo.plan_export", session: ctx.session, device: ctx.device, detail: { path: path.trim(), enabled } });
     return ctx.json({ ok: true, enabled });
+  }
+
+  // The MCP servers / plugins a board agent of this repo keeps beside collie-board (lean-launch.ts).
+  // The operator's setting — an agent pane may read it, never set it.
+  if (pathname === REPOS_KEPT_MCP_ROUTE) {
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      const repo = new URL(req.url).searchParams.get("repo");
+      if (!repo) return ctx.text("repo required", 400);
+      return ctx.json({ kept: ctx.db.repoKeptMcp(repo), available: keepableNames(repo) });
+    }
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("the kept MCP servers are the operator's setting — an agent pane may not change them", 403);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const body = (await req.json().catch(() => null)) as { path?: unknown; kept?: unknown } | null;
+    const path = typeof body?.path === "string" ? body.path.trim() : "";
+    if (!path) return ctx.text("path required", 400);
+    if (!Array.isArray(body?.kept) || !body.kept.every((n) => typeof n === "string" && n.length <= 200)) return ctx.text("kept must be an array of names", 400);
+    ctx.db.setRepoKeptMcp(path, body.kept as string[]);
+    ctx.audit.record({ action: "repo.kept_mcp", session: ctx.session, device: ctx.device, detail: { path, kept: ctx.db.repoKeptMcp(path) } });
+    return ctx.json({ ok: true, kept: ctx.db.repoKeptMcp(path) });
   }
 
   // Recette: days after which a delivery with no verdict leaves the active queue (default 30). The

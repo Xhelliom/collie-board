@@ -6,6 +6,7 @@
 // NO STATE OF ITS OWN: the step a card stands at is the number of `card.pipeline_step` entries in its
 // journal, so a restart resumes from what the card says.
 
+import { leanArgs } from "./lean-launch.ts";
 import { join } from "node:path";
 
 import { agentNameFor, cardTab, initialPrompt, launchAgent, promptAndConfirm } from "./cards.ts";
@@ -123,7 +124,7 @@ async function swapRole(
   const args = modelArgs(kind, role.model, adapters, db.repoModel(card.repoPath, kind));
   syncAtLaunch((adapters ?? BUILTIN_ADAPTERS)[kind], cwd, card.repoPath, db.repoModel(card.repoPath, kind));
   try {
-    await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), wait, args);
+    await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), wait, [...args, ...leanArgs(kind, cfg, card.repoPath, db.repoKeptMcp(card.repoPath), cwd)]);
   } catch (err) {
     db.closeSession(next.id, "abandoned");
     // The tab was created for this agent: left open, it is a stray shell nobody owns.

@@ -16,6 +16,7 @@
 // The threshold nudges; the tap decides. The NOTE may be asked for on its own — auto-handoff.ts does,
 // just before an idle session's prompt cache expires — but replacing the agent is still a tap.
 
+import { leanArgs } from "./lean-launch.ts";
 import { join } from "node:path";
 
 import type { Config } from "./config.ts";
@@ -280,7 +281,7 @@ export async function swapToFreshSession(
   const role = db.listEvents(card.id, 200).find((e) => e.type === "card.template" || e.type === "card.pipeline_step");
   const args = modelArgs(kind, (role?.payload as { model?: string } | undefined)?.model, undefined, db.repoModel(card.repoPath, kind));
   syncAtLaunch(BUILTIN_ADAPTERS[kind], cwd, card.repoPath, db.repoModel(card.repoPath, kind));
-  await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), undefined, args);
+  await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), undefined, [...args, ...leanArgs(kind, cfg, card.repoPath, db.repoKeptMcp(card.repoPath), cwd)]);
   await promptAndConfirm(herdr, created.paneId, continuationPrompt(card), undefined, {
     firstAfterLaunch: true,
   });
