@@ -75,7 +75,8 @@ import { handleCostSumRoute } from "./cost-routes.ts";
 import { handleDeliverablesRoute, removeCardDeliverables } from "./deliverables.ts";
 import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./pipeline.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
-import { adapterFor, BUILTIN_ADAPTERS, type AgentAdapter } from "./adapters.ts";
+import { adapterFor, BUILTIN_ADAPTERS, unknownAdapter, type AgentAdapter } from "./adapters.ts";
+import { LEAD_MODEL_KEY } from "./lead.ts";
 import { EFFORTS, isEffort, isModel, isVariant, type RepoModel } from "./templates.ts";
 import { CLAUDE_CHOICES, readOpencodeChoices } from "./model-choices.ts";
 import { syncModelFile, worktreeDirs } from "./model-file.ts";
@@ -712,6 +713,8 @@ async function route(
   if (pathname === REPOS_MODEL_ROUTE) {
     // The harnesses a model can reach: a verified flag, or a config file the TUI reads (adapters.ts).
     const harnesses = Object.values(ctx.adapters ?? BUILTIN_ADAPTERS).filter((a) => a.modelFlag || a.modelFile);
+    // The run's lead (lead.ts): a Claude alias, no effort; none = Sonnet.
+    const lead = { ...unknownAdapter(LEAD_MODEL_KEY), modelFlag: "--model" };
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
@@ -726,7 +729,7 @@ async function route(
           // Read here, when the settings open — never polled.
           providers: a.kind === "claude" ? CLAUDE_CHOICES : a.kind === "opencode" ? readOpencodeChoices() : [],
           value: values[a.kind] ?? null,
-        })),
+        })).concat({ kind: LEAD_MODEL_KEY, provider: false, providers: CLAUDE_CHOICES.map((p) => ({ ...p, models: p.models.map((m) => ({ ...m, efforts: [] })) })), value: values[LEAD_MODEL_KEY] ?? null }),
       });
     }
     if (req.method !== "POST") return ctx.text("method not allowed", 405);
@@ -741,7 +744,7 @@ async function route(
     }
     const { path, kind, provider = null, model = null, effort = null } = (body ?? {}) as Record<string, unknown>;
     if (typeof path !== "string" || path.trim() === "") return ctx.text("path required", 400);
-    const adapter = harnesses.find((a) => a.kind === kind);
+    const adapter = [...harnesses, lead].find((a) => a.kind === kind);
     if (!adapter) return ctx.text(`kind must be one of ${harnesses.map((a) => a.kind).join(", ")}`, 400);
     if (provider !== null && (adapter.modelFlag || !isModel(provider) || provider.includes("/"))) return ctx.text("provider must be a provider id or null", 400);
     if (model !== null && !isModel(model)) return ctx.text("model must be a model name or null", 400);

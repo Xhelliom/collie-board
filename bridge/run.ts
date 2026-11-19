@@ -28,7 +28,7 @@ import type { Mux } from "./mux/mux.ts";
 import { askEvery, mergeCard, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
-import { bilanPrompt, BILAN_REL_PATH, EXTERNAL_BLOCK, Lead, parseIssue, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
+import { bilanPrompt, BILAN_REL_PATH, EXTERNAL_BLOCK, Lead, LEAD_MODEL_KEY, parseIssue, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { exportPlanAtLotEnd } from "./plan-export.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
@@ -837,7 +837,7 @@ export class RunCoordinator {
 
 /** What the lead is told of a card. `category` is what makes the check an explore card's (ADR 0017). Pure. */
 export function briefOf(card: Card, worktree: string, base: string): CardBrief {
-  return { title: card.title, spec: card.spec, acceptance: card.acceptance, category: card.category, worktree, base };
+  return { title: card.title, spec: card.spec, acceptance: card.acceptance, category: card.category, repoPath: card.repoPath, worktree, base };
 }
 
 // ── wiring ────────────────────────────────────────────────────────────────────
@@ -875,6 +875,7 @@ export function runHook(
 ): (snap: EngineSnapshot) => void {
   // ponytail: the lead runs cfg.boardCopilotKind, not `run.leadAgent` — one lead pane for every run.
   const lead = new Lead(herdr, cfg, join(cfg.stateDir, "lead"), snapshot, adapters);
+  lead.modelOf = (repo) => db.repoModel(repo, LEAD_MODEL_KEY)?.model ?? null;
   leadPane = () => lead.paneId;
   const prView = (card: Card): Card => lotPrCard(card.runId ? db.getRun(card.runId) : null, card);
   const coordinator = new RunCoordinator(db, {
