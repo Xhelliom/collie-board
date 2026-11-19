@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1795117081826.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Agents du board lancés avec moins de MCP et de plugins","status":"backlog"},"ts":1795117073664}}
 {"v":1,"hlc":"1795117081834.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"853ddb7f-673b-4079-b26b-406e9f1582d6"}}
 {"v":1,"hlc":"1795118634688.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795118644940.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/agents-du-board-lances-avec-moins-de-mcp-et-de-p"}}
+{"v":1,"hlc":"1795118644941.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795118644941.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795118637555}}
+{"v":1,"hlc":"1795118644942.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795118644943.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795118644424}}
+{"v":1,"hlc":"1795118644943.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2977},"ts":1795118644750}}
