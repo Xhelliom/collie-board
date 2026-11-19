@@ -270,6 +270,23 @@ export function createTools(api: BoardApi): BoardTool[] {
       },
     },
     {
+      // ADR 0055: the route's refusals hold as is — an agent's pane resumes only a mechanical halt, within the bound.
+      name: "resume_lot", readOnly: false, destructive: true,
+      description: "Reprend un lot arrêté : ses cartes arrêtées repartent à l'étape où elles se sont arrêtées (relance de vrais agents). Pour un agent, seulement un arrêt mécanique avec l'autonomie active (ADR 0055).",
+      props: { runId: { type: "string" } }, required: ["runId"],
+      preview: async (a) => {
+        const run = ((await api("GET", "/api/runs")).runs ?? []).find((r: Json) => r.id === a.runId);
+        if (!run) throw new Refusal("Ce lot n'existe pas.");
+        if (run.halted === null || run.halted === undefined) throw new Refusal(`Le lot « ${oneLine(run.name ?? "sans nom", 60)} » n'est pas arrêté.`);
+        const n = run.haltedCards ?? 0;
+        return `Reprendre le lot « ${oneLine(run.name ?? "sans nom", 60)} » — ${n} carte${n > 1 ? "s" : ""} arrêtée${n > 1 ? "s" : ""} : ${oneLine(run.halted, 140) || "raison non dite"}`;
+      },
+      run: async (a) => {
+        const { resumed } = await api("POST", `/api/runs/${id(a.runId)}/resume`, {});
+        return `Lot repris : ${resumed} carte${resumed > 1 ? "s" : ""} relancée${resumed > 1 ? "s" : ""}.`;
+      },
+    },
+    {
       // ADR 0057: the objective the orchestrator drafted with the operator. As a button the tap is the operator's
       // yes; called by an agent's MCP client it carries the pane, and the bridge marks the objective `agent`.
       name: "set_goal", readOnly: false, destructive: true,

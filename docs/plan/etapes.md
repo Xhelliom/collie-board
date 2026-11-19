@@ -87,3 +87,45 @@ Savoir ce qui consomme le quota (copilote, vérifications, relances, orchestrate
   - [x] Tableau des postes de coût chiffré, publié
   - [x] 3 à 5 freins proposés, chacun avec gain estimé et risque
   - [x] Aucun changement de code
+
+## Phase 59 — Freins du coût — réglages
+
+Appliquer les freins 2, 4 et 5 de l étude « Où part le quota » : agents lancés avec moins de MCP et de plugins, lead vidé à chaque demande et en Sonnet, pas de revue copilote après un lead OK. Plus deux correctifs remontés par l opérateur.
+
+### Lot — Correctif · rappel qui vibre et reprise de lot (launched)
+
+- **Bouton « Reprendre le lot » dans les boutons de l'orchestrateur** — done
+
+  Un orchestrateur a proposé un bouton collie-buttons avec action resume_lot : l'app affiche « Action inconnue : resume_lot » car le catalogue (web/src/lib/board-tools.ts, partagé avec bridge/mcp.ts) n'a pas d'outil pour POST /api/runs/<id>/resume. Ajouter un outil resume_lot (args runId), destructif = demande confirmation, avec un aperçu lisible (« Reprendre le lot « nom » — N cartes arrêtées : raison »). Côté MCP il garde les mêmes refus que la route (ADR 0055). Documenter dans skills/collie-board/SKILL.md (liste des actions de boutons) pour que skill.test.ts reste vert.
+
+  - [x] Un bouton {action:"resume_lot",args:{runId}} s affiche avec l aperçu du lot et reprend le lot après confirmation
+  - [x] Un runId inconnu grise le bouton avec une raison lisible
+  - [x] SKILL.md documente resume_lot
+- **Le rappel du dernier message ne vibre plus, sur ordinateur aussi** — done
+
+  Skill frontend-design en tête. L'opérateur voit toujours le rappel sticky du dernier message (PromptPin, web/src/components/reading-view.tsx) vibrer en haut de la conversation d'un agent quand il arrive presque au niveau du texte. Le correctif #491 a réservé la place du rappel sur téléphone seulement ; sur grand écran il reste en overlay (lg:absolute) et la mesure du tour au bord (measure au scroll) peut encore boucler. Reproduire (téléphone ET bureau, mode lecture et conversation), trouver la boucle (mesure → rendu → déplacement → mesure), la casser à la racine (hystérésis, bord de mesure qui tient compte de la hauteur du rappel, ou slot réservé partout). Pas de liseré latéral.
+
+  - [x] Sur bureau et téléphone, faire défiler lentement jusqu au point où le rappel rencontre le texte : il ne clignote ni ne tremble
+  - [x] Un test couvre la mesure du tour au bord (pas d aller-retour entre deux tours pour une même position)
+
+### Lot — Freins : agents légers, lead vidé, copilote sobre (planned)
+
+- **Pas de revue copilote sur une carte déjà validée par le lead** — backlog
+
+  Frein 5 de l'étude « Où part le quota » : ~2 % du coût. Quand le lead a rendu un verdict OK sur une carte, le copilote ne lance plus sa revue de fin dessus. Les cartes non revues par un lead gardent la revue copilote.
+
+  - [ ] Une carte validée par le lead ne déclenche pas de revue copilote
+  - [ ] Une carte sans lead garde la revue copilote
+- **Lead : contexte vidé avant chaque demande, et Sonnet par défaut** — backlog
+
+  Frein 4 de l'étude « Où part le quota » : le lead fait 20 % du coût, en grande partie le contexte accumulé de ses demandes précédentes relu à chaque appel. Envoyer /clear au lead avant chaque nouvelle demande de revue (il n'a pas besoin des diffs précédents), et lancer le lead en Sonnet par défaut, réglable par dépôt (Opus possible). Passer par promptAndConfirm()/launchAgent().
+
+  - [ ] Deux revues de suite par le même lead : la seconde part d un contexte vidé (vérifiable dans le transcript)
+  - [ ] Un nouveau lead démarre en Sonnet sauf réglage du dépôt
+- **Agents du board lancés avec moins de MCP et de plugins** — backlog
+
+  Frein 2 de l'étude « Où part le quota » (docs/dev/couts-2026-11.md) : chaque agent de carte démarre avec tous les MCP et plugins de l'utilisateur (Godot, Unreal, Stripe, Gmail, Slack…), relus à chaque appel ; ~11 % du coût du board par tranche de 25 k tokens retirés. 1) MESURER d'abord : tokens du contexte de départ d'un agent de carte aujourd'hui (transcript, premier usage), par source si possible. 2) Lancer les agents de carte (worker, lead) avec une config réduite via les options du harnais (ex. --strict-mcp-config / --mcp-config, réglages de plugins) : par défaut le MCP collie-board et le skill collie-board seulement ; une liste « MCP gardés » par dépôt dans les réglages du projet pour un dépôt qui a besoin d'un MCP métier. Ne pas toucher l'orchestrateur ni les sessions manuelles. Passer par launchAgent(), jamais agent.start direct.
+
+  - [ ] La mesure avant/après (tokens de départ d un agent de carte) est publiée en livrable sur la carte
+  - [ ] Un agent de carte d un dépôt sans réglage démarre sans les MCP/plugins tiers
+  - [ ] Un dépôt peut garder des MCP nommés dans ses réglages, et ses agents les ont

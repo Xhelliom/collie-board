@@ -8,7 +8,7 @@
 
 import { boardBranchPrefix } from "./config.ts";
 import { doneOutsideLot, type BoardDb, type Card, type Run } from "./db.ts";
-import { haltReason } from "./run.ts";
+import { haltReason, haltedCount } from "./run.ts";
 import { lotOverlaps } from "./lot-overlap.ts";
 import { baseOf, branchExists, isAncestor, parseMergeTree, runGit, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 
@@ -161,11 +161,13 @@ export function lotView(db: Pick<BoardDb, "runMembers" | "runFinishedAt" | "list
     }
   }
   // Halted: the reason sits beside the operator's « Reprendre » (POST /api/runs/<id>/resume).
-  const halted = run.launchedAt !== null && !finished ? haltReason(run, members.map((card) => ({ card, events: db.listEvents(card.id, 200) }))) : null;
+  const journals = run.launchedAt !== null && !finished ? members.map((card) => ({ card, events: db.listEvents(card.id, 200) })) : null;
+  const halted = journals ? haltReason(run, journals) : null;
+  const haltedCards = journals ? haltedCount(run, journals) : 0;
   // Counted here, not on the client: the home's summary card list keeps only a few done cards per repo.
   const done = members.filter((c) => c.status === "done").length;
   const blocked = members.filter((c) => c.status === "blocked" || c.status === "orphaned").length;
   // Cards that may run together and cite the same file: a warning beside the lot, never a block.
   const overlaps = finished ? [] : lotOverlaps(run, members);
-  return { ...run, cardIds: members.map((c) => c.id), finished, finishedAt, doneOutside, done, blocked, prUrl, halted, overlaps };
+  return { ...run, cardIds: members.map((c) => c.id), finished, finishedAt, doneOutside, done, blocked, prUrl, halted, haltedCards, overlaps };
 }

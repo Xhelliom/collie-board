@@ -637,7 +637,7 @@ code.
   `reply_to_agent` and `notify` are not buttons. An unknown action or bad args: the button is greyed with
   the reason and nothing runs.
 - The button shows what it will do from `action`+`args` (« Fusionner « titre » dans main »), not from
-  your label; a destructive tool (`finish_card`, `launch_lot`, `set_goal`) asks for confirmation. The tap is the
+  your label; a destructive tool (`finish_card`, `launch_lot`, `resume_lot`, `set_goal`) asks for confirmation. The tap is the
   user's, with the user's rights: writing the block runs nothing, and what refuses you still does.
 - No buttons for an open question that wants a sentence — ask for the sentence.
 
@@ -666,8 +666,9 @@ code.
   Its coarse state is shared (`launchedAt`, `finished`/`finishedAt`); its current step is not.
 - `POST /api/runs/<id>/resume` — lifts a lot's halts (`run.halted`): each halted card picks up at the
   step it stopped on (a triage is asked again, its worker is not relaunched). The user's, and refuses
-  your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`), tell the
-  user why and let them resume it.
+  your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`, the
+  count in `haltedCards`), tell the user why and let them resume it — a `resume_lot {runId}` button
+  says « Reprendre le lot « nom » — N cartes arrêtées : raison » and asks for confirmation.
   **Except (ADR 0055)**: with autonomy on — or the repo's objective active — **the repo's orchestrator** may resume it itself when the
   halt is mechanical — a PR not up to date with its base, a red pre-push, a silent lead, uncommitted
   work, a failed start, or the lead's **`blocked outside the code: <why> — operator: <what to do>`**

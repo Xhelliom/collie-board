@@ -35,3 +35,27 @@ export function pinFor(entries: readonly TranscriptEntry[], topUuid: string | nu
   }
   return null;
 }
+
+/** Px a turn must cross the edge by before it takes (or gives back) the top: a dead band, so a
+ *  sub-pixel or momentum jitter around the edge can't toggle the pin back and forth. */
+export const TOP_HYSTERESIS = 8;
+
+/**
+ * The turn at the top edge, given each visible turn's top (in order) and the turn that held it.
+ * The holder keeps it until its top drops `band` px below the edge; any other turn needs to rise
+ * `band` px above it. The answer is a fixed point: re-measuring the same position with it as the
+ * holder gives it back, so one position can never alternate between two turns.
+ */
+export function topTurn(
+  rows: readonly { uuid: string; top: number }[],
+  edge: number,
+  current: string | null,
+  band = TOP_HYSTERESIS,
+): string | null {
+  let top: string | null = null;
+  for (const r of rows) {
+    if (r.top > edge + band) break; // rows are in order: none below can qualify
+    if (r.top <= (r.uuid === current ? edge + band : edge - band)) top = r.uuid;
+  }
+  return top;
+}

@@ -230,6 +230,16 @@ describe("lotView", () => {
     expect(lotView(db, run).finishedAt).toBeGreaterThanOrEqual(before);
   });
 
+  it("counts the halted members beside the halt's reason", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/repo", status: "review" });
+    const b = db.createCard({ title: "b", repoPath: "/repo", status: "review" });
+    const run = db.createRun({ repoPath: "/repo", cardIds: [a.id, b.id], foldInCap: 0 });
+    expect(lotView(db, run)).toMatchObject({ halted: null, haltedCards: 0 });
+    db.recordRunEvent(a.id, "run.halted", { runId: run.id, reason: "pre-push rouge" });
+    expect(lotView(db, run)).toMatchObject({ halted: "pre-push rouge", haltedCards: 1 });
+  });
+
   it("never calls a planned lot finished", () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/repo" });

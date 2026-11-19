@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.352.0] - 2026-11-19
+
+### Added
+
+- Bouton d'orchestrateur `resume_lot` : reprend un lot arrêté après confirmation, avec la raison et le nombre de cartes arrêtées (d30a797)
+
 ## [0.351.4] - 2026-11-19
 
 ### Changed
