@@ -3012,6 +3012,26 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     expect(state.asked).toBe(1);
   });
 
+  it("leaves a launched lot's card to its lead — a planned lot's card is still reviewed", async () => {
+    const store = db();
+    const card = filed(store, { wrapupPending: false });
+    const run = store.createRun({ repoPath: "/repo", cardIds: [card.id], foldInCap: 0, planned: true });
+    const { state, copilot } = counting();
+    const coordinator = new CopilotCoordinator(store, copilot, cfg);
+
+    store.launchRun(run.id);
+    coordinator.update(snapshot([]), async () => "stat");
+    await settle();
+    expect(state.asked).toBe(0);
+
+    const other = store.createCard({ title: "z", status: "done", repoPath: "/repo" });
+    store.closeSession(store.openSession({ cardId: other.id, paneId: "w1:p3" }).id, "done");
+    store.createRun({ repoPath: "/repo", cardIds: [other.id], foldInCap: 0, planned: true });
+    coordinator.update(snapshot([]), async () => "stat");
+    await settle();
+    expect(state.asked).toBe(1);
+  });
+
   it("reviews each session once, and a new session again", async () => {
     const store = db();
     const card = filed(store, { wrapupPending: false });
