@@ -203,6 +203,10 @@ export const project = defineMessages({
     en: "« {a} » and « {b} » cite the same files ({files}): the second PR will likely conflict. Chain them (one depends on the other) or run the lot one at a time.",
     fr: "« {a} » et « {b} » citent les mêmes fichiers ({files}) : la seconde PR risque d'arriver en conflit. Chaîne-les (l'une dépend de l'autre) ou passe le lot à une à la fois.",
   },
+  "lot.overlaps": {
+    en: { one: "{count} pair of cards may conflict", other: "{count} pairs of cards may conflict" },
+    fr: { one: "{count} paire de cartes risque un conflit", other: "{count} paires de cartes risquent un conflit" },
+  },
   "lot.launch": { en: "Launch this lot", fr: "Lancer ce lot" },
   "lot.ownedBy": { en: "{name}'s lot — only its creator launches and resumes it", fr: "Lot de {name} — seul son créateur le lance et le reprend" },
   "awaiting.tag": { en: "The orchestrator awaits your decision", fr: "L'orchestrateur attend ta décision" },

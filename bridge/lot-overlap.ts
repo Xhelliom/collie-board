@@ -19,7 +19,8 @@ export function filesCited(text: string | null): string[] {
 
 /**
  * Les paires de cartes d'un lot qui peuvent tourner ensemble et citent un même fichier. Rien quand le
- * lot va une carte à la fois, ni pour deux cartes déjà ordonnées par une chaîne `dependsOn` du lot. Pur.
+ * lot va une carte à la fois, ni pour deux cartes déjà ordonnées par une chaîne `dependsOn` du lot. Les
+ * fichiers Markdown ne comptent pas. Pur.
  */
 export function lotOverlaps(run: Pick<Run, "maxParallel">, cards: Pick<Card, "id" | "title" | "spec" | "dependsOn">[]): Overlap[] {
   if (run.maxParallel === 1) return [];
@@ -30,7 +31,9 @@ export function lotOverlaps(run: Pick<Run, "maxParallel">, cards: Pick<Card, "id
     for (let i = 0; cur && i < cards.length; i++, cur = byId.get(cur)?.dependsOn) if (cur === a) return true;
     return false;
   };
-  const files = cards.map((c) => new Set(filesCited(`${c.title}\n${c.spec ?? ""}`)));
+  // A Markdown file is context to read, not code to change: every card of a repo cites the same docs,
+  // and a conflict on one is settled without halting the lot.
+  const files = cards.map((c) => new Set(filesCited(`${c.title}\n${c.spec ?? ""}`).filter((f) => !/\.md$/i.test(f))));
   const out: Overlap[] = [];
   for (let i = 0; i < cards.length; i++)
     for (let j = i + 1; j < cards.length; j++) {
