@@ -376,6 +376,11 @@ export function haltReason(run: Run, members: { card: Card; events: BoardEvent[]
   return held ? String((held.payload as { reason?: unknown }).reason ?? "") : null;
 }
 
+/** How many members a resume would lift — the « N cartes arrêtées » beside the reason. */
+export function haltedCount(run: Run, members: { card: Card; events: BoardEvent[] }[]): number {
+  return members.filter(({ card, events }) => stuck(run, card, events)).length;
+}
+
 /** A member waiting on the operator. A halt holds until the card moves after it, or the run is resumed — the operator acting on it. */
 function stuck(run: Run, card: Card, events: BoardEvent[]): boolean {
   if (FILED.has(card.status)) return false;
