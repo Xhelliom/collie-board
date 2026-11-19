@@ -44,7 +44,7 @@ describe("mcp: protocol", () => {
     const tools = Object.fromEntries(list.result.tools.map((t) => [t.name, t]));
     for (const n of ["list_projects", "project_status", "get_card", "whats_blocking", "recent_notifications", "list_deliverables", "read_deliverable", "project_roadmap"]) expect(tools[n]!.annotations.readOnlyHint).toBe(true);
     for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify", "finish_card", "message_orchestrator", "publish_file"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
-    for (const n of ["launch_lot", "finish_card", "set_goal"]) expect(tools[n]!.annotations.destructiveHint).toBe(true);
+    for (const n of ["launch_lot", "resume_lot", "finish_card", "set_goal"]) expect(tools[n]!.annotations.destructiveHint).toBe(true);
     for (const t of Object.values(tools)) expect(t.description.length).toBeGreaterThan(10);
   });
 });
@@ -454,6 +454,22 @@ describe("mcp: the catalog is the buttons' catalog (ADR 0042)", () => {
     for (const t of catalog) expect(list.result.tools.find((x) => x.name === t.name)!.inputSchema.properties).toEqual(t.props);
     // Typing into another agent's pane is never a button.
     expect(catalog.filter((t) => t.button === false).map((t) => t.name)).toEqual(["reply_to_agent", "notify"]);
+  });
+  it("resume_lot previews the halted lot, greys an unknown or running one, and POSTs the resume", async () => {
+    const runs = [{ id: "r1", name: "Lot A", halted: "pre-push rouge", haltedCards: 2 }, { id: "r2", name: "Lot B", halted: null }];
+    const calls: string[] = [];
+    const tool = createTools(async (m, p) => { calls.push(`${m} ${p}`); return p === "/api/runs" ? { runs } : { resumed: 2 }; }).find((t) => t.name === "resume_lot")!;
+    expect(await tool.preview!({ runId: "r1" })).toBe("Reprendre le lot « Lot A » — 2 cartes arrêtées : pre-push rouge");
+    await expect(tool.preview!({ runId: "nope" })).rejects.toThrow("Ce lot n'existe pas.");
+    await expect(tool.preview!({ runId: "r2" })).rejects.toThrow(/n'est pas arrêté/);
+    expect(await tool.run({ runId: "r1" })).toBe("Lot repris : 2 cartes relancées.");
+    expect(calls.at(-1)).toBe("POST /api/runs/r1/resume");
+  });
+  it("resume_lot relays the route's refusal for an agent pane (ADR 0055)", async () => {
+    const { call } = setup({ HERDR_PANE_ID: "w1:p2" }, { "POST /api/runs/r1/resume": { status: 403, text: "the halt is not mechanical" } });
+    const r = await call("resume_lot", { runId: "r1" });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/refusée.*not mechanical/);
   });
   it("invalidArgs checks required, unknown keys, types and enums", () => {
     const fin = createTools(async () => ({})).find((t) => t.name === "finish_card")!;
