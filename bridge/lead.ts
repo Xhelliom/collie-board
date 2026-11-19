@@ -52,9 +52,21 @@ export function parseIssue(text: string): BilanIssue | null {
   return null;
 }
 
+/** The lead's model when its repo sets none: a judge reads and decides, it needs no Opus. */
+export const LEAD_DEFAULT_MODEL = "sonnet";
+/** The repo setting's key beside the harnesses' (`repo_pref.models`), set from the repo's model screen. */
+export const LEAD_MODEL_KEY = "lead";
+
 export class Lead extends Copilot {
+  /** The repo's own lead model, or null for {@link LEAD_DEFAULT_MODEL}. Wired by run.ts. */
+  modelOf: (repoPath: string) => string | null = () => null;
+
   override get enabled(): boolean {
     return true;
+  }
+  /** Every request starts from a /clear: a review needs none of the diffs read before it. */
+  protected override get resetEvery(): number {
+    return 1;
   }
   protected override get label(): string {
     return LEAD_LABEL;
@@ -64,13 +76,13 @@ export class Lead extends Copilot {
   }
 
   check(input: Omit<CheckInput, "outPath">): Promise<CheckDecision> {
-    return this.decide("check", (outPath) => checkPrompt({ ...input, outPath }), toCheckDecision);
+    return this.decide("check", input.repoPath, (outPath) => checkPrompt({ ...input, outPath }), toCheckDecision);
   }
   triage(input: Omit<TriageInput, "outPath">): Promise<TriageDecision> {
-    return this.decide("triage", (outPath) => triagePrompt({ ...input, outPath }), (a) => toTriageDecision(a, input.followUps.length));
+    return this.decide("triage", input.repoPath, (outPath) => triagePrompt({ ...input, outPath }), (a) => toTriageDecision(a, input.followUps.length));
   }
   recheckConflict(input: Omit<ConflictInput, "outPath">): Promise<ConflictDecision> {
-    return this.decide("conflict re-check", (outPath) => conflictPrompt({ ...input, outPath }), toConflictDecision);
+    return this.decide("conflict re-check", input.repoPath, (outPath) => conflictPrompt({ ...input, outPath }), toConflictDecision);
   }
 
   /**
@@ -78,10 +90,12 @@ export class Lead extends Copilot {
    * {@link LEAD_ATTEMPTS} times, before it becomes the operator's. A missing field is a slip, not a
    * judgement: halting a lot on the first one throws away a whole run for a typo.
    */
-  private async decide<T>(what: string, build: (outPath: string) => string, parse: (answer: unknown) => T): Promise<T> {
+  private async decide<T>(what: string, repoPath: string | null | undefined, build: (outPath: string) => string, parse: (answer: unknown) => T): Promise<T> {
+    // A Claude alias: another harness's model names are its own, and it keeps its default.
+    const model = this.adapter.kind === "claude" ? ((repoPath ? this.modelOf(repoPath) : null) ?? LEAD_DEFAULT_MODEL) : null;
     let problem = "";
     for (let attempt = 1; ; attempt++) {
-      const got = await this.answer((outPath) => build(outPath) + (problem ? rejected(problem) : ""));
+      const got = await this.answer((outPath) => build(outPath) + (problem ? rejected(problem) : ""), model);
       try {
         if ("malformed" in got) throw new Error(got.malformed);
         return parse(got.answer);
@@ -96,8 +110,8 @@ export class Lead extends Copilot {
    * The answer, or an unparseable file to ask again. LeadSilent ONLY for a request typed into the
    * pane that ran out its deadline: a request that never reached the pane says why, exactly.
    */
-  private async answer(build: (outPath: string) => string): Promise<{ answer: unknown } | { malformed: string }> {
-    const r = await this.request(build);
+  private async answer(build: (outPath: string) => string, model: string | null): Promise<{ answer: unknown } | { malformed: string }> {
+    const r = await this.request(build, model);
     if ("answer" in r) return r;
     const { kind, reason, paneId } = r.failure;
     if (kind === "malformed") return { malformed: reason };
@@ -136,6 +150,8 @@ export interface CardBrief {
   base: string;
   /** What the operator told the worker since the lead's last verdict, oldest first. */
   operatorSaid?: string[];
+  /** The card's repo — whose setting picks the lead's model. */
+  repoPath?: string | null;
   /** `explore` turns the check from "is the diff complete?" into "is the conclusion sound?". */
   category?: string | null;
 }

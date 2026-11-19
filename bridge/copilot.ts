@@ -1053,6 +1053,8 @@ export class Copilot {
   /** Serialises requests: one pane is one queue, which is free rate limiting. */
   private queue: Promise<unknown> = Promise.resolve();
   private requestsSinceReset = 0;
+  /** The model the pane runs, as far as we set it — null when unknown (adopted, or launched without one). */
+  private model: string | null = null;
 
   constructor(
     private readonly herdr: Mux,
@@ -1068,7 +1070,7 @@ export class Copilot {
   ) {}
 
   /** The agent kind the copilot runs, and its adapter. */
-  private get adapter(): AgentAdapter {
+  protected get adapter(): AgentAdapter {
     return adapterFor(this.adapters, this.cfg.boardCopilotKind || this.cfg.boardAgentKind);
   }
 
@@ -1079,6 +1081,11 @@ export class Copilot {
   /** The herdr workspace label — and, through agentNameFor, the agent's name. Per role. */
   protected get label(): string {
     return this.cfg.boardCopilotWorkspace;
+  }
+
+  /** How many requests share a context before the next one starts from a /clear. Per role. */
+  protected get resetEvery(): number {
+    return RESET_EVERY;
   }
 
   /** The log prefix. Per role. */
@@ -1112,30 +1119,35 @@ export class Copilot {
   }
 
   /** `ask`, saying why there is no answer — the lead halts on each reason differently. */
-  protected request(buildPrompt: (outPath: string) => string): Promise<AskOutcome> {
+  protected request(buildPrompt: (outPath: string) => string, model: string | null = null): Promise<AskOutcome> {
     if (!this.enabled) return Promise.resolve({ failure: { kind: "failed", reason: `the ${this.tag} is switched off`, paneId: null } });
     const failed = (err: unknown): AskOutcome => ({ failure: { kind: "failed", reason: (err as Error).message, paneId: null } });
-    const run = this.queue.then(() => this.run(buildPrompt)).catch(failed);
+    const run = this.queue.then(() => this.run(buildPrompt, model)).catch(failed);
     // The queue must never adopt a rejection, or one failure would poison every later request.
     this.queue = run.catch(() => null);
     return run;
   }
 
-  private async run(buildPrompt: (outPath: string) => string): Promise<AskOutcome> {
+  /** `model`: the pane is launched on it, or switched to it before the prompt (Claude's `/model`). */
+  private async run(buildPrompt: (outPath: string) => string, model: string | null): Promise<AskOutcome> {
     const id = crypto.randomUUID().slice(0, 8);
     const { abs, rel } = this.outPathFor(id);
     const promptRel = `${PROMPT_DIR}/${id}.md`;
     const promptAbs = join(this.workDir, promptRel);
     try {
-      await this.ensurePane();
+      await this.ensurePane(model);
       if (!this._paneId) return { failure: { kind: "failed", reason: `the ${this.tag} has no pane`, paneId: null } };
       const paneId = this._paneId;
       await mkdir(join(this.workDir, OUT_DIR), { recursive: true, mode: 0o700 });
       // Stale file from a previous run with the same id would be read as this answer.
       await rm(abs, { force: true });
 
-      if (this.requestsSinceReset >= RESET_EVERY) await this.reset();
+      if (this.requestsSinceReset >= this.resetEvery) await this.reset();
       this.requestsSinceReset++;
+      if (model && model !== this.model && this.adapter.kind === "claude") {
+        await promptAndConfirm(this.herdr, paneId, `/model ${model}`);
+        this.model = model;
+      }
 
       // Same delivery problems as everywhere else (see promptAndConfirm): an unsubmitted prompt, or
       // one eaten whole by the first-run trust dialog, would burn this request's five-minute
@@ -1207,7 +1219,7 @@ export class Copilot {
    * workspace behind on every restart before it does. Found live: the copilot was dead for exactly
    * that reason, silently, until this class started logging.
    */
-  private async ensurePane(): Promise<void> {
+  private async ensurePane(model: string | null = null): Promise<void> {
     if (this._paneId) return;
     await mkdir(this.workDir, { recursive: true, mode: 0o700 });
 
@@ -1219,6 +1231,7 @@ export class Copilot {
     const running = here.find((p) => mine(p.paneId));
     if (running) {
       this._paneId = running.paneId;
+      this.adopted();
       console.log(`[${this.tag}] adopted the existing agent in ${running.paneId}`);
       return;
     }
@@ -1234,12 +1247,20 @@ export class Copilot {
     // Same pre-approval as a card's checkout: on a fresh install nobody ever answered Claude Code's
     // trust screen here, and its default « No, exit » leaves the copilot — and the lead — mute.
     if (kind === "claude") trustFolder(this.workDir);
-    await launchAgent(this.herdr, paneId, kind, agentNameFor(label), undefined, leanArgs(kind, this.cfg, null, [], this.workDir));
+    const flag = this.adapter.modelFlag;
+    await launchAgent(this.herdr, paneId, kind, agentNameFor(label), undefined, [...(model && flag ? [flag, model] : []), ...leanArgs(kind, this.cfg, null, [], this.workDir)]);
     this._paneId = paneId;
+    this.model = model && flag ? model : null;
     this.launchedAt = Date.now();
     this.requestsSinceReset = 0;
     this.justLaunched = true;
     console.log(`[${this.tag}] agent ready in ${paneId} (${this.workDir})`);
+  }
+
+  /** A pane found already running: its context and model are unknown, so the next request clears and sets both. */
+  private adopted(): void {
+    this.requestsSinceReset = this.resetEvery;
+    this.model = null;
   }
 
   /**
@@ -1268,6 +1289,7 @@ export class Copilot {
     // the next request — until then its turns would page the operator like a worker's (index.ts).
     if (!this._paneId) {
       this._paneId = snap.agents.find((a) => a.cwd === this.workDir)?.paneId ?? null;
+      if (this._paneId) this.adopted();
       return;
     }
     // A pane gone, or back to a bare shell (an hc terminal whose agent was lost: a reboot) — the next

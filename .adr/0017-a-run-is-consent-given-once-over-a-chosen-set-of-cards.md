@@ -1,6 +1,6 @@
 # 0017 — A run is consent given once, over a chosen set of cards
 
-**Status:** Accepted
+**Status:** Accepted — step 5's copilot review superseded by [0061](./0061-le-copilote-ne-relit-pas-une-carte-de-lot.md)
 **Date:** 2026-09-16
 
 ## Context
