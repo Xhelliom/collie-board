@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { StatusSignal } from "@/components/status-signal";
-import { Lock, Play, Rocket, Trash2, TriangleAlert } from "lucide-react";
+import { ChevronDown, Lock, Play, Rocket, Trash2, TriangleAlert } from "lucide-react";
 
 import { ScopeCost } from "@/components/scope-cost";
 import { MENU_ITEM, MoreActions } from "@/components/project-more";
@@ -242,17 +242,22 @@ export function PhaseLots({
               {pl.lot.doneOutside ? t("lot.doneOutside") : finished ? t("lot.finished") : halted ? t("lot.halted") : ownerName ? t("people.runningAt", { name: ownerName }) : t("lot.running")}
             </span>
           )}
-          {!finished &&
-            pl.lot.overlaps?.map((o) => {
-              const title = (id: string) => pl.cards.find((c) => c.id === id)?.title ?? id.slice(0, 8);
-              const text = t("lot.overlap", { a: title(o.cardIds[0]), b: title(o.cardIds[1]), files: o.files.join(", ") });
-              return (
-                <span key={o.cardIds.join()} role="note" className="flex min-w-0 basis-full items-start gap-1.5 text-xs text-destructive">
-                  <TriangleAlert className="mt-px size-3.5 shrink-0" />
-                  <span>{text}</span>
-                </span>
-              );
-            })}
+          {!finished && !!pl.lot.overlaps?.length && (
+            // One folded line per lot: a lot of N cards citing the same file is N(N-1)/2 pairs, a screenful.
+            <details role="note" className="group min-w-0 basis-full text-xs text-destructive">
+              <summary className="flex min-h-8 cursor-pointer select-none list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
+                <TriangleAlert className="size-3.5 shrink-0" />
+                <span className="font-semibold">{t("lot.overlaps", { count: pl.lot.overlaps.length })}</span>
+                <ChevronDown className="size-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden />
+              </summary>
+              <ul className="flex flex-col gap-1.5 pb-1 pl-5">
+                {pl.lot.overlaps.map((o) => {
+                  const title = (id: string) => pl.cards.find((c) => c.id === id)?.title ?? id.slice(0, 8);
+                  return <li key={o.cardIds.join()}>{t("lot.overlap", { a: title(o.cardIds[0]), b: title(o.cardIds[1]), files: o.files.join(", ") })}</li>;
+                })}
+              </ul>
+            </details>
+          )}
           {pl.lot.launchedAt !== null && <ScopeCost repo={pl.lot.repoPath} runId={pl.lot.id} className="basis-full" />}
           <span className="ml-auto flex items-center gap-2">
             <LotAction pl={pl} byId={byId} onLaunched={onLaunched} />

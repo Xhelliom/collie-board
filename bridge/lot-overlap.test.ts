@@ -28,6 +28,13 @@ describe("lotOverlaps", () => {
   it("says nothing for cards already chained, even through a third", () => {
     expect(lotOverlaps({ maxParallel: 2 }, [a, card("m", null, "a"), card("b", "bridge/run.ts", "m")])).toEqual([]);
   });
+  it("never flags cards that share only Markdown docs", () => {
+    const docs = "read docs/claude/sketch-module.md, WHY-NOT.md";
+    expect(lotOverlaps({ maxParallel: 2 }, [card("x", docs), card("y", `${docs}, README.MD`)])).toEqual([]);
+    expect(lotOverlaps({ maxParallel: 2 }, [card("x", `${docs} then src/app.ts`), card("y", `${docs} and src/app.ts`)])).toEqual([
+      { cardIds: ["x", "y"], files: ["src/app.ts"] },
+    ]);
+  });
   it("a spec that names no file is never flagged", () => expect(lotOverlaps({ maxParallel: 2 }, [card("x", "refactor"), card("y", "refactor")])).toEqual([]));
   it("warns with the way out", () => {
     expect(overlapWarning([])).toBeNull();
@@ -59,7 +66,7 @@ describe("a lot whose cards cite the same file", () => {
     expect(body.warning).toContain("bridge/lot.ts");
     expect(lotView(db, db.getRun(body.run.id)!).overlaps).toHaveLength(1);
 
-    const z = db.createCard({ title: "z", repoPath: "/r", spec: "web/src/a.tsx" });
+    const z = db.createCard({ title: "z", repoPath: "/r", spec: "web/src/app.tsx" });
     const quiet = (await (await post([z.id], 2))!.json()) as { overlaps: unknown[]; warning: string | null };
     expect([quiet.overlaps, quiet.warning]).toEqual([[], null]);
   });
