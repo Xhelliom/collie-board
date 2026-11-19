@@ -108,24 +108,24 @@ Appliquer les freins 2, 4 et 5 de l étude « Où part le quota » : agents lanc
   - [x] Sur bureau et téléphone, faire défiler lentement jusqu au point où le rappel rencontre le texte : il ne clignote ni ne tremble
   - [x] Un test couvre la mesure du tour au bord (pas d aller-retour entre deux tours pour une même position)
 
-### Lot — Freins : agents légers, lead vidé, copilote sobre (planned)
+### Lot — Freins : agents légers, lead vidé, copilote sobre (launched)
 
-- **Pas de revue copilote sur une carte déjà validée par le lead** — backlog
+- **Pas de revue copilote sur une carte déjà validée par le lead** — done
 
   Frein 5 de l'étude « Où part le quota » : ~2 % du coût. Quand le lead a rendu un verdict OK sur une carte, le copilote ne lance plus sa revue de fin dessus. Les cartes non revues par un lead gardent la revue copilote.
 
-  - [ ] Une carte validée par le lead ne déclenche pas de revue copilote
-  - [ ] Une carte sans lead garde la revue copilote
-- **Lead : contexte vidé avant chaque demande, et Sonnet par défaut** — backlog
+  - [x] Une carte validée par le lead ne déclenche pas de revue copilote
+  - [x] Une carte sans lead garde la revue copilote
+- **Lead : contexte vidé avant chaque demande, et Sonnet par défaut** — done
 
   Frein 4 de l'étude « Où part le quota » : le lead fait 20 % du coût, en grande partie le contexte accumulé de ses demandes précédentes relu à chaque appel. Envoyer /clear au lead avant chaque nouvelle demande de revue (il n'a pas besoin des diffs précédents), et lancer le lead en Sonnet par défaut, réglable par dépôt (Opus possible). Passer par promptAndConfirm()/launchAgent().
 
-  - [ ] Deux revues de suite par le même lead : la seconde part d un contexte vidé (vérifiable dans le transcript)
-  - [ ] Un nouveau lead démarre en Sonnet sauf réglage du dépôt
-- **Agents du board lancés avec moins de MCP et de plugins** — backlog
+  - [x] Deux revues de suite par le même lead : la seconde part d un contexte vidé (vérifiable dans le transcript)
+  - [x] Un nouveau lead démarre en Sonnet sauf réglage du dépôt
+- **Agents du board lancés avec moins de MCP et de plugins** — done
 
   Frein 2 de l'étude « Où part le quota » (docs/dev/couts-2026-11.md) : chaque agent de carte démarre avec tous les MCP et plugins de l'utilisateur (Godot, Unreal, Stripe, Gmail, Slack…), relus à chaque appel ; ~11 % du coût du board par tranche de 25 k tokens retirés. 1) MESURER d'abord : tokens du contexte de départ d'un agent de carte aujourd'hui (transcript, premier usage), par source si possible. 2) Lancer les agents de carte (worker, lead) avec une config réduite via les options du harnais (ex. --strict-mcp-config / --mcp-config, réglages de plugins) : par défaut le MCP collie-board et le skill collie-board seulement ; une liste « MCP gardés » par dépôt dans les réglages du projet pour un dépôt qui a besoin d'un MCP métier. Ne pas toucher l'orchestrateur ni les sessions manuelles. Passer par launchAgent(), jamais agent.start direct.
 
-  - [ ] La mesure avant/après (tokens de départ d un agent de carte) est publiée en livrable sur la carte
-  - [ ] Un agent de carte d un dépôt sans réglage démarre sans les MCP/plugins tiers
-  - [ ] Un dépôt peut garder des MCP nommés dans ses réglages, et ses agents les ont
+  - [x] La mesure avant/après (tokens de départ d un agent de carte) est publiée en livrable sur la carte
+  - [x] Un agent de carte d un dépôt sans réglage démarre sans les MCP/plugins tiers
+  - [x] Un dépôt peut garder des MCP nommés dans ses réglages, et ses agents les ont
