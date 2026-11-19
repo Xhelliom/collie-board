@@ -5,7 +5,7 @@ import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/cha
 import { FileLinksProvider } from "@/components/file-links";
 import { TranscriptView } from "@/components/transcript-view";
 import { PromptPin } from "@/components/prompt-pin";
-import { pinFor } from "@/lib/prompt-pin";
+import { pinFor, topTurn } from "@/lib/prompt-pin";
 import { ButtonsPaneContext } from "@/components/action-buttons";
 import { QuestionHeading } from "@/components/option-button";
 import { PromptSelectBlock } from "@/components/prompt-select-block";
@@ -214,18 +214,22 @@ export function ReadingView({
   // The turn crossing the top edge, re-measured on scroll and when turns arrive — no timer.
   const [topUuid, setTopUuid] = useState<string | null>(null);
   const topRef = useRef<string | null>(null); // an unchanged set still costs a commit (audit P12)
+  const slotRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = listRef.current?.getScrollElement();
     if (!el) return;
     const measure = () => {
-      const edge = el.getBoundingClientRect().top;
-      let top: string | null = null;
+      // The edge is the pin slot's BOTTOM, not the scroller's top: on a desktop the pin lies over the
+      // first 60px, and measuring under it put the swap where the text was still hidden. The slot's
+      // height never depends on the pin, so the edge can't move with what it decides.
+      const edge = Math.max(el.getBoundingClientRect().top, slotRef.current?.getBoundingClientRect().bottom ?? -Infinity);
+      const rows: { uuid: string; top: number }[] = [];
       for (const row of el.querySelectorAll<HTMLElement>("[data-turn]")) {
         const r = row.getBoundingClientRect();
         if (r.height === 0) continue; // folded inside a closed "N steps"
-        if (r.top > edge) break;
-        top = row.dataset.turn ?? null;
+        rows.push({ uuid: row.dataset.turn ?? "", top: r.top });
       }
+      const top = topTurn(rows, edge, topRef.current);
       if (top === topRef.current) return;
       topRef.current = top;
       setTopUuid(top);
@@ -245,10 +249,11 @@ export function ReadingView({
       {/* Phone: in the flow, above the scroller — laid over it, it hid the answer scrolling under it.
           Its slot is ALWAYS there, even empty: a slot that came and went resized the scroller, which
           moved the rows, which moved the turn at the edge, which toggled the pin — it shook.
-          Desktop keeps its overlay as it was (lg:absolute, out of the flow). */}
+          Desktop lays it over the thread (lg:absolute), same fixed height: the edge is measured off it. */}
       <div
+        ref={slotRef}
         data-slot="prompt-pin-slot"
-        className="mx-auto h-15 w-full max-w-[784px] shrink-0 px-3 pt-1 lg:pointer-events-none lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:h-auto"
+        className="mx-auto h-15 w-full max-w-[784px] shrink-0 px-3 pt-1 lg:pointer-events-none lg:absolute lg:inset-x-0 lg:top-0 lg:z-10"
       >
         {pin && <PromptPin pin={pin} onTap={backToPrompt} />}
       </div>
