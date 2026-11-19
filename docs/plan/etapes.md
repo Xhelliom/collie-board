@@ -63,3 +63,27 @@
 - **Finitions de novembre** — validated 2026-11-17, 7 steps
 - **Performance** — validated 2026-11-18, 12 steps
 - **Performance — fin de l audit** — validated 2026-11-18, 5 steps
+
+## Phase 58 — Les freins du coût
+
+Savoir ce qui consomme le quota (copilote, vérifications, relances, orchestrateur) et donner à l opérateur des réglages pour le freiner, au choix ; plus un petit gain : ouvrir « Nouvelle carte » sans attendre.
+
+### Lot — Ouvrir Nouvelle carte sans attendre (launched)
+
+- **Branche par défaut sans sous-processus (ouverture de « Nouvelle carte »)** — done
+
+  Suite de la mesure P13 (docs/dev, mesure-p13-p14) : GET /api/repos?branches=1, demandé à l ouverture de la feuille « Nouvelle carte », bloque encore ≈ 300 ms à cause d un sous-processus git par dépôt pour la branche par défaut. Lire refs/remotes/origin/HEAD (fichier ou packed-refs) directement dans bridge/git.ts, repli sur l appel actuel si absent. Mesurer avant/après.
+
+  - [x] /api/repos?branches=1 sans sous-processus quand origin/HEAD est lisible
+  - [x] Même résultat qu avant sur les dépôts connus
+  - [x] Blocage mesuré avant/après
+
+### Lot — Où part le quota (planned)
+
+- **Où part le quota : mesurer par poste et proposer des freins** — backlog
+
+  Mesurer, sur les 2 dernières semaines de collie-board (et des autres dépôts si les données le permettent), la part du quota consommée par poste : agents des cartes, lead/revue, gate et relances après CI rouge, copilote, orchestrateur, remesures. Sources : événements de coût (COST_EVENT, /api/cost), bilans de lot « Consommé », journal des cartes. Livrer une note docs/dev/couts-2026-11.md : un tableau par poste (tokens, part, par lot), les 3-5 plus gros postes, et pour chacun un frein possible (réglage, défaut, règle) avec son gain estimé et son risque. Ne rien changer au code : la décision des freins revient à l opérateur.
+
+  - [ ] Tableau des postes de coût chiffré, publié
+  - [ ] 3 à 5 freins proposés, chacun avec gain estimé et risque
+  - [ ] Aucun changement de code

@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.351.3] - 2026-11-19
+
+### Fixed
+
+- Conflits d'un lot : deux cartes qui ne partagent que des fichiers Markdown ne sont plus signalées (2c7d362)
+- Page Projet : les paires en conflit d'un lot tiennent sur une ligne repliée, dépliable sur la liste (2c7d362)
+
 ## [0.351.2] - 2026-11-17
 
 ### Fixed

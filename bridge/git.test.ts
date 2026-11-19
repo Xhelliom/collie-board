@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
-import { cardDiffStat, diffStat, diffStatLine, formatDiffStat, parseMergeTree, pushBranch, pushDir, tailOf, type DiffStat, type GitRunner } from "./git.ts";
+import { cardDiffStat, defaultBranchOf, diffStat, diffStatLine, formatDiffStat, parseMergeTree, pushBranch, pushDir, tailOf, type DiffStat, type GitRunner } from "./git.ts";
 import { normalizePath } from "./paths.ts";
 
 // Captured from git 2.55 (`merge-tree --write-tree --name-only origin/main <branch>`, LC_ALL=C).
@@ -194,5 +194,42 @@ describe("pushBranch — a refused push says why, not just how it started", () =
     const capped = tailOf(`head\n${"x".repeat(5000)}END`);
     expect(capped.endsWith("END")).toBe(true);
     expect(capped.length).toBeLessThan(4100);
+  });
+});
+
+describe("defaultBranchOf — read from disk, no git spawned (« Nouvelle carte » asks it of every repo)", () => {
+  const sh = (cwd: string, ...args: string[]) => {
+    const r = Bun.spawnSync(["git", "-c", "user.email=t@t", "-c", "user.name=t", ...args], { cwd, env: gitFreeEnv });
+    if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+  };
+  const noGit: GitRunner = async (args) => {
+    throw new Error(`spawned git ${args.join(" ")}`);
+  };
+
+  test("origin/HEAD, then a PACKED main, from the repo and from a linked worktree", async () => {
+    const root = mkdtempSync(join(tmpdir(), "defbranch-"));
+    const repo = join(root, "repo");
+    const wt = join(root, "wt");
+    mkdirSync(repo);
+    sh(repo, "init", "-b", "main");
+    writeFileSync(join(repo, "a.txt"), "a\n");
+    sh(repo, "add", "-A");
+    sh(repo, "commit", "-m", "base");
+    sh(repo, "worktree", "add", "-b", "board/x", wt);
+    sh(repo, "pack-refs", "--all");
+    // No origin/HEAD: the packed main is the answer.
+    expect(await defaultBranchOf(repo, noGit)).toBe("main");
+    expect(await defaultBranchOf(wt, noGit)).toBe("main");
+    sh(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk");
+    expect(await defaultBranchOf(repo, noGit)).toBe("trunk");
+    expect(await defaultBranchOf(wt, noGit)).toBe("trunk");
+    // An origin/HEAD on a board branch is a previous card's work: main again.
+    sh(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/board/old");
+    expect(await defaultBranchOf(repo, noGit)).toBe("main");
+  });
+
+  test("a path that is not a checkout still asks git", async () => {
+    const git: GitRunner = async (args) => ({ ok: args[0] === "symbolic-ref", stdout: "origin/dev\n", stderr: "" });
+    expect(await defaultBranchOf(mkdtempSync(join(tmpdir(), "defbranch-none-")), git)).toBe("dev");
   });
 });
