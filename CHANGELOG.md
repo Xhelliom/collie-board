@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.353.0] - 2026-11-19
+
+### Added
+
+- Réglage du dépôt « Modèle par défaut · lead » : choisir le modèle du lead (Opus possible) (1a1d1da)
+
+### Changed
+
+- Le copilote ne relit plus une carte de lot lancé : le verdict du lead en tient lieu (ADR 0061) (0bafa35)
+- Le lead démarre en Sonnet par défaut et repart d'un contexte vidé (`/clear`) à chaque demande (1a1d1da)
+
 ## [0.352.1] - 2026-11-19
 
 ### Fixed
