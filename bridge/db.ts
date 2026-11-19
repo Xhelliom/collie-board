@@ -2107,7 +2107,8 @@ export class BoardDb {
    * its open session or else its latest, no review row for that session yet, and — for a `done`
    * card — no wrapup note still pending (`isPendingWrapup`: reviewing before it lands would judge
    * the work on the diff alone). `done` is deliberately included — it is the only path that carries
-   * a wrapup note. One query, because the copilot asks on every poll and the done column only grows:
+   * a wrapup note. Not a card of a launched lot: its lead judges it, and a second review of the same
+   * work was ≈ 44 % of the copilot's requests (docs/dev/couts-2026-11.md, frein 5). One query, because the copilot asks on every poll and the done column only grows:
    * per card, it was three queries over hundreds of cards.
    */
   listCardsOwedReview(): { cardId: string; sessionId: string }[] {
@@ -2120,7 +2121,8 @@ export class BoardDb {
            ORDER BY ended_at IS NULL DESC, started_at DESC, rowid DESC LIMIT 1)
          WHERE c.status IN ('review', 'done')
            AND NOT EXISTS (SELECT 1 FROM review r WHERE r.card_id = c.id AND r.session_id = s.id)
-           AND NOT (c.status = 'done' AND s.ended_at IS NOT NULL AND s.handoff_requested_at IS NOT NULL)`,
+           AND NOT (c.status = 'done' AND s.ended_at IS NOT NULL AND s.handoff_requested_at IS NOT NULL)
+           AND NOT EXISTS (SELECT 1 FROM run WHERE run.id = c.run_id AND run.launched_at IS NOT NULL)`,
       )
       .all();
   }
