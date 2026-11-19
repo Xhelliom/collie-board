@@ -25,3 +25,4 @@
 {"v":1,"hlc":"1795096848400.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/509"},"ts":1795096847926}}
 {"v":1,"hlc":"1795096848400.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1795096848400.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1795096848004}}
+{"v":1,"hlc":"1795096870164.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/ou-part-le-quota-mesurer-par-poste-et-proposer-d","stat":"docs/dev/couts-2026-11.md | +186 -0\ndocs/dev/README.md | +1 -0\n2 files changed, 187 insertions(+), 0 deletions(-)"},"ts":1795096866376}}
