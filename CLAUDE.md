@@ -169,8 +169,10 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
   `~/.claude/skills` by `scripts/install-skill.sh`. Edit it in the repo, never the copy under `~/.claude`.
   `bridge/skill.test.ts` fails when a route is added without being documented in it or listed there as
   the operator's own, and when it documents a route that is gone.
-- **The copilot spends the user's quota.** It stays off by default, serialised to one request, and
-  reviews from `--stat` — never the full diff.
+- **The copilot spends the user's quota.** A new install turns it on (`.env.example` writes
+  `COLLIE_BOARD_COPILOT=on`); the code default stays off, so an upgrade never changes an existing
+  install's setting. Serialised to one request, and reviews from `--stat` — never the full diff.
+  [ADR 0062](./.adr/0062-le-copilote-est-actif-a-l-installation-pas-a-la-mise-a-jour.md).
 - **The bridge does not know its consumers.** Anything that wants what the board knows — a voice
   assistant, a script, another app — integrates by polling `/api/notifications/log` and writing back
   through the card routes. Never the reverse: no sink beside push/bell/digest, no outbound client, no
