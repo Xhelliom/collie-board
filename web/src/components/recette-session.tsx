@@ -7,7 +7,7 @@ import { Chip } from "@/components/ui/chip";
 import { useT } from "@/i18n";
 import { deliverableUrl } from "@/lib/board";
 import { openLightbox } from "@/lib/lightbox";
-import { stepDevice, type CheckStatus, type Device, type RecetteEntry, type RecetteStep } from "@/lib/recette";
+import { shotCard, stepCard, stepDevice, type CheckStatus, type Device, type RecetteEntry, type RecetteStep } from "@/lib/recette";
 import { cn } from "@/lib/utils";
 
 import { FOCUS, KoNote, StepActions, Thread, useVerdict, VerdictButtons, VERDICTS } from "./recette-entry";
@@ -28,7 +28,7 @@ export function sessionItems(entries: readonly RecetteEntry[], device: SessionDe
   return entries.flatMap((e) => e.steps.filter((s) => device === "all" || stepDevice(s) === device).map((s) => ({ e, s })));
 }
 
-const keyOf = (i: Item) => `${i.e.cardId}/${i.s.id}`;
+const keyOf = (i: Item) => `${stepCard(i.e, i.s)}/${i.s.id}`;
 
 /** A portion is this many steps: never a setting, so the figure stays small. */
 export const PORTION_SIZE = 5;
@@ -152,12 +152,12 @@ function SessionStep({ item: { e, s }, onChange, onJudged, onNext }: { item: Ite
   const t = useT();
   const { busy, send, addNote } = useVerdict(e, onChange);
   const [koed, setKoed] = useState(false);
-  const shots = e.shots.map((n) => deliverableUrl(e.cardId, n));
+  const shots = e.shots.map((n, i) => deliverableUrl(shotCard(e, i), n));
   const at = s.shot && e.shots.includes(s.shot) ? e.shots.indexOf(s.shot) : 0;
-  const shot = s.shot && !e.shots.includes(s.shot) ? deliverableUrl(e.cardId, s.shot) : shots[at];
+  const shot = s.shot && !e.shots.includes(s.shot) ? deliverableUrl(stepCard(e, s), s.shot) : shots[at];
 
   async function judge(status: CheckStatus) {
-    if (busy || !(await send(s.id, status))) return;
+    if (busy || !(await send(s, status))) return;
     if (status === "ko") setKoed(true);
     onJudged(status);
   }
@@ -216,7 +216,7 @@ function SessionStep({ item: { e, s }, onChange, onJudged, onNext }: { item: Ite
           </div>
           {(koed || s.verdict?.status === "ko") && (
             <div className="flex flex-col gap-2 rounded-xl bg-destructive/8 p-3">
-              <KoNote busy={busy} onAdd={(n) => void addNote(s.id, n).then((ok) => ok && onNext())} />
+              <KoNote busy={busy} onAdd={(n) => void addNote(s, n).then((ok) => ok && onNext())} />
               <button type="button" onClick={onNext} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "self-start", FOCUS)}>
                 {t("recette.session.continue")}
               </button>

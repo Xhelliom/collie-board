@@ -5,6 +5,7 @@ import { Check, ChevronDown, CircleDashed, CircleHelp, ListChecks, RotateCcw, Se
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { Entry, FOCUS, MOTION, PrLink, STATE_TONE } from "@/components/recette-entry";
+import { TriageMenu } from "@/components/recette-triage";
 import { PORTION_SIZE, RecetteSession, sessionItems, type SessionDevice } from "@/components/recette-session";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -26,6 +27,7 @@ import {
   type Grouping,
   type RecetteEntry,
   type RecetteGroup,
+  shotCard,
 } from "@/lib/recette";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -77,7 +79,7 @@ export function RecetteRoute() {
   const flat = shown.flatMap((g) => g.entries).sort((a, b) => b.deliveredAt - a.deliveredAt);
   // The newest delivery still waiting opens; the older ones read as one line each.
   const openId = flat.find(isPending)?.cardId;
-  const gallery = flat.flatMap((e) => e.shots.map((s) => deliverableUrl(e.cardId, s)));
+  const gallery = flat.flatMap((e) => e.shots.map((s, i) => deliverableUrl(shotCard(e, i), s)));
   // The session walks what is still to check under the same filters, whatever the history switch says.
   const toCheck = groups.flatMap((g) => g.entries).filter((e) => isPending(e) && keep(e, false)).sort((a, b) => b.deliveredAt - a.deliveredAt);
   const overall = sessionItems(toCheck, "all").filter((i) => !i.s.verdict).length;
@@ -123,6 +125,7 @@ export function RecetteRoute() {
                   {t("recette.oneByOne")}
                 </Button>
               )}
+              {repo && <TriageMenu repo={repo} onChange={refresh} />}
             </div>
             <Counter counts={counts} />
             <Help />
