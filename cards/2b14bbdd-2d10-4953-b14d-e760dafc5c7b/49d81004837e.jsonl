@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1795171116876.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"fda2d174-a189-457f-9643-66e1a227d48a"}}
 {"v":1,"hlc":"1795171116876.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Agents du board : ouvrir et redémarrer le lead et le copilote","status":"backlog"},"ts":1795171114296}}
 {"v":1,"hlc":"1795171116879.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"80abf789-0e7a-4b91-a2b6-26bce8fca19b"}}
+{"v":1,"hlc":"1795189121930.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
