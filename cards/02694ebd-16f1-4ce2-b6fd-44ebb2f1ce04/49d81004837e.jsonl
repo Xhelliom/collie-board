@@ -20,3 +20,4 @@
 {"v":1,"hlc":"1795198757777.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"working","reason":"agent working"},"ts":1795198757673}}
 {"v":1,"hlc":"1795199299164.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
 {"v":1,"hlc":"1795199299164.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1795199299044}}
+{"v":1,"hlc":"1795199639953.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.gate","payload":{"runId":"bf632a8f-087e-45a9-ab10-d2666fd88043","command":"bun run check","ok":true,"note":"check: typecheck and tests green — run here, the pre-push had not validated a2189e963"},"ts":1795199636921}}
