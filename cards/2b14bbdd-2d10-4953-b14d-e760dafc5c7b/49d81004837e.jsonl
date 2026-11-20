@@ -9,3 +9,4 @@
 {"v":1,"hlc":"1795189136275.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1795189136275.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795189131694}}
 {"v":1,"hlc":"1795189136275.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3096},"ts":1795189132062}}
+{"v":1,"hlc":"1795190265309.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"2b14bbdd-2d10-4953-b14d-e760dafc5c7b","name":"agents-du-board-sombre.png","size":139334,"by":"agent","pane":"t16m"},"ts":1795190265148}}
