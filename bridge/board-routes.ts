@@ -46,7 +46,7 @@ import type {
   ReviewTodo,
   TinyTodo,
 } from "./db.ts";
-import { CARD_CATEGORIES, DECLARABLE_CATEGORIES, isCardStatus, isIntegration, isMaxParallel, MAX_AGENTS_CAP, REPORT_TYPES, type DeclarableCategory, type Integration } from "./db.ts";
+import { CARD_CATEGORIES, DECLARABLE_CATEGORIES, isCardStatus, isIntegration, isLiveStatus, isMaxParallel, MAX_AGENTS_CAP, REPORT_TYPES, type DeclarableCategory, type Integration } from "./db.ts";
 import { lotPrCard, lotView } from "./lot.ts";
 import { lotOverlaps, overlapWarning, phaseStrayWarning } from "./lot-overlap.ts";
 import {
@@ -117,7 +117,7 @@ import { migrateBlock, migrationIdentity, migrateToHc } from "./migrate-hc.ts";
 import { handleMigrateHcRoute } from "./migrate-hc-routes.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
-import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, promptOnPeer, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
+import { detachOnPeer, diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, promptOnPeer, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
 import { assignedElsewhere } from "./claim.ts";
 
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
@@ -191,7 +191,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|remote|handoff|migrate-hc|resume|prompt|hold|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|remote|detach|handoff|migrate-hc|resume|prompt|hold|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /**
  * Every path the board handler owns — what server.ts forwards to it. One list, so a new route family
@@ -1388,6 +1388,8 @@ async function route(
         releaseSession(db, id, status);
         db.setStatus(id, status, "manual");
       }
+      // Same on a peer: a card moved out of the live columns by hand lets go of its pane there too.
+      if (status && current.environment && !isLiveStatus(status)) await detachOnPeer(remoteDeps(ctx), current);
       ctx.audit.record({
         action: "card.patch",
         session: ctx.session,
@@ -1744,6 +1746,27 @@ async function route(
       detail: { cardId: id, ok: r.ok, ...(r.ok ? { peer: r.session.peer, environment: r.session.environment, paneId: r.session.paneId } : { error: r.error }) },
     });
     return r.ok ? json({ ok: true, card: view(id) }) : ctx.json({ ok: false, error: r.error }, 502);
+  }
+
+  // ── detach: the operator unties the card from its agent, here and on a peer — the terminal stays ──
+  // The way out when the board believes a session the operator knows is not there: Start then launches.
+  if (action === "detach" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("detaching a card's agent is the operator's gesture — an agent pane may not", 403);
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    const local = db.openSessionFor(id);
+    if (local) db.closeSession(local.id, "abandoned");
+    const remote = await detachOnPeer(remoteDeps(ctx), card);
+    if (isLiveStatus(card.status)) db.setStatus(id, "backlog", "detached");
+    ctx.audit.record({
+      action: "card.detach",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, local: local?.paneId ?? null, remote: remote.session ? { peer: remote.session.peer, paneId: remote.session.paneId } : null, ...(remote.peerError ? { peerError: remote.peerError } : {}) },
+    });
+    return json({ ok: true, card: view(id), ...(remote.peerError ? { warning: remote.peerError } : {}) });
   }
 
   // ── review: ask the copilot for its verdict again, now ───────────────────

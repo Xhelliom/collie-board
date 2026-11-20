@@ -552,6 +552,7 @@ These spend quota or drive a real terminal. Never fire one unasked:
 - `POST /api/cards/<id>/reformulate` — hands the card to the copilot.
 - `POST /api/cards/<id>/handoff`, `DELETE` on a card that has work in it.
 - `DELETE /api/cards/<id>/remote` — ends a card's session on its peer (closes the pane there).
+- `POST /api/cards/<id>/detach` — the user's « Détacher l'agent »: ends the card's session here and on its peer, terminal left open, so Start launches again. `403` to any pane.
 ### Roadmap, decisions, memory (ADR 0023)
 
 The roadmap is a **document you write with the user**, not three lines. When it is empty, run a real

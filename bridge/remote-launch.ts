@@ -166,7 +166,12 @@ export async function startOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true
     return failed(`waiting on “${predecessor.title}” to finish first`, "board");
   }
   const running = remoteSessionFor(d.db, card.id);
-  if (running) return failed(`already running on ${running.peer} (${running.environment})`, "board", running.peer);
+  if (running) {
+    // A pane id is a number the peer hands out again (a reboot): it is the card's only while its agent sits in the card's checkout.
+    const state = await remoteStateOf(d, running);
+    if (!state.reachable || paneHoldsSession(state.pane, running.branch)) return failed(`already running on ${running.peer} (${running.environment})`, "board", running.peer);
+    d.db.recordEvent(card.id, REMOTE_ENDED, { ...running, lost: true, pane: state.pane });
+  }
   const refused = await claimForLaunch(d.db, card);
   if (refused) return failed(refused, "board");
 
@@ -181,7 +186,7 @@ export async function startOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true
   return { ok: true, session };
 }
 
-function peerOf(d: RemoteDeps, s: RemoteSession): OutboundPeer | null {
+function peerOf(d: Pick<RemoteDeps, "outbound">, s: RemoteSession): OutboundPeer | null {
   return d.outbound().find((p) => p.name === s.peer) ?? null;
 }
 
@@ -222,16 +227,42 @@ export async function diffOnPeer(d: RemoteDeps, s: RemoteSession, path: string |
   return { status: 502, body: { ok: false, error: peerRefusal(s.peer, s.environment, r), kind: "peer" } };
 }
 
+/**
+ * Whether the peer's pane is still the card's session: an agent (not a shell) whose cwd is the card's
+ * checkout — herdr's `…/worktrees/<repo>/<branch, / → ->`, Windows or POSIX separators. Pure.
+ */
+export function paneHoldsSession(pane: { agent: string | null; cwd?: string | null } | null, branch: string): boolean {
+  if (!pane?.agent || pane.agent === "shell") return false;
+  // An older peer sends no cwd: nothing to contradict the board, so the session stands.
+  if (typeof pane.cwd !== "string") return true;
+  const dir = pane.cwd.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+  return branch !== "" && dir === branch.replace(/\//g, "-");
+}
+
+/**
+ * Detach the card from its peer session, whatever the board believes: the journal ends it here, the
+ * peer forgets the pane (`/api/node/detach`, best effort) — and the terminal stays open there.
+ */
+export async function detachOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true; session: RemoteSession | null; peerError?: string }> {
+  const s = remoteSessionFor(d.db, card.id);
+  if (!s) return { ok: true, session: null };
+  const peer = peerOf(d, s);
+  const r = peer ? await call(d, peer, "/api/node/detach", { body: { paneId: s.paneId } }) : null;
+  const peerError = !r ? `${s.peer} is no longer a paired peer of this machine` : ok(r) || (!("error" in r) && r.status === 404) ? undefined : peerRefusal(s.peer, s.environment, r);
+  d.db.recordEvent(card.id, REMOTE_ENDED, { ...s, detached: true, ...(peerError ? { peerError } : {}) });
+  return { ok: true, session: s, ...(peerError ? { peerError } : {}) };
+}
+
 /** What the peer says of the card's pane, read once when the card is opened. Never written back. */
-export async function remoteStateOf(d: RemoteDeps, s: RemoteSession): Promise<{ reachable: boolean; error?: string; pane: { status: string; agent: string | null } | null }> {
+export async function remoteStateOf(d: Pick<RemoteDeps, "fetch" | "outbound">, s: RemoteSession): Promise<{ reachable: boolean; error?: string; pane: { status: string; agent: string | null; cwd: string | null } | null }> {
   const peer = peerOf(d, s);
   if (!peer) return { reachable: false, error: `${s.peer} is no longer a paired peer of this machine`, pane: null };
   const r = await call(d, peer, "/api/node/snapshot");
   if (!ok(r)) return { reachable: false, error: peerRefusal(s.peer, s.environment, r), pane: null };
   if (r.body.bridge === "disconnected") return { reachable: false, error: `${s.peer}: its herdr is disconnected`, pane: null };
-  const panes = [...((r.body.agents as unknown[]) ?? []), ...((r.body.shellPanes as unknown[]) ?? [])] as { paneId?: unknown; status?: unknown; agent?: unknown }[];
+  const panes = [...((r.body.agents as unknown[]) ?? []), ...((r.body.shellPanes as unknown[]) ?? [])] as { paneId?: unknown; status?: unknown; agent?: unknown; cwd?: unknown }[];
   const p = panes.find((x) => x?.paneId === s.paneId);
-  return { reachable: true, pane: p ? { status: String(p.status ?? "unknown"), agent: typeof p.agent === "string" ? p.agent : null } : null };
+  return { reachable: true, pane: p ? { status: String(p.status ?? "unknown"), agent: typeof p.agent === "string" ? p.agent : null, cwd: typeof p.cwd === "string" ? p.cwd : null } : null };
 }
 
 /** The paired peers' environments that run `repoPath` — same normalised origin. Read on a tap, every peer at once. */

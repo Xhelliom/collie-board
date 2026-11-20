@@ -43,6 +43,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/node/snapshot": "another Collie's read, token-gated (bridge/node.ts)",
   "/api/node/diff": "another Collie's action, token-gated (bridge/node.ts)",
   "/api/node/end": "another Collie's action, token-gated (bridge/node.ts)",
+  "/api/node/detach": "another Collie's action, token-gated (bridge/node.ts)",
   "/api/node/keys": "another Collie's action, token-gated (bridge/node.ts)",
   "/api/node/launch": "another Collie's action, token-gated (bridge/node.ts)",
   "/api/node/reply": "another Collie's action, token-gated (bridge/node.ts)",

@@ -360,6 +360,15 @@ describe("handleNodeRoute", () => {
     expect(calls.at(-1)).toEqual(["close", "w9:p1"]);
     expect(d.launched.size).toBe(0);
   });
+
+  it("detaches a pane launched for that peer without closing it", async () => {
+    const { d, calls } = deps();
+    await post("/api/node/launch", { environment: "arch-2", prompt: "x" }, d);
+    expect((await post("/api/node/detach", { paneId: "w9:p1" }, d, TOKEN_B))!.status).toBe(404);
+    expect((await post("/api/node/detach", { paneId: "w9:p1" }, d))!.status).toBe(200);
+    expect(calls.some((c) => c[0] === "close")).toBe(false);
+    expect(d.launched.size).toBe(0);
+  });
 });
 
 describe("parseLaunch", () => {
