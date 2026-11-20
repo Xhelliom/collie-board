@@ -124,7 +124,7 @@ async function swapRole(
   const args = modelArgs(kind, role.model, adapters, db.repoModel(card.repoPath, kind));
   syncAtLaunch((adapters ?? BUILTIN_ADAPTERS)[kind], cwd, card.repoPath, db.repoModel(card.repoPath, kind));
   try {
-    await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), wait, [...args, ...leanArgs(kind, cfg, card.repoPath, db.repoKeptMcp(card.repoPath), cwd)]);
+    await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), wait, [...args, ...leanArgs(kind, cfg, card.repoPath, db.repoKeptMcp(card.repoPath), cwd, card.spec)]);
   } catch (err) {
     db.closeSession(next.id, "abandoned");
     // The tab was created for this agent: left open, it is a stray shell nobody owns.

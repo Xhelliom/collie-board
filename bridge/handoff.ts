@@ -281,7 +281,7 @@ export async function swapToFreshSession(
   const role = db.listEvents(card.id, 200).find((e) => e.type === "card.template" || e.type === "card.pipeline_step");
   const args = modelArgs(kind, (role?.payload as { model?: string } | undefined)?.model, undefined, db.repoModel(card.repoPath, kind));
   syncAtLaunch(BUILTIN_ADAPTERS[kind], cwd, card.repoPath, db.repoModel(card.repoPath, kind));
-  await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), undefined, [...args, ...leanArgs(kind, cfg, card.repoPath, db.repoKeptMcp(card.repoPath), cwd)]);
+  await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), undefined, [...args, ...leanArgs(kind, cfg, card.repoPath, db.repoKeptMcp(card.repoPath), cwd, card.spec)]);
   await promptAndConfirm(herdr, created.paneId, continuationPrompt(card), undefined, {
     firstAfterLaunch: true,
   });
