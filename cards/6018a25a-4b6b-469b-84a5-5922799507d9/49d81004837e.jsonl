@@ -3,3 +3,8 @@
 {"v":1,"hlc":"1795154857773.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Recette allégée : trier les essais en attente","status":"backlog"},"ts":1795154852218}}
 {"v":1,"hlc":"1795154857774.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"7ddf5fc7-aafe-4873-87a3-4d8b4137e321"}}
 {"v":1,"hlc":"1795154857743.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795154861772.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/recette-allegee-trier-les-essais-en-attente"}}
+{"v":1,"hlc":"1795154861773.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795154861773.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795154860957}}
+{"v":1,"hlc":"1795154869976.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795154869976.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795154869921}}
