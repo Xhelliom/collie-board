@@ -3,3 +3,6 @@
 {"v":1,"hlc":"1795155111343.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Relancer un agent figé au bout d'une heure","status":"backlog"},"ts":1795155103855}}
 {"v":1,"hlc":"1795155111348.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e101abd8-289a-4e5a-95ae-39f64fbe9ef5"}}
 {"v":1,"hlc":"1795155761851.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795155764929.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/relancer-un-agent-fige-au-bout-d-une-heure"}}
+{"v":1,"hlc":"1795155764930.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795155764930.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795155764731}}
