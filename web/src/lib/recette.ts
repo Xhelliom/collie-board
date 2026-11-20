@@ -9,8 +9,17 @@ import { loadRepoScope, type CardView } from "./board";
 export type CheckStatus = "ok" | "ko" | "skip";
 export type RecetteState = "todo" | "ok" | "ko";
 
+/** Why an entry or a step no longer needs testing, and the cards that test it now (an applied triage). */
+export interface Obsolete {
+  reason: string;
+  replacedBy: { cardId: string; title: string }[];
+}
+
 export interface RecetteStep {
   id: string;
+  /** The card the step belongs to — another than the entry's in a triage group (optional: an older bridge does not send it). */
+  cardId?: string;
+  obsolete?: Obsolete;
   text: string;
   expected?: string;
   shot?: string;
@@ -49,7 +58,43 @@ export interface RecetteEntry {
   /** The repo's name — only when the view spans every repo. */
   project?: string | null;
   steps: RecetteStep[];
+  /** A triage group: the cards folded into this entry, the base first. */
+  members?: { cardId: string; title: string }[];
+  /** The card each capture belongs to, index for index — absent: all the entry's own. */
+  shotCards?: string[];
+  /** An obsolete entry (applied triage): why, and what tests it now. */
+  obsolete?: Obsolete;
 }
+
+/** The card a step's verdict goes to. Pure. */
+export const stepCard = (e: Pick<RecetteEntry, "cardId">, s: Pick<RecetteStep, "cardId">): string => s.cardId ?? e.cardId;
+
+/** The card a capture of the entry belongs to. Pure. */
+export const shotCard = (e: Pick<RecetteEntry, "cardId" | "shotCards">, i: number): string => e.shotCards?.[i] ?? e.cardId;
+
+export interface TriageSummary {
+  obsolete: number;
+  obsoleteSteps: number;
+  groups: number;
+  grouped: number;
+}
+
+export interface Triage {
+  proposedBy: string;
+  proposedAt: number;
+  applied: { by: string; at: number; skipped: number } | null;
+  summary: TriageSummary;
+}
+
+const triagePath = (repo: string) => `/api/recette/triage?repo=${encodeURIComponent(repo)}`;
+
+/** The repo's proposed triage, or null. */
+export const fetchTriage = async (repo: string, signal?: AbortSignal): Promise<Triage | null> =>
+  ((await apiRequest(triagePath(repo), { signal })) as { triage: Triage | null }).triage;
+
+/** « Appliquer le tri » / « Défaire le tri » — the operator's. */
+export const applyTriage = (repo: string, undo = false): Promise<{ ok: true }> =>
+  apiRequest(triagePath(repo), { method: undo ? "DELETE" : "POST", body: "{}" });
 
 export interface RecetteGroup {
   usage: string | null;

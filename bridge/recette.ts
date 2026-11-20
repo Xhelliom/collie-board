@@ -15,6 +15,7 @@ import type { BoardContext } from "./board-routes.ts";
 import { promptAndConfirm } from "./cards.ts";
 import { findOrchestrator } from "./orchestrator.ts";
 import { deliverablesRoot, listDeliverables, servedAs } from "./deliverables.ts";
+import { appliedTriages, foldTriage, handleTriageRoute, type EntryOut } from "./recette-triage.ts";
 import { CHECK_STATUSES, EVENT_WINDOW, type BoardEvent, type Card, type CardPatch, type CheckStatus, type ManualCheck } from "./db.ts";
 
 /** One line a person reads at a glance: verb + where + what to expect. */
@@ -178,7 +179,7 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
     // The newest card filed off each one (its correction): the page links it.
     const fixOf = new Map<string, string>();
     for (const c of [...cards].sort((a, b) => a.createdAt - b.createdAt)) if (c.originCardId) fixOf.set(c.originCardId, c.id);
-    const entries = cards
+    const candidates = cards
       .filter((c) => delivered(c) && c.manualChecks.length > 0 && (!repo || c.repoPath === repo))
       .map((c) => {
         const events = ctx.db.listEvents(c.id, EVENT_WINDOW);
@@ -189,22 +190,19 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
         const aside = at !== null && isAside(c, at, ctx.db.recetteAsideDaysOf(c.repoPath));
         return { card: c, at, state: recetteState(c), aside, followUpDone: fixed.has(c.id), prUrl };
       })
-      .filter((e): e is typeof e & { at: number } => e.at !== null)
-      .filter((e) => e.at >= since && (all || (!e.aside && e.state !== "ok" && !(e.state === "ko" && e.followUpDone))))
-      .sort((a, b) => b.at - a.at);
+      .filter((e): e is typeof e & { at: number } => e.at !== null);
     const stateDir = ctx.cfg.stateDir;
-    const groups = new Map<string, unknown[]>();
-    for (const { card, at, state, aside, followUpDone, prUrl } of entries) {
+    let entries: EntryOut[] = [];
+    for (const { card, at, state, aside, followUpDone, prUrl } of candidates) {
       // The captures lead each entry: its image deliverables, read off disk (no store: none).
       const shots = stateDir
         ? (await listDeliverables(join(deliverablesRoot(stateDir), card.id))).filter((d) => servedAs(d.name).kind === "image").map((d) => d.name)
         : [];
-      const usage = card.usageGroup ?? "";
-      if (!groups.has(usage)) groups.set(usage, []);
-      groups.get(usage)!.push({
+      entries.push({
         cardId: card.id,
         capability: card.capability ?? card.title,
         title: card.title,
+        usage: card.usageGroup,
         repoPath: card.repoPath,
         assignee: card.assignee,
         // Code or business — the page filters on it.
@@ -224,11 +222,28 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
         runId: card.runId,
         lot: card.runId ? (ctx.db.getRun(card.runId)?.name ?? null) : null,
         prUrl,
-        steps: card.manualChecks.map((s) => ({ ...s, verdict: card.checkVerdicts[s.id] ?? null })),
+        // Each step names its card: a triage folds several cards into one entry (recette-triage.ts).
+        steps: card.manualChecks.map((s) => ({ ...s, cardId: card.id, verdict: card.checkVerdicts[s.id] ?? null })),
       });
+    }
+    const titleOf = (id: string) => ctx.db.getCard(id)?.title ?? id;
+    for (const [triageRepo, proposal] of appliedTriages(ctx.db)) {
+      const inRepo = entries.filter((e) => e.repoPath === triageRepo);
+      if (inRepo.length) entries = [...entries.filter((e) => e.repoPath !== triageRepo), ...foldTriage(inRepo, proposal, titleOf)];
+    }
+    const groups = new Map<string, unknown[]>();
+    for (const e of entries
+      .filter((e) => e.deliveredAt >= since && (all || (!e.aside && e.state !== "ok" && !(e.state === "ko" && e.followUpDone))))
+      .sort((a, b) => b.deliveredAt - a.deliveredAt)) {
+      const usage = e.usage ?? "";
+      if (!groups.has(usage)) groups.set(usage, []);
+      groups.get(usage)!.push(e);
     }
     return ctx.json({ groups: [...groups].map(([usage, items]) => ({ usage: usage || null, entries: items })) });
   }
+
+  const triage = await handleTriageRoute(pathname, req, ctx);
+  if (triage) return triage;
 
   const asideM = ASIDE_ROUTE.exec(pathname);
   if (asideM) return asideRoute(asideM, req, ctx);

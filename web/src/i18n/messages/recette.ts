@@ -147,4 +147,33 @@ export const recette = defineMessages({
   "recette.session.continue": { en: "Continue", fr: "Continuer" },
   "recette.session.noShot": { en: "No capture for this step", fr: "Pas de capture pour cette étape" },
   "recette.session.tally": { en: "This session", fr: "Cette session" },
+  "recette.obsolete": { en: "Obsolete: {reason} Tested now by", fr: "Caduque : {reason} Testée désormais par" },
+  "recette.grouped": { en: { one: "Reads {count} test as one", other: "Reads {count} tests as one" }, fr: { one: "Regroupe {count} essai", other: "Regroupe {count} essais" } },
+  "recette.more": { en: "More on the testing", fr: "Plus sur la recette" },
+  "recette.triage.apply": { en: "Apply the triage", fr: "Appliquer le tri" },
+  "recette.triage.undo": { en: "Undo the triage", fr: "Défaire le tri" },
+  "recette.triage.proposed": { en: "Proposed by {by}, {ago}.", fr: "Proposé par {by}, {ago}." },
+  "recette.triage.applied": { en: "Applied by {by}, {ago}.", fr: "Appliqué par {by}, {ago}." },
+  "recette.triage.obsolete": {
+    en: { one: "obsolete entry, passed with its reason and the card that replaces it", other: "obsolete entries, passed with their reason and the card that replaces them" },
+    fr: { one: "entrée caduque, passée avec sa raison et la carte qui la remplace", other: "entrées caduques, passées avec leur raison et la carte qui les remplace" },
+  },
+  "recette.triage.obsoleteSteps": {
+    en: { one: "obsolete step in a kept entry, passed", other: "obsolete steps in kept entries, passed" },
+    fr: { one: "étape caduque dans une entrée gardée, passée", other: "étapes caduques dans des entrées gardées, passées" },
+  },
+  "recette.triage.groups": {
+    en: { one: "grouping: {grouped} entries with the same gestures in the same place, read as one", other: "groupings: {grouped} entries with the same gestures in the same place, read as {count}" },
+    fr: { one: "regroupement : {grouped} entrées aux mêmes gestes au même endroit, lues comme une", other: "regroupements : {grouped} entrées aux mêmes gestes au même endroit, lues comme {count}" },
+  },
+  "recette.triage.keep": {
+    en: "Nothing is deleted: every step keeps its card and its verdict. « Undo the triage » brings back the state before.",
+    fr: "Rien n'est supprimé : chaque étape garde sa carte et son verdict. « Défaire le tri » rend l'état d'avant.",
+  },
+  "recette.triage.undoWhat": {
+    en: { one: "The step this triage passed comes back to test, unless you judged it since. The groupings come apart.", other: "The {count} steps this triage passed come back to test, except the ones you judged since. The groupings come apart." },
+    fr: { one: "L'étape passée par ce tri revient à tester, sauf si tu l'as rejugée depuis. Les regroupements se défont.", other: "Les {count} étapes passées par ce tri reviennent à tester, sauf celles que tu as rejugées depuis. Les regroupements se défont." },
+  },
+  "recette.triage.done": { en: "Triage applied", fr: "Tri appliqué" },
+  "recette.triage.undone": { en: "Triage undone", fr: "Tri défait" },
 });

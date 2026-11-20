@@ -10,7 +10,7 @@ import { ApiError } from "@/lib/api";
 import { boardErrorMessage, cardPath, deliverableUrl, projectPath, repoName, sortOf } from "@/lib/board";
 import { openLightbox } from "@/lib/lightbox";
 import { ago } from "@/lib/project-facts";
-import { isPending, postAside, postVerdict, prepareStep, prLabel, stepDevice, stepTarget, type CheckStatus, type RecetteEntry, type RecetteStep } from "@/lib/recette";
+import { isPending, postAside, postVerdict, prepareStep, prLabel, shotCard, stepCard, stepDevice, stepTarget, type CheckStatus, type Obsolete, type RecetteEntry, type RecetteStep } from "@/lib/recette";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -39,10 +39,10 @@ export const clock = (ts: number) => new Date(ts).toLocaleTimeString(getLocale()
 export function useVerdict(e: RecetteEntry, onChange: () => Promise<void>) {
   const t = useT();
   const [busy, setBusy] = useState(false);
-  async function run(stepId: string, status: CheckStatus, note?: string): Promise<boolean> {
+  async function run(s: RecetteStep, status: CheckStatus, note?: string): Promise<boolean> {
     setBusy(true);
     try {
-      const r = await postVerdict(e.cardId, stepId, { status, ...(status === "ko" ? { followUp: true } : {}), ...(note ? { note } : {}) });
+      const r = await postVerdict(stepCard(e, s), s.id, { status, ...(status === "ko" ? { followUp: true } : {}), ...(note ? { note } : {}) });
       if (note) setStatus(t("recette.noteAdded"), "success");
       else if (r.followUp && r.followUp.id !== e.fixCardId) setStatus(t("recette.followUpMade"), "success");
       await onChange();
@@ -54,19 +54,19 @@ export function useVerdict(e: RecetteEntry, onChange: () => Promise<void>) {
       setBusy(false);
     }
   }
-  return { busy, send: (stepId: string, status: CheckStatus) => run(stepId, status), addNote: (stepId: string, note: string) => run(stepId, "ko", note) };
+  return { busy, send: (s: RecetteStep, status: CheckStatus) => run(s, status), addNote: (s: RecetteStep, note: string) => run(s, "ko", note) };
 }
 
 /** « Aller voir » and « Me préparer le test » — two real buttons, where they lead written small below. */
 export function StepActions({ entry: e, step: s, className }: { entry: RecetteEntry; step: RecetteStep; className?: string }) {
   const t = useT();
   const [asking, setAsking] = useState(false);
-  const target = stepTarget(s, e.cardId, e.repoPath);
+  const target = stepTarget(s, stepCard(e, s), e.repoPath);
   const button = cn(buttonVariants({ variant: "secondary", size: "sm" }), FOCUS);
   async function prepare() {
     setAsking(true);
     try {
-      await prepareStep(e.cardId, s.id);
+      await prepareStep(stepCard(e, s), s.id);
       setStatus(t("recette.prepare.sent"), "success", 5000);
     } catch (err) {
       setStatus(err instanceof ApiError && err.status === 409 ? t("recette.prepare.none") : boardErrorMessage(err), "error", null);
@@ -204,8 +204,51 @@ export function useChecksLine() {
   };
 }
 
+/** A step's key in its entry: a triage group carries steps of several cards. */
+const stepKey = (e: RecetteEntry, s: RecetteStep) => `${stepCard(e, s)}/${s.id}`;
+
 /** The first step still without a verdict — else a KO one, else none. */
-const firstOpen = (e: RecetteEntry) => (e.steps.find((s) => !s.verdict) ?? e.steps.find((s) => s.verdict?.status === "ko"))?.id ?? null;
+const firstOpen = (e: RecetteEntry) => {
+  const s = e.steps.find((x) => !x.verdict) ?? e.steps.find((x) => x.verdict?.status === "ko");
+  return s ? stepKey(e, s) : null;
+};
+
+/** Why it no longer needs testing, and the cards that test it now (an applied triage). */
+export function ObsoleteLine({ obsolete: o }: { obsolete: Obsolete }) {
+  const t = useT();
+  return (
+    <p className="text-xs text-muted-foreground">
+      {t("recette.obsolete", { reason: o.reason })}{" "}
+      {o.replacedBy.map((r, i) => (
+        <span key={r.cardId}>
+          {i > 0 && ", "}
+          <Link to={cardPath(r.cardId)} className={cn("font-medium text-foreground underline underline-offset-2 hover:decoration-2", FOCUS)}>
+            {r.title}
+          </Link>
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/** A triage group: the cards it reads as one, each still its own. */
+function MembersLine({ members }: { members: NonNullable<RecetteEntry["members"]> }) {
+  const t = useT();
+  return (
+    <details className="text-xs text-muted-foreground">
+      <summary className={cn("cursor-pointer rounded-sm hover:text-foreground", FOCUS)}>{t("recette.grouped", { count: members.length })}</summary>
+      <ul className="mt-1 flex flex-col gap-0.5 pl-3">
+        {members.map((m) => (
+          <li key={m.cardId}>
+            <Link to={cardPath(m.cardId)} className={cn("hover:text-foreground hover:underline", FOCUS)}>
+              {m.title}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
 /** « Mettre de côté » / « Remettre dans la file »: out of the active queue, never lost. */
 function AsideButton({ entry: e, onChange }: { entry: RecetteEntry; onChange: () => Promise<void> }) {
@@ -215,7 +258,8 @@ function AsideButton({ entry: e, onChange }: { entry: RecetteEntry; onChange: ()
   async function toggle() {
     setBusy(true);
     try {
-      await postAside(e.cardId, !e.aside);
+      // A triage group goes aside as one: each of its cards.
+      for (const m of e.members ?? [{ cardId: e.cardId }]) await postAside(m.cardId, !e.aside);
       await onChange();
     } catch (err) {
       setStatus(boardErrorMessage(err), "error", null);
@@ -239,9 +283,9 @@ export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { 
   const [current, setCurrent] = useState<string | null>(() => firstOpen(e));
   const [picked, setPicked] = useState<number | null>(null);
   const { busy, send, addNote } = useVerdict(e, onChange);
-  const shots = e.shots.map((s) => deliverableUrl(e.cardId, s));
+  const shots = e.shots.map((s, i) => deliverableUrl(shotCard(e, i), s));
   const validated = !isPending(e) && !e.aside;
-  const cur = e.steps.find((s) => s.id === current) ?? null;
+  const cur = e.steps.find((s) => stepKey(e, s) === current) ?? null;
   // The visual follows the current step's own capture until a thumbnail is picked.
   const stepShot = cur?.shot ? e.shots.indexOf(cur.shot) : -1;
   const shown = picked ?? (stepShot >= 0 ? stepShot : 0);
@@ -249,10 +293,10 @@ export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { 
   const open = e.steps.filter((s) => !s.verdict || s.verdict.status === "ko");
 
   async function verdict(s: RecetteStep, status: CheckStatus) {
-    if (!(await send(s.id, status))) return;
+    if (!(await send(s, status))) return;
     if (status === "ko") return; // stays current: the optional note is offered there
     const after = e.steps.slice(e.steps.indexOf(s) + 1).find((x) => !x.verdict);
-    setCurrent(after?.id ?? null);
+    setCurrent(after ? stepKey(e, after) : null);
     setPicked(null);
   }
 
@@ -285,6 +329,13 @@ export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { 
     </span>
   );
 
+  const notes = (
+    <>
+      {e.obsolete && <ObsoleteLine obsolete={e.obsolete} />}
+      {e.members && <MembersLine members={e.members} />}
+    </>
+  );
+
   const asideLine = e.aside && (
     <span className="text-xs text-muted-foreground">
       {e.asideBy ? t("recette.aside.by", { by: e.asideBy.by, ago: ago(e.asideBy.at) }) + (e.asideBy.note ? ` — ${e.asideBy.note}` : "") : t("recette.aside.age")}
@@ -307,6 +358,7 @@ export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { 
           <Thread entry={e} />
           {toggle}
           {status}
+          {notes}
           {asideLine}
         </div>
         <AsideButton entry={e} onChange={onChange} />
@@ -358,15 +410,17 @@ export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { 
           <Thread entry={e} />
           {toggle}
           {status}
+          {notes}
           {asideLine}
           <ol className="flex flex-col gap-1">
             {e.steps.map((s) => {
-              const isCurrent = s.id === current;
+              const k = stepKey(e, s);
+              const isCurrent = k === current;
               return (
-                <li key={s.id} className={cn("flex flex-col gap-2.5 rounded-lg px-2 py-1.5", MOTION, isCurrent && "bg-muted/60 py-2.5", s.verdict?.status === "ko" && "bg-destructive/10")}>
+                <li key={k} className={cn("flex flex-col gap-2.5 rounded-lg px-2 py-1.5", MOTION, isCurrent && "bg-muted/60 py-2.5", s.verdict?.status === "ko" && "bg-destructive/10")}>
                   <button
                     type="button"
-                    onClick={() => setCurrent(isCurrent ? null : s.id)}
+                    onClick={() => setCurrent(isCurrent ? null : k)}
                     aria-current={isCurrent ? "step" : undefined}
                     className={cn("grid w-full grid-cols-[1rem_minmax(0,1fr)_auto] items-start gap-2.5 rounded text-left text-sm leading-snug", FOCUS)}
                   >
@@ -374,6 +428,7 @@ export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { 
                     <span className="flex min-w-0 flex-col gap-0.5">
                       <span className={cn(s.verdict?.status === "ok" ? "text-muted-foreground line-through" : "text-foreground", isCurrent && "font-medium")}>{s.text}</span>
                       {s.expected && <span className="text-muted-foreground">{s.expected}</span>}
+                      {s.obsolete && <ObsoleteLine obsolete={s.obsolete} />}
                     </span>
                     {stepDevice(s) === "phone" ? (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -395,7 +450,7 @@ export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { 
                       {s.shot && (
                         <button
                           type="button"
-                          onClick={() => (e.shots.includes(s.shot!) ? setPicked(e.shots.indexOf(s.shot!)) : openLightbox([deliverableUrl(e.cardId, s.shot!)]))}
+                          onClick={() => (e.shots.includes(s.shot!) ? setPicked(e.shots.indexOf(s.shot!)) : openLightbox([deliverableUrl(stepCard(e, s), s.shot!)]))}
                           className={cn("self-start text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline", FOCUS)}
                         >
                           {t("recette.shot.see")}
@@ -404,7 +459,7 @@ export const Entry = memo(function Entry({ entry: e, defaultOpen, onChange }: { 
                       {s.verdict?.status === "ko" && (
                         <>
                           {s.verdict.note && <p className="text-xs text-destructive">{s.verdict.note}</p>}
-                          <KoNote busy={busy} onAdd={(n) => void addNote(s.id, n)} />
+                          <KoNote busy={busy} onAdd={(n) => void addNote(s, n)} />
                         </>
                       )}
                     </div>
