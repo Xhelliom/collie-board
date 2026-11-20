@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-import { agentNameFor, launchAgent, promptAndConfirm, trustFolder } from "./cards.ts";
+import { agentNameFor, launchAgent, promptAndConfirm, RESUME_PROMPT, trustFolder } from "./cards.ts";
 import { defaultBranchOf, diffFile, diffStat, normalizeRemote, originUrl } from "./git.ts";
 import { boardTab, type Mux } from "./mux/mux.ts";
 import { redactDeep } from "./redact.ts";
@@ -244,7 +244,7 @@ export interface NodeRouteDeps {
 }
 
 const NODE_PANE_ROUTE = /^\/api\/node\/pane\/([^/]+?)(\/history)?$/;
-const NODE_POST = new Set(["/api/node/reply", "/api/node/keys", "/api/node/launch", "/api/node/end"]);
+const NODE_POST = new Set(["/api/node/reply", "/api/node/keys", "/api/node/launch", "/api/node/end", "/api/node/detach"]);
 
 /** The `/api/node/*` family. Returns null for any other path. */
 export async function handleNodeRoute(pathname: string, req: Request, d: NodeRouteDeps): Promise<Response | null> {
@@ -353,6 +353,12 @@ async function nodeAction(action: string, peer: string, body: unknown, node: Nod
     // end: only the pane this machine launched for that same peer — never any other pane of the owner.
     const launched = d.launched.get(paneId);
     if (!launched || launched.peer !== peer) return refuse("not a pane launched for this peer", 404, { paneId });
+    // detach: the caller's card lets go of the pane; the terminal and its agent stay, as a filed card's do (ADR 0002).
+    if (action === "detach") {
+      d.launched.delete(paneId);
+      d.audit("node.detach", peer, { paneId, environment: launched.environment, branch: launched.branch });
+      return d.json({ ok: true });
+    }
     await d.actions.close(paneId);
     d.launched.delete(paneId);
     d.audit("node.end", peer, { paneId, environment: launched.environment, branch: launched.branch });
@@ -366,6 +372,8 @@ async function nodeAction(action: string, peer: string, body: unknown, node: Nod
 export function liveNodeActions(
   herdr: () => Mux | null,
   reply: (h: Mux, ...a: Parameters<NodeActions["reply"]>) => ReturnType<NodeActions["reply"]>,
+  /** The Claude conversation last held in a checkout, to `--resume` rather than restart (resume-lost.ts's rule). */
+  lastConversation: (checkoutPath: string) => Promise<string | null> = async () => null,
 ): NodeActions {
   // Panes whose agent is still being started: a retry meanwhile must not launch a second one.
   const starting = new Set<string>();
@@ -399,10 +407,12 @@ export function liveNodeActions(
       // Answered once the pane exists: the agent's start and first prompt take up to a minute, longer
       // than any hop between the caller and here waits (its fetch, a proxy, the phone's request).
       starting.add(wt.paneId);
+      // A relaunch after the agent was lost (a reboot): the same conversation, told it was cut off.
+      const resumed = env.agent === "claude" ? await lastConversation(wt.checkoutPath).catch(() => null) : null;
       void (async () => {
         try {
-          await launchAgent(c, wt.paneId, env.agent, agentNameFor(branch));
-          await promptAndConfirm(c, wt.paneId, prompt, undefined, { firstAfterLaunch: true });
+          await launchAgent(c, wt.paneId, env.agent, agentNameFor(branch), undefined, resumed ? ["--resume", resumed] : undefined);
+          await promptAndConfirm(c, wt.paneId, resumed ? RESUME_PROMPT : prompt, undefined, { firstAfterLaunch: true });
         } catch (err) {
           // A pane with no agent would sit on the owner's machine: close it, keep the checkout — the
           // caller's card then reads its pane gone, and a relaunch reopens the checkout.

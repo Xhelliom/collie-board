@@ -116,6 +116,28 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Redémarrer (après confirmation) ferme l agent ; la revue suivante le relance
   - [x] La route de redémarrage refuse un x-collie-pane (403)
 
+### Lot — Recette allégée en un geste (launched)
+
+- **Recette : appliquer le tri proposé en un geste** — working
+
+  Skill frontend-design en tête. La carte d exploration « Recette allégée » (6018a25a-4b6b-469b-84a5-5922799507d9) a publié tri-recette.md : sur 191 entrées à tester, 18 caduques (raison + carte qui la remplace), 142 à regrouper en 39, 31 à garder ; plus quelques étapes caduques dans des entrées gardées. Aujourd hui le seul moyen est le verdict « passer » essai par essai. 1) Traduire la note en une proposition lisible par le board (données, pas du texte libre). 2) Dans la page Recette, un bouton discret (menu « ⋯ ») « Appliquer le tri » qui montre le résumé (18 caduques, N regroupements) et, sur confirmation de l opérateur : classe les caduques en verdict skip avec la note « caduque — remplacée par <carte> », et présente les regroupements comme une seule entrée (les mêmes gestes au même endroit) sans perdre aucune étape ni verdict. Route opérateur seulement (403 à un x-collie-pane, comme les verdicts). Réversible : défaire le tri rend l état d avant. Rien n est supprimé. Pas de carte dans une carte, pas de liseré latéral.
+
+  - [ ] Recette → ⋯ → Appliquer le tri montre le résumé puis, après confirmation, le compteur « à tester » passe d environ 191 à environ 70
+  - [ ] Les caduques portent la raison et un lien vers la carte qui les remplace
+  - [ ] Défaire le tri rend l état d avant ; aucune étape ni verdict perdu
+  - [ ] La route refuse un x-collie-pane (403)
+
+### Lot — Correctif · session distante fantôme (launched)
+
+- **Carte lancée sur un pair : ne pas croire un numéro de terminal réattribué** — done
+
+  Cas réel (carte sw-to-crew 310da804, environnement Dell-5550-Stef / dell-5550-sw) : après un redémarrage du Dell, plus aucun agent de la carte n y tourne, mais GET /api/cards/<id>/remote dit session.paneId t18, state.pane working/claude — herdr a réattribué t18 à un autre agent. Résultat : POST /api/cards/<id>/start répond 409 « already running on Dell-5550-Stef » et l opérateur ne peut plus relancer, même après avoir remis la carte au backlog (la session est tenue côté pair). Corriger des deux côtés (le code tourne sur le pair aussi) : une session distante n est « en cours » que si le pane suivi est un agent dont le cwd est le checkout de la carte (ou porte sa branche) ; sinon la session est perdue — un start la relance dans le même checkout et la même branche, avec --resume si le transcript existe (même logique que le resume-lost local). Une carte remise au backlog/manuellement termine aussi la session côté pair. Tests sur la règle pure.
+
+  - [x] Un pane du pair réattribué à un autre agent (autre cwd) n est plus pris pour la session de la carte
+  - [x] Démarrer la carte relance un agent sur le pair dans le même checkout et la même branche
+  - [x] Remettre la carte au backlog libère la session côté pair
+  - [x] Test de la règle pure
+
 ### Lot — Les freins tiennent-ils ? (à partir du 27/11) (planned)
 
 - **Les freins tiennent-ils ? Mesure à une semaine** — backlog

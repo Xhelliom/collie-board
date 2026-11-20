@@ -135,6 +135,7 @@ import { ago as timeAgo } from "@/lib/project-facts";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
+import { DetachAgentRow } from "@/components/card-detach";
 import { placeOf } from "@/lib/agent-groups";
 import { paneDisplayName, type AgentStatus } from "@/lib/types";
 
@@ -1396,6 +1397,15 @@ export function CardRoute() {
               />
               <p className="px-3 pb-1 text-xs text-muted-foreground">{t("card.convertHint", { title: actionTarget.title })}</p>
             </div>
+          )}
+          {(state !== "todo" || card.environment) && (
+            <DetachAgentRow
+              cardId={card.id}
+              onDone={() => {
+                setMenuOpen(false);
+                revalidator.revalidate();
+              }}
+            />
           )}
           {state !== "todo" && (
             <div className="px-3 py-2">
