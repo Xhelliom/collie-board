@@ -1,8 +1,14 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
 
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
 import { parseBudget, DEFAULT_BUDGET, recordStartGauge, weekPercent } from "./goal-routes.ts";
+import { usageTracker } from "./usage.ts";
+
+// The tracker is module-wide: another file of the run may have read this machine's real quota into it.
+let peek: ReturnType<typeof spyOn>;
+beforeAll(() => void (peek = spyOn(usageTracker, "peek").mockReturnValue(null)));
+afterAll(() => peek.mockRestore());
 
 const ctx = (db: BoardDb) =>
   ({
@@ -199,7 +205,6 @@ describe("the start gauge of a lot", () => {
     expect(db.runQuota(run2.id).start).toBeNull();
   });
   it("a lot created unplanned via POST /api/runs has a start reading", async () => {
-    const { usageTracker } = await import("./usage.ts");
     const orig = usageTracker.get;
     usageTracker.get = (async () => usage) as never;
     try {

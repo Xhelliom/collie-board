@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { extname, join, normalize, sep } from "node:path";
+import { basename, extname, join, normalize, sep } from "node:path";
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute, isBoardPath } from "./board-routes.ts";
@@ -36,6 +36,7 @@ import { asPaste } from "./paste.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
 import { handleNodeRoute, liveNodeActions, type LaunchedPane } from "./node.ts";
+import { ClaudeTranscriptSource } from "./transcript.ts";
 import { handlePeerRoute, PeerStore } from "./pairing.ts";
 import { handleHerdRoute, PeerHerd } from "./peer-herd.ts";
 import { leadPaneId } from "./run.ts";
@@ -197,6 +198,10 @@ export function startServer(opts: {
         text: txt,
         force: false,
       }),
+    async (cwd) => {
+      const path = await new ClaudeTranscriptSource(cfg.transcriptRoot).resolveByCwd(cwd);
+      return path ? basename(path, ".jsonl") : null;
+    },
   );
 
   const server = Bun.serve({

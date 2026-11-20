@@ -5,11 +5,13 @@ import { normalizeRemote } from "./git.ts";
 import type { OutboundPeer } from "./pairing.ts";
 import {
   DELIVER_PROMPT,
+  detachOnPeer,
   endOnPeer,
   environmentChangeRefusal,
   diagnoseEnvironments,
   environmentsForRemote,
   launchRouteFor,
+  paneHoldsSession,
   parseCardEnvironment,
   peerRefusal,
   promptOnPeer,
@@ -105,6 +107,24 @@ describe("parseCardEnvironment", () => {
   });
 });
 
+describe("paneHoldsSession", () => {
+  const branch = "board/sw-mesh-rs-publier";
+  it("holds while an agent sits in the card's checkout, POSIX or Windows", () => {
+    expect(paneHoldsSession({ agent: "claude", cwd: "/home/u/.herdr/worktrees/r/board-sw-mesh-rs-publier" }, branch)).toBe(true);
+    expect(paneHoldsSession({ agent: "claude", cwd: "C:\\Users\\s\\.herdr\\worktrees\\r\\board-sw-mesh-rs-publier\\" }, branch)).toBe(true);
+  });
+  it("is lost when the pane went to another checkout, to a shell, or is gone", () => {
+    expect(paneHoldsSession({ agent: "claude", cwd: "C:\\Users\\s" }, branch)).toBe(false);
+    expect(paneHoldsSession({ agent: "claude", cwd: "/wt/r/board-autre" }, branch)).toBe(false);
+    expect(paneHoldsSession({ agent: "shell", cwd: "/wt/r/board-sw-mesh-rs-publier" }, branch)).toBe(false);
+    expect(paneHoldsSession({ agent: null, cwd: "/wt/r/board-sw-mesh-rs-publier" }, branch)).toBe(false);
+    expect(paneHoldsSession(null, branch)).toBe(false);
+  });
+  it("stands when an older peer says no cwd", () => {
+    expect(paneHoldsSession({ agent: "claude", cwd: null }, branch)).toBe(true);
+  });
+});
+
 describe("remoteSessionOf", () => {
   const ev = (id: number, type: string, payload: unknown): BoardEvent => ({ id, cardId: "c", type, payload, ts: id });
   const launched = { peer: "dev", environment: "dev-board", paneId: "w1:p2", branch: "board/x" };
@@ -141,7 +161,11 @@ describe("startOnPeer / endOnPeer", () => {
   }
 
   it("launches on the peer, journals it with the peer, and refuses a second start", async () => {
-    const { db, d, card, calls } = setup(() => Response.json({ ok: true, paneId: "w9:p1", branch: "board/lancer-chez-le-pair", environment: "dev-board" }));
+    const { db, d, card, calls } = setup((url) =>
+      url.endsWith("/snapshot")
+        ? Response.json({ agents: [{ paneId: "w9:p1", agent: "claude", status: "working", cwd: "/home/u/.herdr/worktrees/r/board-lancer-chez-le-pair" }], shellPanes: [] })
+        : Response.json({ ok: true, paneId: "w9:p1", branch: "board/lancer-chez-le-pair", environment: "dev-board" }),
+    );
     const r = await startOnPeer(d, card);
     expect(r).toEqual({ ok: true, session: { peer: "dev", environment: "dev-board", paneId: "w9:p1", branch: "board/lancer-chez-le-pair" } });
     expect(calls[0]!.url).toBe("https://dev.example.ts.net/api/node/launch");
@@ -153,7 +177,32 @@ describe("startOnPeer / endOnPeer", () => {
     expect(db.openSessionFor(card.id)).toBeNull(); // no local session for reconcile() to orphan
     const again = await startOnPeer(d, db.getCard(card.id)!);
     expect(again).toMatchObject({ ok: false, kind: "board" });
-    expect(calls).toHaveLength(1);
+    expect(calls.map((c) => c.url.split("/api/node/")[1])).toEqual(["launch", "snapshot"]);
+  });
+
+  it("relaunches in the same branch when the peer handed the pane to another agent (Dell, 310da804)", async () => {
+    let n = 0;
+    const { db, d, card, calls } = setup((url) =>
+      url.endsWith("/snapshot")
+        ? Response.json({ agents: [{ paneId: "t18", agent: "claude", status: "working", cwd: "C:\\Users\\s\\.herdr\\worktrees\\r\\board-une-autre-carte" }], shellPanes: [] })
+        : Response.json({ ok: true, paneId: `t${++n === 1 ? 18 : 3}`, branch: "board/lancer-chez-le-pair" }),
+    );
+    await startOnPeer(d, card);
+    const again = await startOnPeer(d, db.getCard(card.id)!);
+    expect(again).toEqual({ ok: true, session: { peer: "dev", environment: "dev-board", paneId: "t3", branch: "board/lancer-chez-le-pair" } });
+    expect(calls[2]!.body).toMatchObject({ branch: "board/lancer-chez-le-pair" });
+    expect(db.listEvents(card.id).find((e) => e.type === "card.remote_ended")!.payload).toMatchObject({ paneId: "t18", lost: true });
+  });
+
+  it("detaches without closing: ended here, forgotten on the peer, even when the peer no longer knows the pane", async () => {
+    const { db, d, card, calls } = setup((url) =>
+      url.endsWith("/launch") ? Response.json({ ok: true, paneId: "w9:p1", branch: "b" }) : Response.json({ ok: false, error: "unknown" }, { status: 404 }),
+    );
+    await startOnPeer(d, card);
+    expect(await detachOnPeer(d, db.getCard(card.id)!)).toMatchObject({ ok: true, session: { paneId: "w9:p1" } });
+    expect(calls[1]).toEqual({ url: "https://dev.example.ts.net/api/node/detach", body: { paneId: "w9:p1" } });
+    expect(remoteSessionFor(db, card.id)).toBeNull();
+    expect(await detachOnPeer(d, db.getCard(card.id)!)).toEqual({ ok: true, session: null });
   });
 
   it("journals the peer's refusal and leaves the card where it is", async () => {

@@ -741,6 +741,9 @@ export interface CardRemote {
 
 export const fetchCardRemote = (id: string) => apiRequest<CardRemote>(`/api/cards/${encodeURIComponent(id)}/remote`);
 export const endCardRemote = (id: string) => apiRequest<{ ok: true }>(`/api/cards/${encodeURIComponent(id)}/remote`, { method: "DELETE" });
+/** The operator's « Détacher l'agent »: the session ends here and on the peer, the terminal stays. `warning`: what the peer said. */
+export const detachCardAgent = (id: string) =>
+  apiRequest<{ ok: true; warning?: string }>(`/api/cards/${encodeURIComponent(id)}/detach`, { method: "POST" });
 
 export function deleteCard(id: string): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>(`/api/cards/${encodeURIComponent(id)}`, { method: "DELETE" });
