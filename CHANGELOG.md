@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.359.0] - 2026-11-20
+
+### Added
+
+- Recette : « ⋯ → Appliquer le tri » applique un tri proposé (caduques passées avec raison et carte remplaçante, entrées regroupées lues comme une) ; « Défaire le tri » rend l'état d'avant. (456bae5)
+- `/api/recette/triage` : PUT d'une proposition (agent ou opérateur), POST/DELETE réservés à l'opérateur (403 à un pane). (456bae5)
+
 ## [0.358.0] - 2026-11-20
 
 ### Added
