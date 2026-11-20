@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1795197461696.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"fda2d174-a189-457f-9643-66e1a227d48a"}}
 {"v":1,"hlc":"1795197461696.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Recette : appliquer le tri proposé en un geste","status":"backlog"},"ts":1795197461116}}
 {"v":1,"hlc":"1795197461698.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"72705b98-367e-4348-83a9-34ce34154209"}}
+{"v":1,"hlc":"1795197467017.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
