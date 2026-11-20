@@ -18,3 +18,4 @@
 {"v":1,"hlc":"1795155471692.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.halted","payload":{"runId":"7ddf5fc7-aafe-4873-87a3-4d8b4137e321","reason":"PR: nothing to merge — main already has every commit on this branch"},"ts":1795155465108}}
 {"v":1,"hlc":"1795155486621.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1795155486621.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1795155484530}}
+{"v":1,"hlc":"1795155585235.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/recette-allegee-trier-les-essais-en-attente"},"ts":1795155573499}}
