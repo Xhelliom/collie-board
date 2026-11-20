@@ -60,4 +60,22 @@ describe("readLeanSources / leanArgs", () => {
       else process.env.CLAUDE_CONFIG_DIR = prev;
     }
   });
+
+  test("a spec naming frontend-design keeps that plugin; one that does not stays lean", () => {
+    writeFileSync(join(home, "settings.json"), JSON.stringify({ enabledPlugins: { "stripe@official": true, "frontend-design@official": true } }));
+    const prev = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = home;
+    try {
+      const off = (args: string[]) => JSON.parse(readFileSync(args[4]!, "utf8")).enabledPlugins;
+      const ui = leanArgs("claude", { stateDir: home, port: 1 }, repo, [], repo, "Skill frontend-design en tête. Refaire la carte.");
+      const plain = leanArgs("claude", { stateDir: home, port: 1 }, repo, [], repo, "Corriger le parseur.");
+      expect(off(ui)).toEqual({ "stripe@official": false });
+      expect(off(plain)).toEqual({ "stripe@official": false, "frontend-design@official": false });
+      expect(ui[4]).not.toBe(plain[4]);
+    } finally {
+      writeFileSync(join(home, "settings.json"), JSON.stringify({ enabledPlugins: { "stripe@official": true } }));
+      if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = prev;
+    }
+  });
 });

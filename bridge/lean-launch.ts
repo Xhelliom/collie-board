@@ -66,17 +66,20 @@ export function keepableNames(repoPath: string): { mcp: string[]; plugins: strin
 
 /**
  * The extra CLI arguments of a board agent's launch. Written to files under `stateDir`, not inlined:
- * hc TYPES the command into the pane's shell. Never fails the launch — on error the agent starts as before.
+ * hc TYPES the command into the pane's shell, so the file name carries what is kept: two cards of one
+ * repo launched together never overwrite each other's. Never fails the launch — on error the agent starts as before.
  */
-export function leanArgs(kind: string, cfg: { stateDir: string; port: number }, repoPath: string | null | undefined, keep: readonly string[], checkout?: string | null): string[] {
+export function leanArgs(kind: string, cfg: { stateDir: string; port: number }, repoPath: string | null | undefined, repoKeep: readonly string[], checkout?: string | null, spec?: string | null): string[] {
   if (kind !== "claude") return [];
+  // A card whose spec names the frontend-design skill needs it, whatever the repo kept.
+  const keep = spec && /frontend-design/i.test(spec) ? [...repoKeep, "frontend-design"] : repoKeep;
   try {
     const board = { type: "stdio", command: process.execPath, args: ["run", join(import.meta.dir, "mcp.ts")], env: { COLLIE_BOARD_PORT: String(cfg.port) } };
     const where = repoPath ?? checkout ?? homedir();
     const { mcp, settings } = leanConfig(readLeanSources(where, checkout ?? where), keep, board);
     const dir = join(cfg.stateDir, "lean-launch");
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const key = createHash("sha1").update(where).digest("hex").slice(0, 12);
+    const key = createHash("sha1").update(`${where}\0${[...keep].sort().join(",")}`).digest("hex").slice(0, 12);
     const mcpFile = join(dir, `${key}.mcp.json`);
     writeFileSync(mcpFile, JSON.stringify(mcp, null, 2), { mode: 0o600 });
     const args = ["--strict-mcp-config", "--mcp-config", mcpFile];

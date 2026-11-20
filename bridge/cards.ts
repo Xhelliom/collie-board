@@ -986,7 +986,7 @@ export async function startCard(
     if (template && !step) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
     // A repo never opened in Claude Code puts its trust dialog up, cursor on « No, exit ».
     if (kind === "claude") trustFolder(worktree.checkoutPath);
-    await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait, [...args, ...leanArgs(kind, cfg, card.repoPath, db.repoKeptMcp(card.repoPath), worktree.checkoutPath)]);
+    await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait, [...args, ...leanArgs(kind, cfg, card.repoPath, db.repoKeptMcp(card.repoPath), worktree.checkoutPath, card.spec)]);
     if (resumed) {
       db.patchSession(session.id, { agentSessionId: resumed });
       db.recordEvent(cardId, "session.resumed", { sessionId: session.id, paneId: worktree.paneId, agentSessionId: resumed });
