@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.355.0] - 2026-11-20
+
+### Changed
+
+- Une installation neuve a le copilote actif ; une installation existante garde son réglage (7f1ad80)
+
+## [0.354.1] - 2026-11-20
+
+### Fixed
+
+- Une carte dont le spec nomme frontend-design démarre avec ce plugin, même s'il n'est pas gardé par le dépôt (d63307a)
+
 ## [0.354.0] - 2026-11-19
 
 ### Added

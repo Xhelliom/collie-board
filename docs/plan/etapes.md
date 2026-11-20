@@ -86,24 +86,35 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Une carte sans cette mention garde le lancement réduit
   - [x] Un test couvre la règle
 
-### Lot — Agents figés relancés, copilote actif (planned)
+### Lot — Agents figés relancés, copilote actif (launched)
 
-- **Copilote activé à l'installation** — backlog
+- **Copilote activé à l'installation** — done
 
   Décision opérateur : le copilote est au centre de Collie Board, il doit être actif par défaut. La raison du défaut OFF (bridge/config.ts boardCopilot, CLAUDE.md « The copilot spends the user's quota… stays off by default ») était de ne pas dépenser le quota de quelqu'un par une mise à jour. Donc : une NOUVELLE installation l'active (l'installateur écrit COLLIE_BOARD_COPILOT=on dans le fichier d'env qu'il crée, ou équivalent) ; une installation existante garde exactement son réglage à la mise à jour. Désactivable dans les réglages comme aujourd'hui. Réécrire la règle de CLAUDE.md et le commentaire de config, et écrire une ADR qui remplace l'ancienne raison (format .adr/README.md). README à jour si il mentionne le défaut.
 
-  - [ ] Une installation neuve a le copilote actif
-  - [ ] Une mise à jour d une installation existante ne change pas son réglage
-  - [ ] CLAUDE.md, le commentaire de config et une nouvelle ADR disent la même chose
-- **Relancer un agent figé au bout d'une heure** — backlog
+  - [x] Une installation neuve a le copilote actif
+  - [x] Une mise à jour d une installation existante ne change pas son réglage
+  - [x] CLAUDE.md, le commentaire de config et une nouvelle ADR disent la même chose
+- **Relancer un agent figé au bout d'une heure** — done
 
   Des cartes restent « en cours » 12–24 h : l'agent attend une commande qui boucle ou une tâche de fond qui ne revient jamais ; quand l'opérateur lui demande « on est où ? », il voit que c'est fini. bridge/stuck-card.ts (StuckCards) ne le voit pas : il tient « working » pour sain, ne surveille que les cartes d'un lot, et ne prévient que l'orchestrateur. 1) MESURER d'abord dans le journal/transcripts les cartes restées en cours > 1 h : écran figé en working, attente d'une tâche de fond, ou carte hors lot — corriger ce qui arrive vraiment. 2) Surveiller toutes les cartes ayant un agent ; compter comme figé un pane working dont la sortie n'a pas changé depuis 1 h (décision opérateur : 1 h, pas 20 min — compilations longues, absences courtes). 3) Relancer l'agent lui-même via promptAndConfirm : idle → « Où en es-tu ? Si c'est fini, termine la carte. » ; working figé → Escape (coupe la commande bloquée) puis le même message. Une fois par épisode. L'orchestrateur est prévenu comme aujourd'hui, rien pour l'opérateur (ADR 0011). Rester sur engine.onUpdate, aucun timer ; logique pure testée (stuckStep/stuckState).
 
-  - [ ] La mesure des épisodes passés est publiée en livrable
-  - [ ] Un agent working dont l écran n a pas bougé depuis 1 h reçoit Échap puis « Où en es-tu ? … », une seule fois
-  - [ ] Un agent idle depuis 1 h sur une carte en cours, hors lot aussi, reçoit la question
-  - [ ] Une sortie qui bouge (compilation qui affiche) ne déclenche rien
-  - [ ] Tests de la règle pure
+  - [x] La mesure des épisodes passés est publiée en livrable
+  - [x] Un agent working dont l écran n a pas bougé depuis 1 h reçoit Échap puis « Où en es-tu ? … », une seule fois
+  - [x] Un agent idle depuis 1 h sur une carte en cours, hors lot aussi, reçoit la question
+  - [x] Une sortie qui bouge (compilation qui affiche) ne déclenche rien
+  - [x] Tests de la règle pure
+
+### Lot — Agents du board accessibles (planned)
+
+- **Agents du board : ouvrir et redémarrer le lead et le copilote** — backlog
+
+  Skill frontend-design en tête. Le lead et le copilote (snapshot leadPaneId / copilotPaneId, bridge/lead.ts et bridge/copilot.ts) n apparaissent ni dans la page Agents ni de façon trouvable dans herdr-app : quand un message demande « redémarrer le lead du board » (par ex. pour qu il reparte en Sonnet après #514, ou s il est muet), l opérateur ne sait pas où aller. Ajouter dans la page Agents un accès discret (rarement utile) : dans le menu « ⋯ », une entrée « Agents du board » qui liste Lead et Copilote avec leur état (couleurs d état : bleu travail, orange attente, rouge bloqué, vert fait), et pour chacun « Ouvrir » (la vue du pane) et « Redémarrer » (confirmation ; ferme l agent, le board le relance à sa prochaine demande via ensurePane — une route opérateur, refusée à un x-collie-pane ; ne pas couper une revue en cours sans le dire dans la confirmation). Même accès dans le mod herdr-app si le panneau Agents y existe. Pas de carte dans une carte, pas de liseré latéral.
+
+  - [ ] Page Agents → ⋯ → Agents du board : Lead et Copilote avec leur état
+  - [ ] Ouvrir mène à la vue de leur pane
+  - [ ] Redémarrer (après confirmation) ferme l agent ; la revue suivante le relance
+  - [ ] La route de redémarrage refuse un x-collie-pane (403)
 
 ### Lot — Les freins tiennent-ils ? (à partir du 27/11) (planned)
 
