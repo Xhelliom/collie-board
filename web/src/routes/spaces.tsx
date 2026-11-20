@@ -3,6 +3,7 @@ import { useNavigate, useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
 import { AgentsPageView } from "@/components/agents-page";
+import { BoardAgentsSheet } from "@/components/board-agents-sheet";
 import { NewSpaceSheet } from "@/components/new-space-sheet";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { useSpaceActions } from "@/hooks/use-spaces";
@@ -20,6 +21,7 @@ export function SpacesRoute() {
   const navigate = useNavigate();
   const { newSpace } = useSpaceActions();
   const [newOpen, setNewOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const herd = useMemo(() => [...data.agents, ...data.shellPanes, ...remoteAgents(data.peers ?? [])], [data.agents, data.shellPanes, data.peers]);
   const internal = useMemo(
@@ -40,9 +42,17 @@ export function SpacesRoute() {
           machineCount={1 + (data.peers?.length ?? 0)}
           onOpen={(id) => navigate(panePath(id, data.session))}
           onNew={() => setNewOpen(true)}
+          onMore={() => setMoreOpen(true)}
         />
       </main>
 
+      <BoardAgentsSheet
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        panes={{ lead: data.leadPaneId ?? null, copilot: data.copilotPaneId }}
+        herd={data.agents}
+        onOpen={(id) => navigate(panePath(id, data.session))}
+      />
       <NewSpaceSheet open={newOpen} onClose={() => setNewOpen(false)} onCreate={newSpace} title={t("agents.new")} />
     </div>
   );

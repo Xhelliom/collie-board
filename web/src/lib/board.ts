@@ -946,6 +946,13 @@ export function handoffCard(id: string): Promise<{ ok: true; card: CardView }> {
   });
 }
 
+export type BoardAgentRole = "lead" | "copilot";
+
+/** Close the board's lead or copilot; the board relaunches it at its next request (bridge/board-agents.ts). */
+export function restartBoardAgent(role: BoardAgentRole): Promise<{ ok: true }> {
+  return apiRequest("/api/board/agents/restart", { method: "POST", body: JSON.stringify({ role }) });
+}
+
 /** Where a new launch on this machine goes: hc, or herdr 0.9 — `fallback` when hc is not answering. */
 export function fetchLaunchEngine(): Promise<{ engine: "herdr09" | "hc"; fallback: boolean }> {
   return apiRequest("/api/board/launch-engine", {}, GET_TIMEOUT_MS);
