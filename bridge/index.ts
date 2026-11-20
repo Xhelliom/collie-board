@@ -417,7 +417,8 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     const nudger = new OrchestratorNudger(board, herdr, notifyLog);
     engine.onUpdate((snap) => nudger.update(snap), "nudger");
     audit.listeners.push((e) => nudger.heard(e)); // the operator's gestures, told on the next tick
-    // …and of a lot's card whose agent stalls (blocked, idle or gone for 10 min) — once per episode.
+    // …and of a lot's card whose agent stalls (blocked, idle or gone for 10 min) — once per episode;
+    // any card « en cours » whose agent sat idle or frozen for 1 h is asked by the board itself.
     const stuck = new StuckCards(board, herdr);
     engine.onUpdate((snap) => stuck.update(snap), "stuckCards");
     // An open objective's checkpoints (budget half spent / spent, claimed): journaled, then pushed by the tailer.

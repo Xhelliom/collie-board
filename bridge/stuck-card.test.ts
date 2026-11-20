@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { BoardDb } from "./db.ts";
-import { STUCK_AFTER_MS, StuckCards, stuckState, stuckStep } from "./stuck-card.ts";
+import { NUDGE_TEXT, STUCK_AFTER_MS, StuckCards, nudgeState, screenPrint, stuckState, stuckStep } from "./stuck-card.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -99,5 +99,82 @@ describe("StuckCards", () => {
     w.watcher.update(w.snap("blocked", "disconnected"));
     await flush();
     expect(w.sent).toHaveLength(0);
+  });
+});
+
+describe("nudge rule", () => {
+  it("ignores the spinner and the digits that tick on a hung screen, not new output", () => {
+    const a = "$ bun run build\nbuilding…\n✽ Vibing… (1m 41s · ↓ 7.6k tokens)\n● full  $0.00  12s\n  esc to interrupt";
+    const b = "$ bun run build\nbuilding…\n✻ Vibing… (61m 2s · ↑ 9.1k tokens)\n● full  $0.00  3671s\n  esc to interrupt";
+    expect(screenPrint(a)).toBe(screenPrint(b));
+    expect(screenPrint(a + "\ncompiled web/")).not.toBe(screenPrint(a));
+  });
+
+  it("reads idle/done as idle, working only with a screen, never a shell or a blocked pane", () => {
+    expect(nudgeState("idle", "agent", undefined)).toBe("idle");
+    expect(nudgeState("done", undefined, undefined)).toBe("idle");
+    expect(nudgeState("working", "agent", undefined)).toBeNull();
+    expect(nudgeState("working", "agent", "x")).toBe("working|x");
+    expect(nudgeState("blocked", "agent", "x")).toBeNull();
+    expect(nudgeState("idle", "shell", undefined)).toBeNull();
+    expect(nudgeState(undefined, undefined, undefined)).toBeNull();
+  });
+});
+
+describe("StuckCards — asking the agent", () => {
+  function world(screens: string[]) {
+    let t = 0;
+    const db = new BoardDb(":memory:");
+    const sent: { pane: string; text: string }[] = [];
+    const keys: string[][] = [];
+    let read = 0;
+    const herdr = {
+      getAgent: async () => ({ interactive_ready: true, agent_status: "working" }),
+      promptAgent: async (o: { target: string; text: string }) => void sent.push({ pane: o.target, text: o.text }),
+      sendPaneKeys: async (_p: string, k: string[]) => void keys.push(k),
+      readPane: async () => ({ text: screens[Math.min(read++, screens.length - 1)]! }),
+    } as never;
+    // Not in a lot: the nudge watches every card « en cours » with an agent.
+    const card = db.createCard({ title: "carte y", repoPath: "/g/r", status: "ready" });
+    db.patchCard(card.id, { status: "working" });
+    db.openSession({ cardId: card.id, paneId: "w1" });
+    const watcher = new StuckCards(db, herdr, () => t, STUCK_AFTER_MS, 60 * MIN, async () => {});
+    const snap = (status: string) =>
+      ({ bridge: "connected", shellPanes: [], agents: [{ paneId: "w1", workspaceLabel: "w", cwd: "/x", status }] }) as unknown as EngineSnapshot;
+    // One tick every 5 min up to `min`.
+    const run = async (status: string, from: number, to: number) => {
+      for (let m = from; m <= to; m += 5) {
+        t = m * MIN;
+        watcher.update(snap(status));
+        await flush();
+        await flush();
+      }
+    };
+    return { sent, keys, run };
+  }
+
+  it("asks an idle agent once, after an hour, outside any lot", async () => {
+    const w = world([]);
+    await w.run("idle", 0, 55);
+    expect(w.sent).toHaveLength(0);
+    await w.run("idle", 60, 180);
+    expect(w.sent).toEqual([{ pane: "w1", text: NUDGE_TEXT }]);
+    expect(w.keys).toHaveLength(0);
+  });
+
+  it("sends Escape then the question to a working agent whose screen froze for an hour, once", async () => {
+    const w = world(["⏺ Bash(sleep infinity)\n✽ Vibing… (1m 0s)"]);
+    await w.run("working", 0, 60);
+    expect(w.sent).toHaveLength(0);
+    await w.run("working", 65, 240);
+    expect(w.keys).toEqual([["Escape"]]);
+    expect(w.sent).toEqual([{ pane: "w1", text: NUDGE_TEXT }]);
+  });
+
+  it("leaves alone a working agent whose output moves", async () => {
+    const w = world(Array.from({ length: 100 }, (_, i) => `compiling unit ${"x".repeat(i)}`));
+    await w.run("working", 0, 240);
+    expect(w.sent).toHaveLength(0);
+    expect(w.keys).toHaveLength(0);
   });
 });
