@@ -847,6 +847,9 @@ let leadPane: () => string | null = () => null;
 export const isLeadPane = (paneId: string): boolean => paneId === leadPane();
 /** The same pane, for the snapshots that hand it on (the client's toast, a peer's relay). */
 export const leadPaneId = (): string | null => leadPane();
+/** The live lead itself, for the operator's restart (board-agents.ts). Null before runHook. */
+let leadAgent: Lead | null = null;
+export const boardLead = (): Lead | null => leadAgent;
 
 /**
  * The week gauge at a lot's end: a FRESH CLI reading, waited for as long as the CLI itself may take (usage.ts
@@ -877,6 +880,7 @@ export function runHook(
   const lead = new Lead(herdr, cfg, join(cfg.stateDir, "lead"), snapshot, adapters);
   lead.modelOf = (repo) => db.repoModel(repo, LEAD_MODEL_KEY)?.model ?? null;
   leadPane = () => lead.paneId;
+  leadAgent = lead;
   const prView = (card: Card): Card => lotPrCard(card.runId ? db.getRun(card.runId) : null, card);
   const coordinator = new RunCoordinator(db, {
     lead,

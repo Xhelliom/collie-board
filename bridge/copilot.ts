@@ -1055,6 +1055,8 @@ export class Copilot {
   private requestsSinceReset = 0;
   /** The model the pane runs, as far as we set it — null when unknown (adopted, or launched without one). */
   private model: string | null = null;
+  /** The pane {@link restart} closed, never adopted again while a stale snapshot still lists it. */
+  private closed: string | null = null;
 
   constructor(
     private readonly herdr: Mux,
@@ -1225,7 +1227,7 @@ export class Copilot {
 
     const snap = this.snapshot();
     const mine = (paneId: string) => snap.agents.some((a) => a.paneId === paneId);
-    const here = [...snap.agents, ...snap.shellPanes].filter((p) => p.cwd === this.workDir);
+    const here = [...snap.agents, ...snap.shellPanes].filter((p) => p.cwd === this.workDir && p.paneId !== this.closed);
 
     // An agent already running in our directory IS the copilot — reuse it as-is.
     const running = here.find((p) => mine(p.paneId));
@@ -1287,8 +1289,9 @@ export class Copilot {
     if (snap.bridge === "disconnected") return;
     // A restart forgets the pane while the agent keeps running in our directory: adopt it now, not at
     // the next request — until then its turns would page the operator like a worker's (index.ts).
+    if (this.closed && ![...snap.agents, ...snap.shellPanes].some((p) => p.paneId === this.closed)) this.closed = null;
     if (!this._paneId) {
-      this._paneId = snap.agents.find((a) => a.cwd === this.workDir)?.paneId ?? null;
+      this._paneId = snap.agents.find((a) => a.cwd === this.workDir && a.paneId !== this.closed)?.paneId ?? null;
       if (this._paneId) this.adopted();
       return;
     }
@@ -1296,6 +1299,22 @@ export class Copilot {
     // request relaunches. Not right after a launch: the snapshot may not have seen the agent yet.
     const live = snap.agents.some((p) => p.paneId === this._paneId);
     if (!live && Date.now() - this.launchedAt > RELAUNCH_GRACE_MS) this._paneId = null;
+  }
+
+  /**
+   * The operator's restart: close the pane, and the next request relaunches a fresh agent (its model,
+   * its flags) through ensurePane. A request in flight loses its pane and ends as a failure — the
+   * confirmation says so. False when there was no pane to close.
+   */
+  async restart(): Promise<boolean> {
+    const paneId = this._paneId;
+    if (!paneId) return false;
+    this._paneId = null;
+    this.closed = paneId;
+    this.model = null;
+    await this.herdr.closePane(paneId);
+    console.log(`[${this.tag}] closed ${paneId} on the operator's restart`);
+    return true;
   }
 }
 
@@ -1355,6 +1374,11 @@ export class CopilotCoordinator {
 
   /** Passthrough to {@link Copilot.paneId} — the snapshot route only holds this coordinator, not the
    *  raw `Copilot`, so this is how it learns which pane to keep out of the notify pipeline. */
+  /** The copilot agent itself, for the operator's restart (board-agents.ts). */
+  get agent(): Copilot {
+    return this.copilot;
+  }
+
   get paneId(): string | null {
     return this.copilot.paneId;
   }

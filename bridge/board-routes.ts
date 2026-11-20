@@ -90,6 +90,7 @@ import { goalOfOrchestrator, openGoalOf, recordCheckpoint } from "./goal-mode.ts
 import { handleRecetteRoute, parseRecetteBody } from "./recette.ts";
 import { handleDocsRoute } from "./docs.ts";
 import { handlePageTabsRoute } from "./page-tabs.ts";
+import { handleBoardAgentsRoute } from "./board-agents.ts";
 import { awaitingOn } from "./roadmap.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
@@ -501,6 +502,8 @@ async function route(
   if (recette) return recette;
   const pageTabs = await handlePageTabsRoute(pathname, req, ctx);
   if (pageTabs) return pageTabs;
+  const boardAgents = await handleBoardAgentsRoute(pathname, req, ctx);
+  if (boardAgents) return boardAgents;
   const docs = await handleDocsRoute(pathname, req, ctx);
   if (docs) return docs;
 
