@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.356.0] - 2026-11-20
+
+### Added
+
+- Une carte en cours dont l'agent reste 1 h idle, ou working sur un écran figé, reçoit « Où en es-tu ? » (Échap d'abord si working), une fois par épisode, lot ou pas (efa3de6)
+
 ## [0.355.0] - 2026-11-20
 
 ### Changed

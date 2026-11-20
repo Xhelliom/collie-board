@@ -1,4 +1,4 @@
-import { ChevronRight, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { ChevronRight, EllipsisVertical, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { useT } from "@/i18n";
@@ -39,6 +39,8 @@ interface AgentsPageProps {
   machineCount?: number;
   onOpen: (paneId: string) => void;
   onNew?: () => void;
+  /** The page's « ⋯ »: the rare things (the board's own agents). */
+  onMore?: () => void;
   /** The pane column and the phone's pane switcher: no title nor search, the filters folded behind an icon. */
   compact?: boolean;
   /** The pane open beside the list — highlighted. */
@@ -53,7 +55,7 @@ interface AgentsPageProps {
  * The Agents page: a sentence, the filters, then one group per project and one line per agent.
  * The same list, `compact`, is the agent view's pane column and the phone's pane switcher.
  */
-export function AgentsPageView({ herd, internal, machineCount = 1, onOpen, onNew, compact = false, current, title, titleAction }: AgentsPageProps) {
+export function AgentsPageView({ herd, internal, machineCount = 1, onOpen, onNew, onMore, compact = false, current, title, titleAction }: AgentsPageProps) {
   const t = useT();
   const [f, setF] = useFilters(compact ? "collie-agents-filters-compact" : "collie-agents-filters");
   const [query, setQuery] = useState("");
@@ -129,6 +131,16 @@ export function AgentsPageView({ herd, internal, machineCount = 1, onOpen, onNew
           <Plus className="size-4" />
           <span className="hidden lg:inline">{t("agents.new")}</span>
         </Button>
+        {onMore && (
+          <button
+            type="button"
+            aria-label={t("agents.more")}
+            onClick={onMore}
+            className="-ml-2 flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted lg:size-10"
+          >
+            <EllipsisVertical className="size-5 lg:size-4" />
+          </button>
+        )}
       </div>
       )}
 

@@ -105,16 +105,16 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Une sortie qui bouge (compilation qui affiche) ne déclenche rien
   - [x] Tests de la règle pure
 
-### Lot — Agents du board accessibles (planned)
+### Lot — Agents du board accessibles (launched)
 
-- **Agents du board : ouvrir et redémarrer le lead et le copilote** — backlog
+- **Agents du board : ouvrir et redémarrer le lead et le copilote** — done
 
   Skill frontend-design en tête. Le lead et le copilote (snapshot leadPaneId / copilotPaneId, bridge/lead.ts et bridge/copilot.ts) n apparaissent ni dans la page Agents ni de façon trouvable dans herdr-app : quand un message demande « redémarrer le lead du board » (par ex. pour qu il reparte en Sonnet après #514, ou s il est muet), l opérateur ne sait pas où aller. Ajouter dans la page Agents un accès discret (rarement utile) : dans le menu « ⋯ », une entrée « Agents du board » qui liste Lead et Copilote avec leur état (couleurs d état : bleu travail, orange attente, rouge bloqué, vert fait), et pour chacun « Ouvrir » (la vue du pane) et « Redémarrer » (confirmation ; ferme l agent, le board le relance à sa prochaine demande via ensurePane — une route opérateur, refusée à un x-collie-pane ; ne pas couper une revue en cours sans le dire dans la confirmation). Même accès dans le mod herdr-app si le panneau Agents y existe. Pas de carte dans une carte, pas de liseré latéral.
 
-  - [ ] Page Agents → ⋯ → Agents du board : Lead et Copilote avec leur état
-  - [ ] Ouvrir mène à la vue de leur pane
-  - [ ] Redémarrer (après confirmation) ferme l agent ; la revue suivante le relance
-  - [ ] La route de redémarrage refuse un x-collie-pane (403)
+  - [x] Page Agents → ⋯ → Agents du board : Lead et Copilote avec leur état
+  - [x] Ouvrir mène à la vue de leur pane
+  - [x] Redémarrer (après confirmation) ferme l agent ; la revue suivante le relance
+  - [x] La route de redémarrage refuse un x-collie-pane (403)
 
 ### Lot — Les freins tiennent-ils ? (à partir du 27/11) (planned)
 
