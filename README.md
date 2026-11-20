@@ -145,7 +145,7 @@ the better answer.
 | **Unit of work** | a pane | a card → its own branch, worktree and workspace |
 | **Starting work** | you open a pane and type | one tap: worktree + agent + spec — or a run over a set |
 | **Ending work** | you close the pane | wrap-up note, review, then merge / PR / cleanup — refusals first |
-| **Writing the task** | — | dictate a dump; the copilot splits, tags and specs it (off by default) |
+| **Writing the task** | — | dictate a dump; the copilot splits, tags and specs it (on for a new install; `COLLIE_BOARD_COPILOT=off` stops it) |
 | **Layout** | phone | phone, plus a four-lane wide-screen board |
 | **Plugin id** | `herdr.collie` | `herdr.collie-board` — both can be installed side by side |
 

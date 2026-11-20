@@ -235,9 +235,10 @@ export interface Config {
    */
   boardModelsDev: boolean;
   /**
-   * The copilot (reformulation + post-`done` review). OFF by default, deliberately: it is a second
-   * agent drawing on the same subscription as the workers, and spending someone's quota in the
-   * background is not a default anyone should inherit by upgrading. `COLLIE_BOARD_COPILOT=on`.
+   * The copilot (reformulation + post-`done` review). ON for a new install — `.env.example`, which
+   * `setup` copies, sets `COLLIE_BOARD_COPILOT=on` — but the code default stays `false`, so an
+   * existing `.env` without the line keeps it off across an upgrade: no update starts spending
+   * someone's quota. ADR 0062.
    */
   boardCopilot: boolean;
   /** Agent kind for the copilot — it can be a cheaper one than the workers. Empty = same. */

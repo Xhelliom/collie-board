@@ -133,6 +133,8 @@ EOF
   [ -f "$env_file" ] || fail "setup wrote no .env"
   assert_contains "$(cat "$env_file")" "COLLIE_BOARD_TRUSTED_USER=me@example.com"
   assert_contains "$(cat "$env_file")" "COLLIE_BOARD_PUBLIC_HOSTS=host.example.ts.net"
+  # A new install has the copilot on (ADR 0062); the existing-.env case below proves an upgrade doesn't.
+  assert_contains "$(cat "$env_file")" $'\nCOLLIE_BOARD_COPILOT=on'
   # HTTPS IS available here, so it must not force the http fallback.
   case "$(cat "$env_file")" in
     *$'\n'COLLIE_BOARD_SERVE_MODE=http*) fail "forced http mode despite a valid cert domain" ;;
