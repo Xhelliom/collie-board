@@ -63,69 +63,53 @@
 - **Finitions de novembre** — validated 2026-11-17, 7 steps
 - **Performance** — validated 2026-11-18, 12 steps
 - **Performance — fin de l audit** — validated 2026-11-18, 5 steps
+- **Les freins du coût** — validated 2026-11-20, 2 steps
+- **Freins du coût — réglages** — validated 2026-11-20, 5 steps
 
-## Phase 58 — Les freins du coût
+## Phase 60 — Après les freins
 
-Savoir ce qui consomme le quota (copilote, vérifications, relances, orchestrateur) et donner à l opérateur des réglages pour le freiner, au choix ; plus un petit gain : ouvrir « Nouvelle carte » sans attendre.
+Donner le bon outil au bon agent malgré le lancement réduit, alléger la recette, puis vérifier sur une semaine que les freins du coût tiennent.
 
-### Lot — Ouvrir Nouvelle carte sans attendre (launched)
+### Lot — Les bons outils au bon agent (launched)
 
-- **Branche par défaut sans sous-processus (ouverture de « Nouvelle carte »)** — done
+- **Recette allégée : trier les essais en attente** — done
 
-  Suite de la mesure P13 (docs/dev, mesure-p13-p14) : GET /api/repos?branches=1, demandé à l ouverture de la feuille « Nouvelle carte », bloque encore ≈ 300 ms à cause d un sous-processus git par dépôt pour la branche par défaut. Lire refs/remotes/origin/HEAD (fichier ou packed-refs) directement dans bridge/git.ts, repli sur l appel actuel si absent. Mesurer avant/après.
+  La recette de collie-board compte ~191 cartes « à tester » (GET /api/recette?repo=…), beaucoup anciennes. Exploration : classer chaque entrée en caduque (l'écran ou le geste a changé depuis, une carte plus récente l'a remplacée), à regrouper (mêmes gestes au même endroit), ou à garder ; pour chaque caduque, la raison en une ligne et la carte qui la remplace. Livrable : une note publiée sur la carte avec la liste proposée, les gardées regroupées par usage. Ne modifier ni supprimer aucun essai ni verdict : la décision est à l'opérateur.
 
-  - [x] /api/repos?branches=1 sans sous-processus quand origin/HEAD est lisible
-  - [x] Même résultat qu avant sur les dépôts connus
-  - [x] Blocage mesuré avant/après
+  - [x] Une note publiée classe chaque entrée à tester : caduque (raison), à regrouper, à garder
+  - [x] Aucun essai ni verdict modifié
+- **Une carte d'interface garde frontend-design d'office** — done
 
-### Lot — Où part le quota (launched)
+  Depuis le frein 2 (#515), les agents de carte démarrent sans plugins sauf ceux cochés dans « Outils gardés par les agents du board » du dépôt. Or toute carte d'interface de l'opérateur commence par « Skill frontend-design en tête » et doit avoir ce skill. Quand le spec d'une carte nomme frontend-design (ex. « Skill frontend-design en tête »), son agent garde le plugin frontend-design même si le dépôt ne l'a pas coché. Règle simple et lisible, en un endroit (là où leanArgs construit la liste gardée). Pas de liste de mots-clés extensible.
 
-- **Où part le quota : mesurer par poste et proposer des freins** — done
+  - [x] Sur un dépôt sans frontend-design coché, une carte dont le spec commence par « Skill frontend-design en tête » démarre avec le plugin (visible dans /plugin ou le transcript)
+  - [x] Une carte sans cette mention garde le lancement réduit
+  - [x] Un test couvre la règle
 
-  Mesurer, sur les 2 dernières semaines de collie-board (et des autres dépôts si les données le permettent), la part du quota consommée par poste : agents des cartes, lead/revue, gate et relances après CI rouge, copilote, orchestrateur, remesures. Sources : événements de coût (COST_EVENT, /api/cost), bilans de lot « Consommé », journal des cartes. Livrer une note docs/dev/couts-2026-11.md : un tableau par poste (tokens, part, par lot), les 3-5 plus gros postes, et pour chacun un frein possible (réglage, défaut, règle) avec son gain estimé et son risque. Ne rien changer au code : la décision des freins revient à l opérateur.
+### Lot — Agents figés relancés, copilote actif (planned)
 
-  - [x] Tableau des postes de coût chiffré, publié
-  - [x] 3 à 5 freins proposés, chacun avec gain estimé et risque
-  - [x] Aucun changement de code
+- **Copilote activé à l'installation** — backlog
 
-## Phase 59 — Freins du coût — réglages
+  Décision opérateur : le copilote est au centre de Collie Board, il doit être actif par défaut. La raison du défaut OFF (bridge/config.ts boardCopilot, CLAUDE.md « The copilot spends the user's quota… stays off by default ») était de ne pas dépenser le quota de quelqu'un par une mise à jour. Donc : une NOUVELLE installation l'active (l'installateur écrit COLLIE_BOARD_COPILOT=on dans le fichier d'env qu'il crée, ou équivalent) ; une installation existante garde exactement son réglage à la mise à jour. Désactivable dans les réglages comme aujourd'hui. Réécrire la règle de CLAUDE.md et le commentaire de config, et écrire une ADR qui remplace l'ancienne raison (format .adr/README.md). README à jour si il mentionne le défaut.
 
-Appliquer les freins 2, 4 et 5 de l étude « Où part le quota » : agents lancés avec moins de MCP et de plugins, lead vidé à chaque demande et en Sonnet, pas de revue copilote après un lead OK. Plus deux correctifs remontés par l opérateur.
+  - [ ] Une installation neuve a le copilote actif
+  - [ ] Une mise à jour d une installation existante ne change pas son réglage
+  - [ ] CLAUDE.md, le commentaire de config et une nouvelle ADR disent la même chose
+- **Relancer un agent figé au bout d'une heure** — backlog
 
-### Lot — Correctif · rappel qui vibre et reprise de lot (launched)
+  Des cartes restent « en cours » 12–24 h : l'agent attend une commande qui boucle ou une tâche de fond qui ne revient jamais ; quand l'opérateur lui demande « on est où ? », il voit que c'est fini. bridge/stuck-card.ts (StuckCards) ne le voit pas : il tient « working » pour sain, ne surveille que les cartes d'un lot, et ne prévient que l'orchestrateur. 1) MESURER d'abord dans le journal/transcripts les cartes restées en cours > 1 h : écran figé en working, attente d'une tâche de fond, ou carte hors lot — corriger ce qui arrive vraiment. 2) Surveiller toutes les cartes ayant un agent ; compter comme figé un pane working dont la sortie n'a pas changé depuis 1 h (décision opérateur : 1 h, pas 20 min — compilations longues, absences courtes). 3) Relancer l'agent lui-même via promptAndConfirm : idle → « Où en es-tu ? Si c'est fini, termine la carte. » ; working figé → Escape (coupe la commande bloquée) puis le même message. Une fois par épisode. L'orchestrateur est prévenu comme aujourd'hui, rien pour l'opérateur (ADR 0011). Rester sur engine.onUpdate, aucun timer ; logique pure testée (stuckStep/stuckState).
 
-- **Bouton « Reprendre le lot » dans les boutons de l'orchestrateur** — done
+  - [ ] La mesure des épisodes passés est publiée en livrable
+  - [ ] Un agent working dont l écran n a pas bougé depuis 1 h reçoit Échap puis « Où en es-tu ? … », une seule fois
+  - [ ] Un agent idle depuis 1 h sur une carte en cours, hors lot aussi, reçoit la question
+  - [ ] Une sortie qui bouge (compilation qui affiche) ne déclenche rien
+  - [ ] Tests de la règle pure
 
-  Un orchestrateur a proposé un bouton collie-buttons avec action resume_lot : l'app affiche « Action inconnue : resume_lot » car le catalogue (web/src/lib/board-tools.ts, partagé avec bridge/mcp.ts) n'a pas d'outil pour POST /api/runs/<id>/resume. Ajouter un outil resume_lot (args runId), destructif = demande confirmation, avec un aperçu lisible (« Reprendre le lot « nom » — N cartes arrêtées : raison »). Côté MCP il garde les mêmes refus que la route (ADR 0055). Documenter dans skills/collie-board/SKILL.md (liste des actions de boutons) pour que skill.test.ts reste vert.
+### Lot — Les freins tiennent-ils ? (à partir du 27/11) (planned)
 
-  - [x] Un bouton {action:"resume_lot",args:{runId}} s affiche avec l aperçu du lot et reprend le lot après confirmation
-  - [x] Un runId inconnu grise le bouton avec une raison lisible
-  - [x] SKILL.md documente resume_lot
-- **Le rappel du dernier message ne vibre plus, sur ordinateur aussi** — done
+- **Les freins tiennent-ils ? Mesure à une semaine** — backlog
 
-  Skill frontend-design en tête. L'opérateur voit toujours le rappel sticky du dernier message (PromptPin, web/src/components/reading-view.tsx) vibrer en haut de la conversation d'un agent quand il arrive presque au niveau du texte. Le correctif #491 a réservé la place du rappel sur téléphone seulement ; sur grand écran il reste en overlay (lg:absolute) et la mesure du tour au bord (measure au scroll) peut encore boucler. Reproduire (téléphone ET bureau, mode lecture et conversation), trouver la boucle (mesure → rendu → déplacement → mesure), la casser à la racine (hystérésis, bord de mesure qui tient compte de la hauteur du rappel, ou slot réservé partout). Pas de liseré latéral.
+  Refaire la mesure de docs/dev/couts-2026-11.md (« Où part le quota ») sur la semaine qui suit les freins (#513, #515 et le lead Sonnet/clear, mergés le 19/11) et la comparer à avant : part du board vs sessions manuelles, répartition par poste (agents de carte, orchestrateur, lead, copilote), tokens de départ d'un agent de carte, part d'Opus. Conclure : gain réel vs estimé, et s'il faut rouvrir les freins 1 (cartes en Sonnet) et 3 (renouveler l'orchestrateur). Ne lancer qu'à partir du 27/11.
 
-  - [x] Sur bureau et téléphone, faire défiler lentement jusqu au point où le rappel rencontre le texte : il ne clignote ni ne tremble
-  - [x] Un test couvre la mesure du tour au bord (pas d aller-retour entre deux tours pour une même position)
-
-### Lot — Freins : agents légers, lead vidé, copilote sobre (launched)
-
-- **Pas de revue copilote sur une carte déjà validée par le lead** — done
-
-  Frein 5 de l'étude « Où part le quota » : ~2 % du coût. Quand le lead a rendu un verdict OK sur une carte, le copilote ne lance plus sa revue de fin dessus. Les cartes non revues par un lead gardent la revue copilote.
-
-  - [x] Une carte validée par le lead ne déclenche pas de revue copilote
-  - [x] Une carte sans lead garde la revue copilote
-- **Lead : contexte vidé avant chaque demande, et Sonnet par défaut** — done
-
-  Frein 4 de l'étude « Où part le quota » : le lead fait 20 % du coût, en grande partie le contexte accumulé de ses demandes précédentes relu à chaque appel. Envoyer /clear au lead avant chaque nouvelle demande de revue (il n'a pas besoin des diffs précédents), et lancer le lead en Sonnet par défaut, réglable par dépôt (Opus possible). Passer par promptAndConfirm()/launchAgent().
-
-  - [x] Deux revues de suite par le même lead : la seconde part d un contexte vidé (vérifiable dans le transcript)
-  - [x] Un nouveau lead démarre en Sonnet sauf réglage du dépôt
-- **Agents du board lancés avec moins de MCP et de plugins** — done
-
-  Frein 2 de l'étude « Où part le quota » (docs/dev/couts-2026-11.md) : chaque agent de carte démarre avec tous les MCP et plugins de l'utilisateur (Godot, Unreal, Stripe, Gmail, Slack…), relus à chaque appel ; ~11 % du coût du board par tranche de 25 k tokens retirés. 1) MESURER d'abord : tokens du contexte de départ d'un agent de carte aujourd'hui (transcript, premier usage), par source si possible. 2) Lancer les agents de carte (worker, lead) avec une config réduite via les options du harnais (ex. --strict-mcp-config / --mcp-config, réglages de plugins) : par défaut le MCP collie-board et le skill collie-board seulement ; une liste « MCP gardés » par dépôt dans les réglages du projet pour un dépôt qui a besoin d'un MCP métier. Ne pas toucher l'orchestrateur ni les sessions manuelles. Passer par launchAgent(), jamais agent.start direct.
-
-  - [x] La mesure avant/après (tokens de départ d un agent de carte) est publiée en livrable sur la carte
-  - [x] Un agent de carte d un dépôt sans réglage démarre sans les MCP/plugins tiers
-  - [x] Un dépôt peut garder des MCP nommés dans ses réglages, et ses agents les ont
+  - [ ] Une note compare avant/après par poste, avec les chiffres
+  - [ ] Elle conclut sur les freins 1 et 3
