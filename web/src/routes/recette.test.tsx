@@ -295,6 +295,67 @@ describe("RecetteRoute", () => {
   });
 });
 
+describe("tri de la recette", () => {
+  function mount(groups: RecetteGroup[]) {
+    server.use(http.get("/api/recette", () => HttpResponse.json({ groups })));
+    const router = createMemoryRouter([{ path: "/board/recette", loader: recetteLoader, element: <RecetteRoute /> }, { path: "/card/:cardId", element: <p>card</p> }], {
+      initialEntries: ["/board/recette?repo=%2Fr%2Fapp"],
+    });
+    render(<RouterProvider router={router} />);
+  }
+
+  it("⋯ → Appliquer le tri : le résumé, puis la confirmation l'applique", async () => {
+    setPreference("fr");
+    let applied = false;
+    server.use(
+      http.get("/api/recette/triage", () =>
+        HttpResponse.json({ triage: { proposedBy: "agent p1", proposedAt: Date.now(), applied: applied ? { by: "operator", at: Date.now(), skipped: 22 } : null, summary: { obsolete: 18, obsoleteSteps: 4, groups: 39, grouped: 142 } } }),
+      ),
+      http.post("/api/recette/triage", () => ((applied = true), HttpResponse.json({ ok: true }))),
+    );
+    mount([{ usage: null, entries: [entry()] }]);
+    await userEvent.click(await screen.findByRole("button", { name: "Plus sur la recette" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Appliquer le tri" }));
+    expect(await screen.findByText(/entrées caduques, passées avec leur raison/)).toBeInTheDocument();
+    expect(screen.getByText("18")).toBeInTheDocument();
+    expect(screen.getByText(/142 entrées aux mêmes gestes au même endroit, lues comme 39/)).toBeInTheDocument();
+    const confirm = screen.getAllByRole("button", { name: "Appliquer le tri" }).at(-1)!;
+    await userEvent.click(confirm);
+    await waitFor(() => expect(applied).toBe(true));
+    await userEvent.click(await screen.findByRole("button", { name: "Plus sur la recette" }));
+    expect(await screen.findByRole("menuitem", { name: "Défaire le tri" })).toBeInTheDocument();
+  });
+
+  it("une entrée regroupée envoie chaque verdict à la carte de son étape ; une caduque dit par quoi elle est remplacée", async () => {
+    setPreference("fr");
+    const sent: string[] = [];
+    server.use(
+      http.get("/api/recette/triage", () => HttpResponse.json({ triage: null })),
+      http.post("/api/cards/:id/checks/:step", ({ params }) => (sent.push(`${params.id}/${params.step}`), HttpResponse.json({ ok: true, followUp: null }))),
+    );
+    mount([
+      {
+        usage: null,
+        entries: [
+          entry({
+            capability: "Les gestes",
+            shots: [],
+            members: [{ cardId: "c1", title: "Geste 1" }, { cardId: "c2", title: "Geste 2" }],
+            steps: [
+              { id: "a", cardId: "c1", text: "Un", verdict: { status: "ok", by: "operator", at: 1 } },
+              { id: "a", cardId: "c2", text: "Deux", verdict: null, obsolete: { reason: "Écran refait.", replacedBy: [{ cardId: "c9", title: "Nouvel écran" }] } },
+            ],
+          }),
+        ],
+      },
+    ]);
+    expect(await screen.findByText("Regroupe 2 essais")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Nouvel écran" })).toHaveAttribute("href", "/card/c9");
+    await userEvent.click(within(screen.getByText("Deux").closest("li")!).getByRole("button", { name: "C'est bon" }));
+    expect(sent).toEqual(["c2/a"]);
+  });
+});
+
 describe("RecetteChip", () => {
   it("says how many are to test, and is absent at zero", async () => {
     server.use(http.get("/api/recette", () => HttpResponse.json({ groups: [{ usage: null, entries: [entry(), entry({ cardId: "c2", state: "ok" })] }] })));

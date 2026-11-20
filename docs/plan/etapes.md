@@ -118,14 +118,14 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
 
 ### Lot — Recette allégée en un geste (launched)
 
-- **Recette : appliquer le tri proposé en un geste** — working
+- **Recette : appliquer le tri proposé en un geste** — done
 
   Skill frontend-design en tête. La carte d exploration « Recette allégée » (6018a25a-4b6b-469b-84a5-5922799507d9) a publié tri-recette.md : sur 191 entrées à tester, 18 caduques (raison + carte qui la remplace), 142 à regrouper en 39, 31 à garder ; plus quelques étapes caduques dans des entrées gardées. Aujourd hui le seul moyen est le verdict « passer » essai par essai. 1) Traduire la note en une proposition lisible par le board (données, pas du texte libre). 2) Dans la page Recette, un bouton discret (menu « ⋯ ») « Appliquer le tri » qui montre le résumé (18 caduques, N regroupements) et, sur confirmation de l opérateur : classe les caduques en verdict skip avec la note « caduque — remplacée par <carte> », et présente les regroupements comme une seule entrée (les mêmes gestes au même endroit) sans perdre aucune étape ni verdict. Route opérateur seulement (403 à un x-collie-pane, comme les verdicts). Réversible : défaire le tri rend l état d avant. Rien n est supprimé. Pas de carte dans une carte, pas de liseré latéral.
 
-  - [ ] Recette → ⋯ → Appliquer le tri montre le résumé puis, après confirmation, le compteur « à tester » passe d environ 191 à environ 70
-  - [ ] Les caduques portent la raison et un lien vers la carte qui les remplace
-  - [ ] Défaire le tri rend l état d avant ; aucune étape ni verdict perdu
-  - [ ] La route refuse un x-collie-pane (403)
+  - [x] Recette → ⋯ → Appliquer le tri montre le résumé puis, après confirmation, le compteur « à tester » passe d environ 191 à environ 70
+  - [x] Les caduques portent la raison et un lien vers la carte qui les remplace
+  - [x] Défaire le tri rend l état d avant ; aucune étape ni verdict perdu
+  - [x] La route refuse un x-collie-pane (403)
 
 ### Lot — Correctif · session distante fantôme (launched)
 

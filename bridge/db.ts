@@ -1590,6 +1590,9 @@ const AUTO_HANDOFF_KEY = "auto_handoff";
 /** `board_pref` key for {@link BoardDb.exitCriteria}. */
 const EXIT_CRITERIA_KEY = "exit_criteria";
 
+/** `board_pref` key for {@link BoardDb.recetteTriage}. */
+const RECETTE_TRIAGE_KEY = "recette_triage";
+
 /** `board_pref` key for {@link BoardDb.maxAgents}. */
 const MAX_AGENTS_KEY = "max_agents";
 
@@ -2192,12 +2195,13 @@ export class BoardDb {
     return this.db.query<CardRow, []>("SELECT * FROM card WHERE held IS NOT NULL").all().map(toCard);
   }
 
-  /** Record the operator's verdict on one step of the card's recette. Out of {@link CardPatch}: no body reaches it. */
-  setCheckVerdict(id: string, stepId: string, verdict: CheckVerdict): Card | null {
+  /** Record the operator's verdict on one step of the card's recette — null takes it back (undoing a triage). Out of {@link CardPatch}: no body reaches it. */
+  setCheckVerdict(id: string, stepId: string, verdict: CheckVerdict | null): Card | null {
     const card = this.getCard(id);
     if (!card) return null;
     // shortcut: two pairs ticking different steps of one card at once — the whole map is last-write-wins; one entity per verdict if that bites.
     const verdicts = { ...card.checkVerdicts, [stepId]: verdict };
+    if (!verdict) delete verdicts[stepId];
     this.db.query("UPDATE card SET check_verdicts = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(verdicts), this.now(), id);
     return this.getCard(id);
   }
@@ -3933,6 +3937,15 @@ export class BoardDb {
 
   setExitCriteria(json: string): void {
     this.setPref(EXIT_CRITERIA_KEY, json);
+  }
+
+  /** The recette triages, per repo (recette-triage.ts), as JSON. */
+  recetteTriage(): string | null {
+    return this.db.query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?").get(RECETTE_TRIAGE_KEY)?.value ?? null;
+  }
+
+  setRecetteTriage(json: string): void {
+    this.setPref(RECETTE_TRIAGE_KEY, json);
   }
 
   private setPref(key: string, value: string): void {

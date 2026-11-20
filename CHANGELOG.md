@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.358.0] - 2026-11-20
+
+### Added
+
+- Carte : « Détacher l'agent » dans « ⋯ » — termine la session ici et sur le pair, terminal laissé ouvert ; refusé à un pane d'agent. (13bcd4f)
+- Pair : `/api/node/detach` oublie un pane lancé pour un pair sans le fermer ; un relancement reprend la conversation Claude du checkout (`--resume`). (13bcd4f)
+
+### Fixed
+
+- Carte sur un pair : un pane qui ne porte plus son agent dans le checkout de la carte n'est plus pris pour sa session — Démarrer relance dans la même branche. (13bcd4f)
+- Remettre une carte distante au backlog (ou hors des colonnes actives) libère aussi sa session sur le pair. (13bcd4f)
+
 ## [0.357.0] - 2026-11-20
 
 ### Added

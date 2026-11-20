@@ -209,6 +209,16 @@ or puts it back. It is NOT a verdict: a pane (orchestrator, triage card) may cal
 required; `by` (`agent <pane>`, the pair's identity or `operator`) is derived and audited (`card.recette_aside`).
 An agent still gets 403 on `checks/<stepId>`.
 
+**Triage** — when the recette has piled up, an agent (a triage card) proposes, the operator decides.
+`PUT /api/recette/triage?repo=<path>` `{obsolete:[{cardId, stepId?, reason, replacedBy:[cardId…]}],
+groups:[{usage, title, cardIds:[base, …]}]}` (full card ids of the repo; no `stepId` = the whole entry; a
+card in one group at most, never both obsolete and grouped) files the proposal — nothing changes yet.
+`GET` reads it back with `summary {obsolete, obsoleteSteps, groups, grouped}` and `applied`. `POST`
+applies it and `DELETE` undoes it — both the operator's (403 to a pane): every obsolete step with no
+verdict gets `skip` with the note « caduque — remplacée par « … » : reason », and each group reads in
+`GET /api/recette` as ONE entry (its base's `cardId`, the group's `title`, `members`, every step with its
+own `cardId`). Undo takes back the skips that still stand. Nothing is deleted.
+
 ### Run a card on another machine (ADR 0046 §4)
 
 A card may carry `"environment": {"peer": "dev", "name": "dev-board"}` (create or PATCH; `null` = this
