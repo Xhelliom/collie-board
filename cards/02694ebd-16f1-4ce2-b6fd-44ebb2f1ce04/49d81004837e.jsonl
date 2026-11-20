@@ -3,3 +3,6 @@
 {"v":1,"hlc":"1795197581680.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Carte lancée sur un pair : ne pas croire un numéro de terminal réattribué","status":"backlog"},"ts":1795197581386}}
 {"v":1,"hlc":"1795197581682.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"bf632a8f-087e-45a9-ab10-d2666fd88043"}}
 {"v":1,"hlc":"1795197707218.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795197712498.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/carte-lancee-sur-un-pair-ne-pas-croire-un-numero"}}
+{"v":1,"hlc":"1795197712498.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795197712498.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795197710807}}
