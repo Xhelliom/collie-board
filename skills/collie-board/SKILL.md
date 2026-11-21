@@ -658,9 +658,15 @@ code.
   it, the write refuses your pane header) the board's end-of-lot message tells you that you may launch
   **one** planned lot with `POST /api/runs/<id>/launch`. Only then; a bound (lots chained, red gate/CI)
   withdraws it and you launch nothing. And if the user also turned on `startWhenIdle` (same route;
-  ADR 0047), you may launch a planned lot whenever **no lot of this repo is running** — the bridge checks
-  at your request, counts it in the chain and refuses past the same bounds. `POST /api/runs` without
-  `planned` stays refused in every case.
+  ADR 0047), you may launch a planned lot whenever **fewer than `maxLots` lots of this repo are open** —
+  the bridge checks at your request, counts it in the chain and refuses past the same bounds. `POST
+  /api/runs` without `planned` stays refused in every case.
+  **Lots in parallel (ADR 0063):** `maxLots` (« Lots en parallèle », default 1, the user's setting, read
+  in `GET /api/orchestrator/autonomy?repo=`) bounds every launch of yours — idle, armed or under an
+  objective: `403` once the repo has `maxLots` lots open. It is also `403` when a card of the lot cites
+  a file (Markdown aside) a card of an open lot already cites — the reason names the file: wait for that
+  lot, or ask the user to launch it. A launched lot never takes a card: put a new idea in a small lot of
+  its own and launch it beside.
   **The call carries `x-collie-pane: ${HERDR_PANE_ID}`** — the header is what makes the bridge check
   the autonomy and its bounds; a launch without it would pass for the user's own tap. For it not to
   wait on a confirmation in your pane, the user allows it once in Claude Code (`permissions.allow` of
@@ -707,8 +713,9 @@ budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quo
   was open), and `quotaPct` (the week's gauge, null without a reading). Nothing to tag: what you create
   while it is open is attached.
 - **While it is `active`, you work toward it.** You may create cards, lots and phases and launch your own
-  planned lot — `POST /api/runs/<id>/launch` with your pane — **one lot at a time** (`403` while one of the
-  repo's lots is open), with no autonomy setting needed and no `maxChain`. At the end of a lot with nothing
+  planned lot — `POST /api/runs/<id>/launch` with your pane — up to **`maxLots`** lots open at once (`403`
+  past it, or on a file shared with an open lot — see *Lots in parallel*), with no autonomy switch needed
+  and no `maxChain`. At the end of a lot with nothing
   planned you are woken with « Objectif pas atteint : relis les critères, planifie et lance la suite ». A
   decision waiting on the user blocks only its branch — the wake lists them; move on with the rest. Do
   **not** propose phases for validation: validating the objective closes them.

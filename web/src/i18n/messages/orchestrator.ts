@@ -61,6 +61,11 @@ export const orchestrator = defineMessages({
     en: "When it asks and none of this project's lots is running. Counted in the chain, same bounds.",
     fr: "Quand il le demande et qu'aucun lot du projet ne tourne. Compté dans l'enchaînement, mêmes bornes.",
   },
+  "orch.lots": { en: "Lots in parallel", fr: "Lots en parallèle" },
+  "orch.lotsHint": {
+    en: "How many of the project's lots the orchestrator may keep open at once. It never opens one that cites a file an open lot already cites. Your own launches stay free.",
+    fr: "Combien de lots du projet l'orchestrateur peut garder ouverts à la fois. Il n'en ouvre jamais un qui cite un fichier déjà cité par un lot ouvert. Tes lancements restent libres.",
+  },
   "orch.autoChain": { en: "Lots chained without you", fr: "Lots enchaînés sans toi" },
   "orch.autoUnlimited": { en: "Unlimited", fr: "Illimité" },
   "orch.direct": { en: "Integration: merge direct, no PR", fr: "Intégration : merge direct, sans PR" },

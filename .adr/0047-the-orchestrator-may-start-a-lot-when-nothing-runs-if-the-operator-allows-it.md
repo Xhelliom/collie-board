@@ -1,6 +1,6 @@
 # 0047 — L'orchestrateur peut démarrer un lot quand rien ne tourne, si l'opérateur l'a permis
 
-**Status:** Accepted · amended by [0056](./0056-a-repo-has-one-objective-the-operator-sets-and-validates.md) — amends [ADR 0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md) (not edited: this is its successor)
+**Status:** Accepted · « aucun lot ne tourne » superseded by [0063](./0063-l-operateur-fixe-combien-de-lots-l-orchestrateur-garde-ouverts.md) · amended by [0056](./0056-a-repo-has-one-objective-the-operator-sets-and-validates.md) — amends [ADR 0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md) (not edited: this is its successor)
 
 ## Context
 

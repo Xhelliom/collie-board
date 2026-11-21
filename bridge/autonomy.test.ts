@@ -70,7 +70,7 @@ const enable = (w: ReturnType<typeof world>, extra: object = {}, headers: Record
 describe("orchestrator autonomy (ADR 0030)", () => {
   it("is off by default and the launch route refuses the orchestrator", async () => {
     const w = world();
-    expect((await call(w.db, "GET", `/api/orchestrator/autonomy?repo=${repo}`)).body.autonomy).toEqual({ enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false, startWhenIdle: false, maxRounds: 5 });
+    expect((await call(w.db, "GET", `/api/orchestrator/autonomy?repo=${repo}`)).body.autonomy).toEqual({ enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false, startWhenIdle: false, maxRounds: 5, maxLots: 1 });
     await finish(w);
     expect((await launch(w)).status).toBe(403);
     expect(w.db.getRun(w.lot2.id)!.launchedAt).toBeNull();
@@ -290,3 +290,47 @@ describe("POST /api/runs/:id/resume", () => {
     expect(w.db.listEvents(c.id)[0]!.type).toBe("run.resumed");
   });
 });
+
+describe("lots in parallel (ADR 0063)", () => {
+  const lot = (w: ReturnType<typeof world>, spec: string) =>
+    w.db.createRun({ repoPath: repo, cardIds: [w.db.createCard({ title: "x", repoPath: repo, status: "ready", spec }).id], foldInCap: 0, planned: true });
+  const go = (w: ReturnType<typeof world>, id: string) => call(w.db, "POST", `/api/runs/${id}/launch`, undefined, PANE);
+
+  it("maxLots 3: the orchestrator opens a 2nd and a 3rd lot beside the running one, the 4th is refused", async () => {
+    const w = world();
+    expect((await enable(w, { startWhenIdle: true, maxChain: null, maxLots: 3 })).body.autonomy.maxLots).toBe(3);
+    expect((await launch(w)).status).toBe(200);
+    expect((await go(w, lot(w, "touch web/a.ts").id)).status).toBe(200);
+    const fourth = await go(w, lot(w, "touch web/b.ts").id);
+    expect(fourth.status).toBe(403);
+    expect(chain(w).at(-1)).toMatchObject({ go: false, why: "3 lots du dépôt sont ouverts — la borne « Lots en parallèle » (3) est atteinte" });
+  });
+
+  it("refuses a lot citing a file an open lot already cites, and names it; the operator still launches it", async () => {
+    const w = world();
+    await enable(w, { startWhenIdle: true, maxChain: null, maxLots: 3 });
+    expect((await go(w, lot(w, "edit bridge/db.ts and README.md").id)).status).toBe(200);
+    const same = lot(w, "also bridge/db.ts, and README.md");
+    expect((await go(w, same.id)).status).toBe(403);
+    expect(chain(w).at(-1)).toMatchObject({ why: expect.stringContaining("bridge/db.ts") });
+    expect((await go(w, lot(w, "only README.md").id)).status).toBe(200); // Markdown is context, not a conflict
+    expect((await call(w.db, "POST", `/api/runs/${same.id}/launch`, undefined, {})).status).toBe(200);
+  });
+
+  it("an end-of-lot grant is bounded too", async () => {
+    const w = world();
+    await enable(w, { maxLots: 1 });
+    w.db.armAutonomy(repo, true);
+    expect((await launch(w)).status).toBe(403); // lot 1 still open
+    expect(chain(w).at(-1)).toMatchObject({ why: "un lot du dépôt est encore ouvert" });
+    await enable(w, { maxLots: 2 });
+    expect((await launch(w)).status).toBe(200);
+  });
+
+  it("rejects a maxLots under 1", async () => {
+    const w = world();
+    expect((await enable(w, { maxLots: 0 })).status).toBe(400);
+  });
+});
+
+const chain = (w: ReturnType<typeof world>) => w.db.eventsAfter(0, 1000).filter((e) => e.type === "run.chain").map((e) => e.payload);

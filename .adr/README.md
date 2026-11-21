@@ -86,3 +86,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0059](./0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md) | Le fork est indépendant : ni briques proposées à l'amont, ni rebase | Accepted — partially supersedes [0024](./0024-the-board-speaks-the-operators-language-through-a-typed-catalog.md) |
 | [0060](./0060-un-champ-inconnu-sur-une-carte-est-refuse-jamais-ignore-ni-alias.md) | Un champ inconnu sur une carte est refusé, jamais ignoré ni pris pour un alias | Accepted |
 | [0062](./0062-le-copilote-est-actif-a-l-installation-pas-a-la-mise-a-jour.md) | Le copilote est actif à l'installation, jamais allumé par une mise à jour | Accepted |
+| [0063](./0063-l-operateur-fixe-combien-de-lots-l-orchestrateur-garde-ouverts.md) | L'opérateur fixe combien de lots l'orchestrateur garde ouverts | Accepted — supersedes « un lot à la fois » of 0047 and 0056 |

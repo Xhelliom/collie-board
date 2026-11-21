@@ -61,6 +61,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
   const [planExport, setPlanExportOn] = useState<boolean | null>(null);
   // What is typed in the rounds field, so it can be emptied to type another number; null = the saved value.
   const [rounds, setRounds] = useState<string | null>(null);
+  const [lots, setLots] = useState<string | null>(null);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -81,7 +82,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
 
   if (!a) return null;
 
-  async function save(patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds">>) {
+  async function save(patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds" | "maxLots">>) {
     try {
       setA((await saveAutonomy(repo, patch)).autonomy);
       setStatus(t("orch.autoSaved"), "success", 2000);
@@ -127,6 +128,24 @@ export function AutonomySettings({ repo }: { repo: string }) {
           />
         </div>
         <p className="text-xs text-muted-foreground">{t("orch.autoIdleHint")}</p>
+        <div className="flex items-center justify-between gap-3">
+          {/* Also bounds an objective's launches (ADR 0056), which do not need autonomy on — never disabled. */}
+          <label htmlFor="auto-lots">{t("orch.lots")}</label>
+          <input
+            id="auto-lots"
+            type="number"
+            min={1}
+            value={lots ?? a.maxLots}
+            onBlur={() => setLots(null)}
+            onChange={(e) => {
+              setLots(e.target.value);
+              const n = Number(e.target.value);
+              if (e.target.value !== "" && Number.isInteger(n) && n >= 1) void save({ maxLots: n });
+            }}
+            className="h-8 w-16 rounded-md border border-border bg-background px-2 text-sm"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">{t("orch.lotsHint")}</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label htmlFor="auto-chain">{t("orch.autoChain")}</label>
           <span className="flex items-center gap-2">
