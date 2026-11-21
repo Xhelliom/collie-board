@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.360.0] - 2026-11-21
+
+### Added
+
+- Réglage d'autonomie « Lots en parallèle » : l'orchestrateur garde jusqu'à N lots ouverts par dépôt (défaut 1). (66feab0)
+- L'orchestrateur ne lance pas un lot qui cite un fichier déjà cité par un lot ouvert ; le refus nomme le fichier. (66feab0)
+
 ## [0.359.0] - 2026-11-20
 
 ### Added
