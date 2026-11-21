@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1795244762287.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"fda2d174-a189-457f-9643-66e1a227d48a"}}
 {"v":1,"hlc":"1795244762287.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Lots en parallèle : l’opérateur fixe combien l’orchestrateur peut en lancer","status":"backlog"},"ts":1795244759451}}
 {"v":1,"hlc":"1795244762287.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"fc7c6013-56a3-41ee-93e5-78305bd43159"}}
+{"v":1,"hlc":"1795244767006.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
