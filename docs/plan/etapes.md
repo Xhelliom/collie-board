@@ -63,69 +63,108 @@
 - **Finitions de novembre** — validated 2026-11-17, 7 steps
 - **Performance** — validated 2026-11-18, 12 steps
 - **Performance — fin de l audit** — validated 2026-11-18, 5 steps
+- **Les freins du coût** — validated 2026-11-20, 2 steps
+- **Freins du coût — réglages** — validated 2026-11-20, 5 steps
 
-## Phase 58 — Les freins du coût
+## Phase 60 — Après les freins
 
-Savoir ce qui consomme le quota (copilote, vérifications, relances, orchestrateur) et donner à l opérateur des réglages pour le freiner, au choix ; plus un petit gain : ouvrir « Nouvelle carte » sans attendre.
+Donner le bon outil au bon agent malgré le lancement réduit, alléger la recette, puis vérifier sur une semaine que les freins du coût tiennent.
 
-### Lot — Ouvrir Nouvelle carte sans attendre (launched)
+### Lot — Les bons outils au bon agent (launched)
 
-- **Branche par défaut sans sous-processus (ouverture de « Nouvelle carte »)** — done
+- **Recette allégée : trier les essais en attente** — done
 
-  Suite de la mesure P13 (docs/dev, mesure-p13-p14) : GET /api/repos?branches=1, demandé à l ouverture de la feuille « Nouvelle carte », bloque encore ≈ 300 ms à cause d un sous-processus git par dépôt pour la branche par défaut. Lire refs/remotes/origin/HEAD (fichier ou packed-refs) directement dans bridge/git.ts, repli sur l appel actuel si absent. Mesurer avant/après.
+  La recette de collie-board compte ~191 cartes « à tester » (GET /api/recette?repo=…), beaucoup anciennes. Exploration : classer chaque entrée en caduque (l'écran ou le geste a changé depuis, une carte plus récente l'a remplacée), à regrouper (mêmes gestes au même endroit), ou à garder ; pour chaque caduque, la raison en une ligne et la carte qui la remplace. Livrable : une note publiée sur la carte avec la liste proposée, les gardées regroupées par usage. Ne modifier ni supprimer aucun essai ni verdict : la décision est à l'opérateur.
 
-  - [x] /api/repos?branches=1 sans sous-processus quand origin/HEAD est lisible
-  - [x] Même résultat qu avant sur les dépôts connus
-  - [x] Blocage mesuré avant/après
+  - [x] Une note publiée classe chaque entrée à tester : caduque (raison), à regrouper, à garder
+  - [x] Aucun essai ni verdict modifié
+- **Une carte d'interface garde frontend-design d'office** — done
 
-### Lot — Où part le quota (launched)
+  Depuis le frein 2 (#515), les agents de carte démarrent sans plugins sauf ceux cochés dans « Outils gardés par les agents du board » du dépôt. Or toute carte d'interface de l'opérateur commence par « Skill frontend-design en tête » et doit avoir ce skill. Quand le spec d'une carte nomme frontend-design (ex. « Skill frontend-design en tête »), son agent garde le plugin frontend-design même si le dépôt ne l'a pas coché. Règle simple et lisible, en un endroit (là où leanArgs construit la liste gardée). Pas de liste de mots-clés extensible.
 
-- **Où part le quota : mesurer par poste et proposer des freins** — done
+  - [x] Sur un dépôt sans frontend-design coché, une carte dont le spec commence par « Skill frontend-design en tête » démarre avec le plugin (visible dans /plugin ou le transcript)
+  - [x] Une carte sans cette mention garde le lancement réduit
+  - [x] Un test couvre la règle
 
-  Mesurer, sur les 2 dernières semaines de collie-board (et des autres dépôts si les données le permettent), la part du quota consommée par poste : agents des cartes, lead/revue, gate et relances après CI rouge, copilote, orchestrateur, remesures. Sources : événements de coût (COST_EVENT, /api/cost), bilans de lot « Consommé », journal des cartes. Livrer une note docs/dev/couts-2026-11.md : un tableau par poste (tokens, part, par lot), les 3-5 plus gros postes, et pour chacun un frein possible (réglage, défaut, règle) avec son gain estimé et son risque. Ne rien changer au code : la décision des freins revient à l opérateur.
+### Lot — Lots en parallèle (launched)
 
-  - [x] Tableau des postes de coût chiffré, publié
-  - [x] 3 à 5 freins proposés, chacun avec gain estimé et risque
-  - [x] Aucun changement de code
+- **Lots en parallèle : l’opérateur fixe combien l’orchestrateur peut en lancer** — done
 
-## Phase 59 — Freins du coût — réglages
+  Skill frontend-design en tête (pour le réglage).
+  
+  Aujourd’hui l’orchestrateur ne peut lancer qu’un lot à la fois par dépôt (403 « un lot du dépôt est encore ouvert ») : bridge/autonomy.ts, idleRefusal, goalLaunchRefusal et le chaînage de fin de lot. Le quota est la décision de l’opérateur, pas du bridge.
+  
+  À faire :
+  - Nouveau réglage d’autonomie par dépôt « Lots en parallèle » (maxLots, entier ≥ 1, défaut 1 : une mise à jour ne change rien) dans bridge/db.ts (RepoAutonomy, colonne max_lots + migration), sa route d’écriture, et web/src/components/autonomy-settings.tsx (même style que maxRounds/maxChain, couleurs d’état fortes, pas de liseré latéral, pas de carte dans une carte).
+  - bridge/autonomy.ts : l’orchestrateur peut lancer un lot tant que le nombre de lots ouverts du dépôt < maxLots (idleRefusal, goalLaunchRefusal, grant de fin de lot).
+  - Garde de fichiers : refuser le lancement par l’orchestrateur si une carte du lot cite un fichier déjà cité par une carte d’un lot ouvert du dépôt (réutiliser les fichiers extraits par bridge/lot-overlap.ts) ; le motif nomme le fichier. Le lancement par l’opérateur reste libre.
+  - Ajouter une carte à un lot déjà lancé reste interdit : la nouvelle idée part dans un petit lot lancé à côté.
+  - skills/collie-board/SKILL.md (section autonomie / objectif : « one lot at a time » → maxLots) et un ADR qui remplace la règle « un lot à la fois ».
+  - Tests bun : refus à maxLots atteint, lancement accepté sous la borne, refus sur fichier partagé.
 
-Appliquer les freins 2, 4 et 5 de l étude « Où part le quota » : agents lancés avec moins de MCP et de plugins, lead vidé à chaque demande et en Sonnet, pas de revue copilote après un lead OK. Plus deux correctifs remontés par l opérateur.
+  - [x] Défaut 1 : comportement actuel inchangé
+  - [x] Avec maxLots=3, l’orchestrateur lance un 2e et 3e lot pendant qu’un tourne, le 4e est refusé avec un motif clair
+  - [x] Un lot qui partage un fichier cité avec un lot ouvert est refusé à l’orchestrateur, motif nommant le fichier
+  - [x] Réglage visible et modifiable dans les réglages d’autonomie du projet
+  - [x] SKILL.md et ADR à jour, tests verts
 
-### Lot — Correctif · rappel qui vibre et reprise de lot (launched)
+### Lot — Agents figés relancés, copilote actif (launched)
 
-- **Bouton « Reprendre le lot » dans les boutons de l'orchestrateur** — done
+- **Copilote activé à l'installation** — done
 
-  Un orchestrateur a proposé un bouton collie-buttons avec action resume_lot : l'app affiche « Action inconnue : resume_lot » car le catalogue (web/src/lib/board-tools.ts, partagé avec bridge/mcp.ts) n'a pas d'outil pour POST /api/runs/<id>/resume. Ajouter un outil resume_lot (args runId), destructif = demande confirmation, avec un aperçu lisible (« Reprendre le lot « nom » — N cartes arrêtées : raison »). Côté MCP il garde les mêmes refus que la route (ADR 0055). Documenter dans skills/collie-board/SKILL.md (liste des actions de boutons) pour que skill.test.ts reste vert.
+  Décision opérateur : le copilote est au centre de Collie Board, il doit être actif par défaut. La raison du défaut OFF (bridge/config.ts boardCopilot, CLAUDE.md « The copilot spends the user's quota… stays off by default ») était de ne pas dépenser le quota de quelqu'un par une mise à jour. Donc : une NOUVELLE installation l'active (l'installateur écrit COLLIE_BOARD_COPILOT=on dans le fichier d'env qu'il crée, ou équivalent) ; une installation existante garde exactement son réglage à la mise à jour. Désactivable dans les réglages comme aujourd'hui. Réécrire la règle de CLAUDE.md et le commentaire de config, et écrire une ADR qui remplace l'ancienne raison (format .adr/README.md). README à jour si il mentionne le défaut.
 
-  - [x] Un bouton {action:"resume_lot",args:{runId}} s affiche avec l aperçu du lot et reprend le lot après confirmation
-  - [x] Un runId inconnu grise le bouton avec une raison lisible
-  - [x] SKILL.md documente resume_lot
-- **Le rappel du dernier message ne vibre plus, sur ordinateur aussi** — done
+  - [x] Une installation neuve a le copilote actif
+  - [x] Une mise à jour d une installation existante ne change pas son réglage
+  - [x] CLAUDE.md, le commentaire de config et une nouvelle ADR disent la même chose
+- **Relancer un agent figé au bout d'une heure** — done
 
-  Skill frontend-design en tête. L'opérateur voit toujours le rappel sticky du dernier message (PromptPin, web/src/components/reading-view.tsx) vibrer en haut de la conversation d'un agent quand il arrive presque au niveau du texte. Le correctif #491 a réservé la place du rappel sur téléphone seulement ; sur grand écran il reste en overlay (lg:absolute) et la mesure du tour au bord (measure au scroll) peut encore boucler. Reproduire (téléphone ET bureau, mode lecture et conversation), trouver la boucle (mesure → rendu → déplacement → mesure), la casser à la racine (hystérésis, bord de mesure qui tient compte de la hauteur du rappel, ou slot réservé partout). Pas de liseré latéral.
+  Des cartes restent « en cours » 12–24 h : l'agent attend une commande qui boucle ou une tâche de fond qui ne revient jamais ; quand l'opérateur lui demande « on est où ? », il voit que c'est fini. bridge/stuck-card.ts (StuckCards) ne le voit pas : il tient « working » pour sain, ne surveille que les cartes d'un lot, et ne prévient que l'orchestrateur. 1) MESURER d'abord dans le journal/transcripts les cartes restées en cours > 1 h : écran figé en working, attente d'une tâche de fond, ou carte hors lot — corriger ce qui arrive vraiment. 2) Surveiller toutes les cartes ayant un agent ; compter comme figé un pane working dont la sortie n'a pas changé depuis 1 h (décision opérateur : 1 h, pas 20 min — compilations longues, absences courtes). 3) Relancer l'agent lui-même via promptAndConfirm : idle → « Où en es-tu ? Si c'est fini, termine la carte. » ; working figé → Escape (coupe la commande bloquée) puis le même message. Une fois par épisode. L'orchestrateur est prévenu comme aujourd'hui, rien pour l'opérateur (ADR 0011). Rester sur engine.onUpdate, aucun timer ; logique pure testée (stuckStep/stuckState).
 
-  - [x] Sur bureau et téléphone, faire défiler lentement jusqu au point où le rappel rencontre le texte : il ne clignote ni ne tremble
-  - [x] Un test couvre la mesure du tour au bord (pas d aller-retour entre deux tours pour une même position)
+  - [x] La mesure des épisodes passés est publiée en livrable
+  - [x] Un agent working dont l écran n a pas bougé depuis 1 h reçoit Échap puis « Où en es-tu ? … », une seule fois
+  - [x] Un agent idle depuis 1 h sur une carte en cours, hors lot aussi, reçoit la question
+  - [x] Une sortie qui bouge (compilation qui affiche) ne déclenche rien
+  - [x] Tests de la règle pure
 
-### Lot — Freins : agents légers, lead vidé, copilote sobre (launched)
+### Lot — Agents du board accessibles (launched)
 
-- **Pas de revue copilote sur une carte déjà validée par le lead** — done
+- **Agents du board : ouvrir et redémarrer le lead et le copilote** — done
 
-  Frein 5 de l'étude « Où part le quota » : ~2 % du coût. Quand le lead a rendu un verdict OK sur une carte, le copilote ne lance plus sa revue de fin dessus. Les cartes non revues par un lead gardent la revue copilote.
+  Skill frontend-design en tête. Le lead et le copilote (snapshot leadPaneId / copilotPaneId, bridge/lead.ts et bridge/copilot.ts) n apparaissent ni dans la page Agents ni de façon trouvable dans herdr-app : quand un message demande « redémarrer le lead du board » (par ex. pour qu il reparte en Sonnet après #514, ou s il est muet), l opérateur ne sait pas où aller. Ajouter dans la page Agents un accès discret (rarement utile) : dans le menu « ⋯ », une entrée « Agents du board » qui liste Lead et Copilote avec leur état (couleurs d état : bleu travail, orange attente, rouge bloqué, vert fait), et pour chacun « Ouvrir » (la vue du pane) et « Redémarrer » (confirmation ; ferme l agent, le board le relance à sa prochaine demande via ensurePane — une route opérateur, refusée à un x-collie-pane ; ne pas couper une revue en cours sans le dire dans la confirmation). Même accès dans le mod herdr-app si le panneau Agents y existe. Pas de carte dans une carte, pas de liseré latéral.
 
-  - [x] Une carte validée par le lead ne déclenche pas de revue copilote
-  - [x] Une carte sans lead garde la revue copilote
-- **Lead : contexte vidé avant chaque demande, et Sonnet par défaut** — done
+  - [x] Page Agents → ⋯ → Agents du board : Lead et Copilote avec leur état
+  - [x] Ouvrir mène à la vue de leur pane
+  - [x] Redémarrer (après confirmation) ferme l agent ; la revue suivante le relance
+  - [x] La route de redémarrage refuse un x-collie-pane (403)
 
-  Frein 4 de l'étude « Où part le quota » : le lead fait 20 % du coût, en grande partie le contexte accumulé de ses demandes précédentes relu à chaque appel. Envoyer /clear au lead avant chaque nouvelle demande de revue (il n'a pas besoin des diffs précédents), et lancer le lead en Sonnet par défaut, réglable par dépôt (Opus possible). Passer par promptAndConfirm()/launchAgent().
+### Lot — Recette allégée en un geste (launched)
 
-  - [x] Deux revues de suite par le même lead : la seconde part d un contexte vidé (vérifiable dans le transcript)
-  - [x] Un nouveau lead démarre en Sonnet sauf réglage du dépôt
-- **Agents du board lancés avec moins de MCP et de plugins** — done
+- **Recette : appliquer le tri proposé en un geste** — done
 
-  Frein 2 de l'étude « Où part le quota » (docs/dev/couts-2026-11.md) : chaque agent de carte démarre avec tous les MCP et plugins de l'utilisateur (Godot, Unreal, Stripe, Gmail, Slack…), relus à chaque appel ; ~11 % du coût du board par tranche de 25 k tokens retirés. 1) MESURER d'abord : tokens du contexte de départ d'un agent de carte aujourd'hui (transcript, premier usage), par source si possible. 2) Lancer les agents de carte (worker, lead) avec une config réduite via les options du harnais (ex. --strict-mcp-config / --mcp-config, réglages de plugins) : par défaut le MCP collie-board et le skill collie-board seulement ; une liste « MCP gardés » par dépôt dans les réglages du projet pour un dépôt qui a besoin d'un MCP métier. Ne pas toucher l'orchestrateur ni les sessions manuelles. Passer par launchAgent(), jamais agent.start direct.
+  Skill frontend-design en tête. La carte d exploration « Recette allégée » (6018a25a-4b6b-469b-84a5-5922799507d9) a publié tri-recette.md : sur 191 entrées à tester, 18 caduques (raison + carte qui la remplace), 142 à regrouper en 39, 31 à garder ; plus quelques étapes caduques dans des entrées gardées. Aujourd hui le seul moyen est le verdict « passer » essai par essai. 1) Traduire la note en une proposition lisible par le board (données, pas du texte libre). 2) Dans la page Recette, un bouton discret (menu « ⋯ ») « Appliquer le tri » qui montre le résumé (18 caduques, N regroupements) et, sur confirmation de l opérateur : classe les caduques en verdict skip avec la note « caduque — remplacée par <carte> », et présente les regroupements comme une seule entrée (les mêmes gestes au même endroit) sans perdre aucune étape ni verdict. Route opérateur seulement (403 à un x-collie-pane, comme les verdicts). Réversible : défaire le tri rend l état d avant. Rien n est supprimé. Pas de carte dans une carte, pas de liseré latéral.
 
-  - [x] La mesure avant/après (tokens de départ d un agent de carte) est publiée en livrable sur la carte
-  - [x] Un agent de carte d un dépôt sans réglage démarre sans les MCP/plugins tiers
-  - [x] Un dépôt peut garder des MCP nommés dans ses réglages, et ses agents les ont
+  - [x] Recette → ⋯ → Appliquer le tri montre le résumé puis, après confirmation, le compteur « à tester » passe d environ 191 à environ 70
+  - [x] Les caduques portent la raison et un lien vers la carte qui les remplace
+  - [x] Défaire le tri rend l état d avant ; aucune étape ni verdict perdu
+  - [x] La route refuse un x-collie-pane (403)
+
+### Lot — Correctif · session distante fantôme (launched)
+
+- **Carte lancée sur un pair : ne pas croire un numéro de terminal réattribué** — done
+
+  Cas réel (carte sw-to-crew 310da804, environnement Dell-5550-Stef / dell-5550-sw) : après un redémarrage du Dell, plus aucun agent de la carte n y tourne, mais GET /api/cards/<id>/remote dit session.paneId t18, state.pane working/claude — herdr a réattribué t18 à un autre agent. Résultat : POST /api/cards/<id>/start répond 409 « already running on Dell-5550-Stef » et l opérateur ne peut plus relancer, même après avoir remis la carte au backlog (la session est tenue côté pair). Corriger des deux côtés (le code tourne sur le pair aussi) : une session distante n est « en cours » que si le pane suivi est un agent dont le cwd est le checkout de la carte (ou porte sa branche) ; sinon la session est perdue — un start la relance dans le même checkout et la même branche, avec --resume si le transcript existe (même logique que le resume-lost local). Une carte remise au backlog/manuellement termine aussi la session côté pair. Tests sur la règle pure.
+
+  - [x] Un pane du pair réattribué à un autre agent (autre cwd) n est plus pris pour la session de la carte
+  - [x] Démarrer la carte relance un agent sur le pair dans le même checkout et la même branche
+  - [x] Remettre la carte au backlog libère la session côté pair
+  - [x] Test de la règle pure
+
+### Lot — Les freins tiennent-ils ? (à partir du 27/11) (planned)
+
+- **Les freins tiennent-ils ? Mesure à une semaine** — backlog
+
+  Refaire la mesure de docs/dev/couts-2026-11.md (« Où part le quota ») sur la semaine qui suit les freins (#513, #515 et le lead Sonnet/clear, mergés le 19/11) et la comparer à avant : part du board vs sessions manuelles, répartition par poste (agents de carte, orchestrateur, lead, copilote), tokens de départ d'un agent de carte, part d'Opus. Conclure : gain réel vs estimé, et s'il faut rouvrir les freins 1 (cartes en Sonnet) et 3 (renouveler l'orchestrateur). Ne lancer qu'à partir du 27/11.
+
+  - [ ] Une note compare avant/après par poste, avec les chiffres
+  - [ ] Elle conclut sur les freins 1 et 3
