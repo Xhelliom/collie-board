@@ -10,7 +10,7 @@ import type { BoardContext } from "./board-routes.ts";
 import { MAX_ROUNDS_LIMIT, MEMORY_MAX_CHARS } from "./db.ts";
 import { askOrchestratorNote, findOrchestrator, restartOrchestrator, startOrchestrator, type OrchestratorDeps } from "./orchestrator.ts";
 import { PANE_HEADER } from "./board-routes.ts";
-import { isMaxChain, isMaxRounds } from "./autonomy.ts";
+import { isMaxChain, isMaxLots, isMaxRounds } from "./autonomy.ts";
 import { SINCE_EVENT_TYPES, sinceChanges } from "./since.ts";
 import { repoPathOf } from "./paths.ts";
 import { ClaudeTranscriptSource } from "./transcript.ts";
@@ -125,12 +125,14 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
     const startWhenIdle = b.startWhenIdle ?? cur.startWhenIdle;
     const maxChain = b.maxChain === undefined ? cur.maxChain : b.maxChain;
     const maxRounds = b.maxRounds ?? cur.maxRounds;
+    const maxLots = b.maxLots ?? cur.maxLots;
     if (typeof enabled !== "boolean" || typeof stopOnRed !== "boolean" || typeof startWhenIdle !== "boolean")
       return ctx.text("enabled, stopOnRed and startWhenIdle must be booleans", 400);
     if (!isMaxChain(maxChain)) return ctx.text("maxChain must be a whole number from 1, or null for unlimited", 400);
     if (!isMaxRounds(maxRounds)) return ctx.text(`maxRounds must be a whole number from 1 to ${MAX_ROUNDS_LIMIT}`, 400);
-    const autonomy = ctx.db.setAutonomy(repoPath, { enabled, maxChain, stopOnRed, startWhenIdle, maxRounds });
-    ctx.audit.record({ action: "orchestrator.autonomy", session: ctx.session, device: ctx.device, detail: { repoPath, enabled, maxChain, stopOnRed, startWhenIdle, maxRounds } });
+    if (!isMaxLots(maxLots)) return ctx.text("maxLots must be a whole number from 1", 400);
+    const autonomy = ctx.db.setAutonomy(repoPath, { enabled, maxChain, stopOnRed, startWhenIdle, maxRounds, maxLots });
+    ctx.audit.record({ action: "orchestrator.autonomy", session: ctx.session, device: ctx.device, detail: { repoPath, enabled, maxChain, stopOnRed, startWhenIdle, maxRounds, maxLots } });
     return ctx.json({ autonomy });
   }
 

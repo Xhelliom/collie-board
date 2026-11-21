@@ -1638,10 +1638,12 @@ export interface Autonomy {
   startWhenIdle: boolean;
   /** How many times the lead may send a worker back before the card comes to the operator (1–15). */
   maxRounds: number;
+  /** ADR 0063: how many of the repo's lots the orchestrator may keep open at once (≥ 1). */
+  maxLots: number;
 }
 export const fetchAutonomy = (repo: string, signal?: AbortSignal): Promise<{ autonomy: Autonomy }> =>
   apiRequest(`/api/orchestrator/autonomy?repo=${encodeURIComponent(repo)}`, { signal });
-export const saveAutonomy = (repoPath: string, patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds">>): Promise<{ autonomy: Autonomy }> =>
+export const saveAutonomy = (repoPath: string, patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds" | "maxLots">>): Promise<{ autonomy: Autonomy }> =>
   apiRequest("/api/orchestrator/autonomy", { method: "PUT", body: JSON.stringify({ repoPath, ...patch }) });
 /** A repo's objective (ADR 0056); `spent` is derived by the bridge. */
 /** `queued`: the next objective, prepared while one is open — started when the operator validates it. */

@@ -7,7 +7,7 @@ import { basename } from "node:path";
 
 import { doneOutsideLot, isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
-import { goalLaunchRefusal, idleRefusal } from "./autonomy.ts";
+import { goalLaunchRefusal, idleRefusal, lotsRefusal } from "./autonomy.ts";
 import { recordStartGauge, weekPercent } from "./goal-routes.ts";
 import { usageTracker } from "./usage.ts";
 import { lotView } from "./lot.ts";
@@ -255,6 +255,9 @@ export async function handleProjectRoute(
       const notOurs = lotOwnerRefusal(db, run) ?? (pane ? db.runMembers(id).map((c) => assignedElsewhere(db, c)).find(Boolean) : null);
       if (notOurs) return refuse(notOurs, notOurs);
       if (doneOutsideLot(run, db.runMembers(id))) return ctx.text("every card of this lot is already done — it finished outside the lot", 409);
+      // An end-of-lot grant too opens a lot beside the others only under `maxLots` and with no shared file (ADR 0063).
+      const armedWhy = pane && auto!.armed && goalWhy === undefined ? lotsRefusal(db, run) : null;
+      if (armedWhy) return refuse(armedWhy, armedWhy);
       if (pane && !byGoal && !db.spendAutonomy(run.repoPath, idle)) return refuse("le lancement armé est déjà dépensé");
       if (!db.launchRun(id)) return ctx.text("already launched", 409);
       if (!pane) db.resetChain(run.repoPath);
