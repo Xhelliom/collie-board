@@ -6,12 +6,30 @@
 import { doneOutsideLot, MAX_ROUNDS_LIMIT, type BoardDb, type Run } from "./db.ts";
 import { goalBound } from "./goal-routes.ts";
 import { openGoalOf } from "./goal-mode.ts";
+import { sharedFile } from "./lot-overlap.ts";
 
 export const MAX_CHAIN_LIMIT = 1000;
 
 /** `maxChain` as the operator may set it: a whole number from 1, or null for unlimited. */
 export const isMaxChain = (v: unknown): v is number | null =>
   v === null || (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_CHAIN_LIMIT);
+
+/** `maxLots` as the operator may set it: a whole number from 1 (ADR 0063). */
+export const isMaxLots = (v: unknown): v is number => v !== null && isMaxChain(v);
+
+/**
+ * ADR 0063: may the orchestrator open `run` beside the repo's open lots? Not at the operator's
+ * `maxLots`, nor when one of its cards cites a file a card of an open lot already cites — their PRs
+ * would conflict. Null: it may; else why not, naming the bound or the file.
+ */
+export function lotsRefusal(db: BoardDb, run: Run): string | null {
+  const open = db.listOpenRuns().filter((r) => r.repoPath === run.repoPath && r.id !== run.id);
+  const max = db.autonomyOf(run.repoPath).maxLots;
+  if (open.length >= max)
+    return max === 1 ? "un lot du dépôt est encore ouvert" : `${open.length} lots du dépôt sont ouverts — la borne « Lots en parallèle » (${max}) est atteinte`;
+  const f = sharedFile(db.runMembers(run.id), open.flatMap((r) => db.runMembers(r.id)));
+  return f ? `le fichier ${f} est déjà cité par une carte d'un lot ouvert — lance ce lot après lui, ou laisse l'opérateur le lancer` : null;
+}
 
 /** The lead's send-backs before the operator, as the operator may set them. */
 export const isMaxRounds = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_ROUNDS_LIMIT;
@@ -74,32 +92,33 @@ export function endOfLot(db: BoardDb, run: Run, quotaPct: number | null = null, 
 
 /**
  * ADR 0047: may the orchestrator start `run` now, with no end-of-lot grant? Only with `startWhenIdle`,
- * when no lot of the repo is running, within the chain bound and — with `stopOnRed` — when the last
+ * when fewer than `maxLots` lots of the repo are open (ADR 0063), within the chain bound and — with `stopOnRed` — when the last
  * lot finished green. Read at the request; nothing schedules it. Null: it may; else why not.
  */
 export function idleRefusal(db: BoardDb, run: Run): string | null {
   const a = db.autonomyOf(run.repoPath);
   if (!a.enabled) return "l'autonomie est coupée";
   if (!a.startWhenIdle) return "aucun lancement armé par une fin de lot";
-  if (db.listOpenRuns().some((r) => r.repoPath === run.repoPath)) return "un lot du dépôt est encore ouvert";
+  const lots = lotsRefusal(db, run);
+  if (lots) return lots;
   if (a.maxChain !== null && a.chained >= a.maxChain) return `${a.chained} lot(s) enchaîné(s) sans toi — la borne est atteinte`;
-  // nothing runs, so every launched lot is finished: the latest launched is the last to have ended.
+  // the latest launched lot that has ended — open ones have no verdict yet.
+  const open = new Set(db.listOpenRuns().map((r) => r.id));
   const last = db
     .listRuns(run.repoPath)
-    .filter((r) => r.launchedAt !== null)
+    .filter((r) => r.launchedAt !== null && !open.has(r.id))
     .reduce<Run | null>((m, r) => (m && m.launchedAt! >= r.launchedAt! ? m : r), null);
   return a.stopOnRed && last && redCards(db, last).length ? "un gate ou une CI est rouge" : null;
 }
 
 /**
  * ADR 0056: may the orchestrator launch `run` under the repo's objective? Null: it may — the objective
- * is active, under budget, and no lot of the repo is open (one lot at a time). A string: why not.
+ * is active, under budget, and fewer than `maxLots` lots of the repo are open, none citing a file of this one (ADR 0063). A string: why not.
  * Undefined: no active objective, autonomy (0030/0047) decides.
  */
 export function goalLaunchRefusal(db: BoardDb, run: Run, quotaPct: number | null, now = Date.now()): string | null | undefined {
   const g = openGoalOf(db, run.repoPath);
   if (g?.status === "claimed") return "l'objectif est déclaré atteint — rien ne se lance avant la réponse de l'opérateur";
   if (g?.status !== "active") return undefined;
-  if (db.listOpenRuns().some((r) => r.repoPath === run.repoPath)) return "un lot du dépôt est encore ouvert — un lot à la fois";
-  return goalBound(db, g, quotaPct, now);
+  return lotsRefusal(db, run) ?? goalBound(db, g, quotaPct, now);
 }

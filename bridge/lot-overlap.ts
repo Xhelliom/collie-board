@@ -44,6 +44,16 @@ export function lotOverlaps(run: Pick<Run, "maxParallel">, cards: Pick<Card, "id
   return out;
 }
 
+/**
+ * Le premier fichier (hors Markdown) qu'une carte de `cards` cite et qu'une carte de `others` cite aussi —
+ * le garde des lots en parallèle (ADR 0063). Null : aucun. Pur.
+ */
+export function sharedFile(cards: Pick<Card, "title" | "spec">[], others: Pick<Card, "title" | "spec">[]): string | null {
+  const cited = (cs: Pick<Card, "title" | "spec">[]) => cs.flatMap((c) => filesCited(`${c.title}\n${c.spec ?? ""}`)).filter((f) => !/\.md$/i.test(f));
+  const theirs = new Set(cited(others));
+  return cited(cards).find((f) => theirs.has(f)) ?? null;
+}
+
 /** La phrase que l'API rend avec les paires : ce que le planificateur peut faire. Null sans recouvrement. */
 export function overlapWarning(overlaps: Overlap[]): string | null {
   if (!overlaps.length) return null;

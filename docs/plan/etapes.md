@@ -86,6 +86,28 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Une carte sans cette mention garde le lancement réduit
   - [x] Un test couvre la règle
 
+### Lot — Lots en parallèle (launched)
+
+- **Lots en parallèle : l’opérateur fixe combien l’orchestrateur peut en lancer** — done
+
+  Skill frontend-design en tête (pour le réglage).
+  
+  Aujourd’hui l’orchestrateur ne peut lancer qu’un lot à la fois par dépôt (403 « un lot du dépôt est encore ouvert ») : bridge/autonomy.ts, idleRefusal, goalLaunchRefusal et le chaînage de fin de lot. Le quota est la décision de l’opérateur, pas du bridge.
+  
+  À faire :
+  - Nouveau réglage d’autonomie par dépôt « Lots en parallèle » (maxLots, entier ≥ 1, défaut 1 : une mise à jour ne change rien) dans bridge/db.ts (RepoAutonomy, colonne max_lots + migration), sa route d’écriture, et web/src/components/autonomy-settings.tsx (même style que maxRounds/maxChain, couleurs d’état fortes, pas de liseré latéral, pas de carte dans une carte).
+  - bridge/autonomy.ts : l’orchestrateur peut lancer un lot tant que le nombre de lots ouverts du dépôt < maxLots (idleRefusal, goalLaunchRefusal, grant de fin de lot).
+  - Garde de fichiers : refuser le lancement par l’orchestrateur si une carte du lot cite un fichier déjà cité par une carte d’un lot ouvert du dépôt (réutiliser les fichiers extraits par bridge/lot-overlap.ts) ; le motif nomme le fichier. Le lancement par l’opérateur reste libre.
+  - Ajouter une carte à un lot déjà lancé reste interdit : la nouvelle idée part dans un petit lot lancé à côté.
+  - skills/collie-board/SKILL.md (section autonomie / objectif : « one lot at a time » → maxLots) et un ADR qui remplace la règle « un lot à la fois ».
+  - Tests bun : refus à maxLots atteint, lancement accepté sous la borne, refus sur fichier partagé.
+
+  - [x] Défaut 1 : comportement actuel inchangé
+  - [x] Avec maxLots=3, l’orchestrateur lance un 2e et 3e lot pendant qu’un tourne, le 4e est refusé avec un motif clair
+  - [x] Un lot qui partage un fichier cité avec un lot ouvert est refusé à l’orchestrateur, motif nommant le fichier
+  - [x] Réglage visible et modifiable dans les réglages d’autonomie du projet
+  - [x] SKILL.md et ADR à jour, tests verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done
