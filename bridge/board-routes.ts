@@ -1388,8 +1388,9 @@ async function route(
         releaseSession(db, id, status);
         db.setStatus(id, status, "manual");
       }
-      // Same on a peer: a card moved out of the live columns by hand lets go of its pane there too.
-      if (status && current.environment && !isLiveStatus(status)) await detachOnPeer(remoteDeps(ctx), current);
+      // Same on a peer: a card moved out of the live columns by hand lets go of its pane there too —
+      // except done/archived, whose agent there is closed once idle (remote-wrapup.ts).
+      if (status && current.environment && !isLiveStatus(status) && status !== "done" && status !== "archived") await detachOnPeer(remoteDeps(ctx), current);
       ctx.audit.record({
         action: "card.patch",
         session: ctx.session,

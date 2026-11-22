@@ -41,6 +41,7 @@ import { handlePeerRoute, PeerStore } from "./pairing.ts";
 import { handleHerdRoute, PeerHerd } from "./peer-herd.ts";
 import { leadPaneId } from "./run.ts";
 import { RemoteIdle } from "./remote-idle.ts";
+import { RemoteWrapup } from "./remote-wrapup.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { paneResolveOpts } from "./opencode-store.ts";
@@ -183,7 +184,8 @@ export function startServer(opts: {
   const nodeLaunched = new Map<string, LaunchedPane>();
   // The paired peers' herds, read on the primary engine's tick (bridge/peer-herd.ts) — no timer.
   const remoteIdle = new RemoteIdle(opts.board);
-  const peerHerd = new PeerHerd({ fetch, outbound: () => peers.outbound(), alerts: () => registry.get()?.notifications, onRead: (peer, agents) => remoteIdle.seen(peer, agents) });
+  const remoteWrapup = new RemoteWrapup({ db: opts.board, fetch, outbound: () => peers.outbound() });
+  const peerHerd = new PeerHerd({ fetch, outbound: () => peers.outbound(), alerts: () => registry.get()?.notifications, onRead: async (peer, agents) => { await remoteIdle.seen(peer, agents); await remoteWrapup.seen(peer, agents); } });
   registry.get()?.engine.onUpdate((snap) => void peerHerd.update(snap).catch(() => {}), "peerHerd");
   // This machine's engine, as its mux says it (ADR 0052 §8): for the machines page, its peers, the exit criteria.
   const localEngine = (): MachineEngine | null => {
