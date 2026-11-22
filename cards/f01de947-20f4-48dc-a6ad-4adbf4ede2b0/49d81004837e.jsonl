@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1795335008673.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Nouvel agent : choisir le dossier avec le sélecteur de projet","status":"backlog"},"ts":1795335008356}}
 {"v":1,"hlc":"1795335008673.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"89a1537a-fe98-4ca0-bb79-7c417b8d4636"}}
 {"v":1,"hlc":"1795335008650.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795335018927.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/nouvel-agent-choisir-le-dossier-avec-le-selecteu"}}
+{"v":1,"hlc":"1795335018927.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795335018927.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795335011942}}
+{"v":1,"hlc":"1795335018927.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795335018928.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795335018234}}
+{"v":1,"hlc":"1795335018928.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3192},"ts":1795335018564}}
