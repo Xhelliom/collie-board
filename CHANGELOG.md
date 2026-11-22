@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.360.1] - 2026-11-22
+
+### Fixed
+
+- Carte lancée sur un pair, passée « done » ou archivée : son agent là-bas est fermé dès qu'il est au repos (721cb4a)
+- Un pair redémarré depuis le lancement reconnaît encore le pane à fermer par son checkout (721cb4a)
+
 ## [0.360.0] - 2026-11-21
 
 ### Added

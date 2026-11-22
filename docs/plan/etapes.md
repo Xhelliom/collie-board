@@ -126,6 +126,42 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Les agents des cartes déjà finies sur le Dell sont fermés après la mise à jour des deux machines
   - [x] Tests bun verts
 
+### Lot — Sélecteur de dossier unifié (launched)
+
+- **Nouvel agent : choisir le dossier avec le sélecteur de projet** — review
+
+  Skill frontend-design en tête.
+  
+  La feuille « Nouvel agent » (web/src/components/new-space-sheet.tsx, champ Dossier) utilise un <select> natif : une liste de 70 entrées sans recherche, qui déborde l’écran sur mobile. La page Projet a déjà le bon composant : RepoPicker dans web/src/components/board-tabs.tsx (champ de recherche + liste filtrée, combobox ARIA, flèches, Entrée, Échap).
+  
+  À faire :
+  - Sortir RepoPicker (et son déclencheur si utile) de board-tabs.tsx dans son propre fichier web/src/components/repo-picker.tsx, sans changer son comportement sur la page Projet.
+  - L’utiliser pour le champ Dossier de new-space-sheet.tsx (et partout où ce même <select> de dossiers est utilisé). Garder toutes les entrées actuelles : « ~ (dossier personnel) » en tête, les dépôts, « Autre dossier… » en action (aucune action perdue).
+  - Même apparence que sur la page Projet ; pas de liseré latéral, pas de carte dans une carte ; utilisable au doigt sur mobile.
+  - Tests Vitest : recherche filtre, choix d’un dépôt remplit le dossier, « Autre dossier… » marche toujours.
+
+  - [ ] Le champ Dossier de « Nouvel agent » ouvre le même sélecteur avec recherche que la page Projet
+  - [ ] Taper quelques lettres filtre la liste
+  - [ ] « ~ (dossier personnel) » et « Autre dossier… » sont toujours là
+  - [ ] La page Projet se comporte comme avant
+  - [ ] Tests verts
+
+### Lot — Correctif · dossier réel des agents (launched)
+
+- **Un agent lancé après un cd est rangé dans le bon projet** — done
+
+  Constat (22/11) : dans herdr-app, l’opérateur ouvre un terminal (créé dans ~/.herdr/worktrees/overgate/crafting-table), fait cd ~/git/perso/vigie puis claude. Le board range l’agent sous overgate : bridge/state-engine.ts (~l.248) prend p.cwd, le dossier de CRÉATION du terminal. Or hc donne déjà le dossier réel du programme au premier plan : bridge/mux/hc.ts toWirePane met foreground_cwd (t.foreground.cwd) dans WirePane (bridge/mux/mux.ts).
+  
+  À faire :
+  - Pour un pane qui porte un agent, le cwd du snapshot est foreground_cwd quand il est présent, sinon cwd. Une seule règle, au même endroit pour hc et herdr 0.9 (bridge/mux/herdr09.ts expose aussi foreground_cwd).
+  - Vérifier les lecteurs de cwd qui en dépendent (classement par projet de la page Agents, rattachement d’un pane à une carte/worktree, jauge de contexte bridge/context.ts, orchestrateur bridge/orchestrator.ts) : un pane de carte garde son worktree (le foreground y est déjà) ; rien ne doit se rattacher à une mauvaise carte.
+  - Un shell sans agent garde son cwd actuel ou le foreground, au choix le plus simple, mais cohérent.
+  - Tests bun : terminal créé dans A, agent au premier plan dans B → cwd B ; pas de foreground → cwd A.
+
+  - [x] Terminal ouvert dans un dossier, cd vers un autre dépôt, puis claude : l’agent apparaît dans le groupe du bon projet sur la page Agents
+  - [x] Les agents des cartes restent rattachés à leur carte
+  - [x] Tests verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done
