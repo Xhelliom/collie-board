@@ -108,6 +108,24 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Réglage visible et modifiable dans les réglages d’autonomie du projet
   - [x] SKILL.md et ADR à jour, tests verts
 
+### Lot — Correctif · agents distants fermés en fin de carte (launched)
+
+- **Carte lancée sur un pair : fermer son agent là-bas quand elle est finie** — done
+
+  Constat (22/11) : sur le Dell, une dizaine d’agents claude restent ouverts et idle dans les espaces board-sw-mesh-rs-… alors que leurs cartes (environment.peer = Dell-5550-Stef) sont done et mergées. Le journal de ces cartes : card.remote_launched … card.pr_merged, card.status done — jamais card.remote_ended. Cause : endOnPeer (bridge/remote-launch.ts) n’est appelé que par la route manuelle DELETE /api/cards/<id>/remote (bridge/board-routes.ts) ; une carte locale, elle, est nettoyée à la fin (cleanupCard dans bridge/integrate.ts via bridge/wrapup.ts), une carte distante jamais.
+  
+  À faire :
+  - Quand une carte qui a une session distante ouverte (remoteSessionFor) passe done ou archived (merge suivi par PrFollower, geste de l’opérateur, fin de lot), appeler endOnPeer : le pair ferme le pane qu’il a lancé, le checkout reste. Nouveau fichier avec un hook (pas dans server.ts/index.ts), sans nouvelle boucle : s’accrocher à l’endroit où le statut change ou à engine.onUpdate.
+  - Ne pas fermer si le pane travaille encore (working/blocked) : attendre qu’il soit idle.
+  - Un pair injoignable : réessayer à la lecture suivante, sans bruit ; un 404 du pair libère la carte comme aujourd’hui.
+  - Rattrapage : les cartes déjà done/archived avec une session distante non terminée sont traitées de la même façon au démarrage du bridge.
+  - Tests bun purs : done → endOnPeer appelé une fois ; pane working → pas appelé ; pair en erreur → réessayé.
+
+  - [x] Une carte lancée sur le Dell, une fois mergée, voit son agent fermé sur le Dell (card.remote_ended au journal)
+  - [x] Un agent encore en train de travailler n’est pas fermé
+  - [x] Les agents des cartes déjà finies sur le Dell sont fermés après la mise à jour des deux machines
+  - [x] Tests bun verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done

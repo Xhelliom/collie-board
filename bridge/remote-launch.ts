@@ -196,7 +196,8 @@ export async function endOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true; 
   if (!s) return { ok: false, error: "no session running on a peer" };
   const peer = peerOf(d, s);
   if (!peer) return { ok: false, error: `${s.peer} is no longer a paired peer of this machine` };
-  const r = await call(d, peer, "/api/node/end", { body: { paneId: s.paneId } });
+  // environment + branch: how a peer restarted since the launch still recognises its pane (node.ts recoverLaunched).
+  const r = await call(d, peer, "/api/node/end", { body: { paneId: s.paneId, environment: s.environment, branch: s.branch } });
   // 404: the peer no longer knows that pane (its bridge restarted, or it was closed there) — nothing
   // this machine may end is left, so the card is freed here; a new start reopens the same branch.
   const gone = !("error" in r) && r.status === 404;

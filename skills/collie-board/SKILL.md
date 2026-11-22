@@ -561,7 +561,7 @@ These spend quota or drive a real terminal. Never fire one unasked:
 - `POST /api/cards/<id>/next-step` — hands a landed card (outside a run) to the next role of its flow; the user's tap, or yours when they asked for it.
 - `POST /api/cards/<id>/reformulate` — hands the card to the copilot.
 - `POST /api/cards/<id>/handoff`, `DELETE` on a card that has work in it.
-- `DELETE /api/cards/<id>/remote` — ends a card's session on its peer (closes the pane there).
+- `DELETE /api/cards/<id>/remote` — ends a card's session on its peer (closes the pane there). A card filed done or archived has it ended for it, once its pane there stops working.
 - `POST /api/cards/<id>/detach` — the user's « Détacher l'agent »: ends the card's session here and on its peer, terminal left open, so Start launches again. `403` to any pane.
 ### Roadmap, decisions, memory (ADR 0023)
 

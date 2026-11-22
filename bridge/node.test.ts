@@ -361,6 +361,23 @@ describe("handleNodeRoute", () => {
     expect(d.launched.size).toBe(0);
   });
 
+  it("after a restart, still ends a pane by its checkout — never another pane of the owner (22/11, Dell)", async () => {
+    const wt = join(tmpdir(), ".herdr", "worktrees", "app", "board-x");
+    const agents = [
+      { paneId: "w9:p1", agent: "claude", cwd: wt },
+      { paneId: "w2:p1", agent: "claude", cwd: join(tmpdir(), "app") },
+    ];
+    const { d, calls } = deps({ snapshot: () => ({ ...snap, bridge: "connected", agents }) });
+    const end = (body: unknown, token = TOKEN_A) => post("/api/node/end", body, d, token).then((r) => r!.status);
+    expect(await end({ paneId: "w9:p1" })).toBe(404); // an older caller: nothing to recognise it by
+    expect(await end({ paneId: "w2:p1", environment: "arch-2", branch: "board/x" })).toBe(404); // the owner's own pane
+    expect(await end({ paneId: "w9:p1", environment: "arch-2", branch: "board/y" })).toBe(404);
+    expect(await end({ paneId: "w9:p1", environment: "nope", branch: "board/x" })).toBe(404);
+    expect(calls).toEqual([]);
+    expect(await end({ paneId: "w9:p1", environment: "arch-2", branch: "board/x" })).toBe(200);
+    expect(calls).toEqual([["close", "w9:p1"]]);
+  });
+
   it("detaches a pane launched for that peer without closing it", async () => {
     const { d, calls } = deps();
     await post("/api/node/launch", { environment: "arch-2", prompt: "x" }, d);

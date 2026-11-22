@@ -205,7 +205,7 @@ export function stepFor(
   // A peer's card (#255) never lands here: its PR is followed to the merge, which files it. Stopped there
   // without one (`card.remote_idle`), it is the operator's — said once on the lot.
   if (card.environment) {
-    const word = newest(events, (e) => REMOTE_WORDS.has(e.type));
+    const word = newest(events, (e) => remoteWords().includes(e.type));
     if (word?.type === REMOTE_IDLE && after(word, halted)) return { kind: "halt", reason: `stopped on ${card.environment.peer} without a PR — push its branch and open the PR there, or move the card` };
     return null;
   }
@@ -299,7 +299,8 @@ export function orphanedHalt(runId: string, events: BoardEvent[], ctx: { next?: 
   return null;
 }
 
-const REMOTE_WORDS = new Set([REMOTE_IDLE, REMOTE_IDLE_CLEARED, REMOTE_LAUNCHED, REMOTE_ENDED]);
+// A function, not a module-level constant: run.ts sits on an import cycle back to remote-launch.ts.
+const remoteWords = () => [REMOTE_IDLE, REMOTE_IDLE_CLEARED, REMOTE_LAUNCHED, REMOTE_ENDED];
 
 /** The newest proof a PR has landed or will: merged, or GitHub's auto-merge armed (ADR 0017 step 7). */
 const landing = (events: BoardEvent[]) => newest(events, (e) => e.type === "card.pr_merged" || e.type === "card.automerge_armed");
