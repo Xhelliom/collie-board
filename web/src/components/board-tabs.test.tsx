@@ -7,7 +7,8 @@ import { describe, expect, it } from "vitest";
 import { __setListedRepos } from "@/lib/listed-repos";
 import { server } from "@/test/setup";
 
-import { BoardTabs, RepoTitle, boardTabFor, fold, visibleTabs } from "./board-tabs";
+import { BoardTabs, RepoTitle, boardTabFor, visibleTabs } from "./board-tabs";
+import { fold } from "./repo-picker";
 
 const openPicker = async () => {
   await userEvent.click(screen.getByRole("button", { name: /^Repository,/ }));
