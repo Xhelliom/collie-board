@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 
 import { agentNameFor, launchAgent, promptAndConfirm, RESUME_PROMPT, trustFolder } from "./cards.ts";
 import { defaultBranchOf, diffFile, diffStat, normalizeRemote, originUrl } from "./git.ts";
@@ -209,6 +209,24 @@ export function parseLaunch(body: unknown, node: NodeConfig, peer: string, now =
   return { ok: true, value: { peer, env, prompt: b.prompt, branch } };
 }
 
+/**
+ * After this bridge restarted, `launched` is empty: a pane still counts as launched for `peer` when it
+ * is an agent sitting in the checkout of the environment's repo for the branch the caller names, in an
+ * environment that peer may launch in — what it could have launched, nothing else of the owner's. Pure.
+ */
+export function recoverLaunched(paneId: string, peer: string, b: Record<string, unknown>, node: NodeConfig, snapshot: unknown): LaunchedPane | null {
+  const env = node.environments.find((e) => e.name === b.environment);
+  const allowed = node.peers.find((p) => p.name === peer)?.launch;
+  if (!env || (allowed && !allowed.includes(env.name)) || typeof b.branch !== "string" || !SAFE_BRANCH.test(b.branch)) return null;
+  const agents = (snapshot as { agents?: unknown } | null)?.agents;
+  const pane = (Array.isArray(agents) ? agents : []).find((a) => a?.paneId === paneId) as { agent?: unknown; cwd?: unknown } | undefined;
+  if (typeof pane?.agent !== "string" || pane.agent === "shell" || typeof pane.cwd !== "string") return null;
+  const parts = pane.cwd.replace(/[\\/]+$/, "").split(/[\\/]/);
+  const [repo, dir] = parts.slice(-2);
+  if (dir !== b.branch.replace(/\//g, "-") || repo !== basename(env.repoPath.replace(/[\\/]+$/, ""))) return null;
+  return { paneId, peer, environment: env.name, branch: b.branch, checkoutPath: pane.cwd, base: null };
+}
+
 /** `{ paneId, … }` from a POST body; the pane is a string herdr resolves, nothing more. */
 function paneOf(b: Record<string, unknown>): string | null {
   return typeof b.paneId === "string" && b.paneId.trim() !== "" ? b.paneId : null;
@@ -351,7 +369,8 @@ async function nodeAction(action: string, peer: string, body: unknown, node: Nod
       return d.json({ ok: true });
     }
     // end: only the pane this machine launched for that same peer — never any other pane of the owner.
-    const launched = d.launched.get(paneId);
+    // Since a restart the map is empty: the pane is recognised by its checkout instead.
+    const launched = d.launched.get(paneId) ?? recoverLaunched(paneId, peer, b, node, d.snapshot());
     if (!launched || launched.peer !== peer) return refuse("not a pane launched for this peer", 404, { paneId });
     // detach: the caller's card lets go of the pane; the terminal and its agent stay, as a filed card's do (ADR 0002).
     if (action === "detach") {

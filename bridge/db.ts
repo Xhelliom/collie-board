@@ -2085,6 +2085,11 @@ export class BoardDb {
     return `${r.v}:${r.t}`;
   }
 
+  /** The finished cards (done, archived) that ran in a peer's environment — remote-wrapup.ts, at each read of a peer. */
+  finishedPeerCards(): Card[] {
+    return this.db.query<CardRow, []>("SELECT * FROM card WHERE environment IS NOT NULL AND status IN ('done', 'archived')").all().map(toCard);
+  }
+
   listCards(opts: { includeArchived?: boolean } = {}): Card[] {
     const sql = opts.includeArchived
       ? "SELECT * FROM card ORDER BY position, created_at"
