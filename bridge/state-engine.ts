@@ -245,7 +245,9 @@ export class StateEngine {
           tabId: p.tab_id,
           agent,
           status: this.screenStatus(p.pane_id, this.seen.status(p.pane_id, p.agent_status)),
-          cwd: p.cwd,
+          // An agent lives where its program runs, not where the terminal was opened: `cd X && claude`
+          // in a terminal made elsewhere belongs to X. A shell keeps its creation cwd.
+          cwd: (kind === "agent" && p.foreground_cwd) || p.cwd,
           focused: p.focused,
           kind,
           // A user-set pane label (herdr pane.rename); omitted when unset so "absent stays absent".

@@ -15,6 +15,7 @@ interface FakePane {
   tab_id: string;
   focused: boolean;
   cwd: string;
+  foreground_cwd?: string;
   agent?: string | null;
   agent_status: AgentStatus;
   status_ms?: number;
@@ -639,6 +640,23 @@ describe("StateEngine — poke / cadence / onUpdate", () => {
 // record, and both must stay ABSENT rather than defaulting when the server doesn't report them —
 // an older Herdr should read as "unknown", not as "zero scrollback" or "no transcript".
 describe("StateEngine — pane capability fields", () => {
+  test("an agent's cwd is its foreground cwd: terminal made in A, agent started in B → B", async () => {
+    const { herdr, engine, poll } = makeEngine();
+    const p = { ...pane("w1:p1", "w1", "idle", "claude"), cwd: "/a", foreground_cwd: "/b" };
+    const sh = { ...pane("w1:p2", "w1", "idle", null), cwd: "/a", foreground_cwd: "/b" };
+    herdr.panes = [p, sh];
+    await poll();
+    expect(engine.current().agents[0]!.cwd).toBe("/b");
+    expect(engine.current().shellPanes[0]!.cwd).toBe("/a"); // a shell keeps where it was made
+  });
+
+  test("an agent with no foreground cwd keeps the terminal's cwd", async () => {
+    const { herdr, engine, poll } = makeEngine();
+    herdr.panes = [{ ...pane("w1:p1", "w1", "idle", "claude"), cwd: "/a" }];
+    await poll();
+    expect(engine.current().agents[0]!.cwd).toBe("/a");
+  });
+
   test("maps an id-kind agent session to agentSessionId", async () => {
     const { herdr, engine, poll } = makeEngine();
     const p = pane("w1:p1", "w1", "idle", "claude");
