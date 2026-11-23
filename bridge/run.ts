@@ -22,7 +22,7 @@ import type { AgentAdapter } from "./adapters.ts";
 import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
 import { boardBranchPrefix, type Config } from "./config.ts";
 import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
-import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
+import { GATE_TIMEOUT_MS, gateHolder, gatePrompt, gatesWaiting, parseGate, runGate, type GateResult } from "./gate.ts";
 import { baseOf, cardDiffSummary, integrationOf, resolveBase, revOf, worktreePathFor } from "./git.ts";
 import type { Mux } from "./mux/mux.ts";
 import { askEvery, mergeCard, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
@@ -85,6 +85,8 @@ export interface RunPorts {
   gateCommand(card: Card): string | null;
   /** Run it in the worker's checkout. */
   runGate(command: string, worktree: string, cardId: string): Promise<GateResult>;
+  /** The card's gate is queued, not running: the title of the card holding the queue. Null: running, or not queued. */
+  gateQueuedBehind?(cardId: string): string | null;
   /** Whether the copilot reviews — off, or down (`copilotDown`: no member waits on a review that will
    *  time out like the last ones), there is no review to triage and the lead goes straight to the PR. */
   reviewing(): boolean;
@@ -124,6 +126,9 @@ export type Step =
 
 /** A landing with no verdict for this long halts the lot as « lead silencieux » — past the lead's own deadlines (3 × 5 min) and a gate. */
 export const LEAD_SILENT_MS = 30 * 60_000;
+
+/** A gate action in flight longer than its own timeout plus this is stuck (or queued behind one that is): the lot halts. */
+export const GATE_STUCK_MS = GATE_TIMEOUT_MS + 5 * 60_000;
 
 /** The worker's pane is there, its agent is not (hc keeps a terminal across a reboot): no one reads a send-back. */
 export const AGENT_GONE_REASON = "its agent is gone from its pane (Collie, Herdr or the machine stopped) — the lead's send-back has no one to read it; relaunch the card";
@@ -218,9 +223,11 @@ export function stepFor(
   } else {
     if (card.status !== "review") return null;
     // The net: whatever keeps the lead from a landing (a pane that reports nothing, a lost question), the lot
-    // stops instead of waiting for ever. Counted from the landing, or from the resume that lifted the last net.
+    // stops instead of waiting for ever. Counted from what last handed the lead the card: the landing, the
+    // resume that lifted the last net, or a green gate — a slow gate is the gate's, never the lead's (23/11).
     const resumed = newest(events, (e) => e.type === "run.resumed" && isRun(e, run.id));
-    const since = after(resumed, landed) ? resumed : landed;
+    const green = newest(events, (e) => e.type === "run.gate" && isRun(e, run.id) && (e.payload as { ok?: boolean }).ok === true);
+    const since = landed && [resumed, green].reduce((a, b) => (after(b, a) ? b : a), landed);
     const verdict = newest(events, (e) => e.type === "run.decision" && isRun(e, run.id) && isVerdict(e));
     if (ctx.now !== undefined && since && !after(held, landed) && !after(verdict, landed) && ctx.now - since.ts >= LEAD_SILENT_MS)
       return { kind: "halt", reason: `no verdict from the lead ${Math.round((ctx.now - since.ts) / 60_000)} min after the worker landed — look at the lead's and the worker's panes, then resume`, leadSilent: true };
@@ -392,8 +399,8 @@ function stuck(run: Run, card: Card, events: BoardEvent[]): boolean {
 const PLAN_RETRY_MS = 7 * 24 * 3600 * 1000;
 
 export class RunCoordinator {
-  /** Cards with an action in flight, so a 1.5 s tick doesn't ask twice. Memory a restart may lose. */
-  private readonly busy = new Set<string>();
+  /** Cards with an action in flight, so a 1.5 s tick doesn't ask twice — what it is and since when, so a stuck gate halts. Memory a restart may lose. */
+  private readonly busy = new Map<string, { kind: NonNullable<Step>["kind"]; since: number; halted?: true }>();
   /** When each card's PR checks were last asked about (ADR 0029). */
   private readonly landAsked = new Map<string, number>();
   /** Starts in flight: they hold a slot before their session exists. */
@@ -460,7 +467,16 @@ export class RunCoordinator {
         slots = Math.min(slots, run.maxParallel - running - (this.startingBy.get(run.id) ?? 0));
       }
       for (const { card, events } of members) {
-        if (this.busy.has(card.id)) continue;
+        const inFlight = this.busy.get(card.id);
+        if (inFlight) {
+          if (inFlight.kind === "gate" && !inFlight.halted && this.now() - inFlight.since >= GATE_STUCK_MS) {
+            inFlight.halted = true;
+            const min = Math.round((this.now() - inFlight.since) / 60_000);
+            const behind = this.ports.gateQueuedBehind?.(card.id);
+            this.halt(run, card.id, behind != null ? `gate queued behind “${behind}” for ${min} min` : `gate stuck for ${min} min`);
+          }
+          continue;
+        }
         const session = this.db.openSessionFor(card.id);
         const pred = card.dependsOn ? this.db.getCard(card.dependsOn) : null;
         const reviews = session ? this.db.listReviews(card.id).filter((r) => r.sessionId === session.id) : [];
@@ -490,7 +506,7 @@ export class RunCoordinator {
           this.starting++;
           this.startingBy.set(run.id, (this.startingBy.get(run.id) ?? 0) + 1);
         }
-        this.busy.add(card.id);
+        this.busy.set(card.id, { kind: step.kind, since: this.now() });
         if (serial) this.lotBusy.add(run.id);
         void this.act(run, card, session, step)
           .catch((err) => this.halt(run, card.id, (err as Error).message, err instanceof LeadSilent ? { leadSilent: true, ...(err.paneId && { paneId: err.paneId }) } : {}))
@@ -731,6 +747,8 @@ export class RunCoordinator {
     const brief = await this.ports.brief(card);
     if (!command || !brief) return this.halt(run, card.id, command ? "the worker's checkout is gone" : "the gate was removed");
     const r = await this.ports.runGate(command, brief.worktree, card.id);
+    // Halted as stuck while it ran (update): its late verdict is no one's now.
+    if (this.busy.get(card.id)?.halted) return;
     if (r.kind === "error") return this.halt(run, card.id, `gate could not run: ${r.message}`);
     const ok = r.kind === "pass";
     this.db.recordRunEvent(card.id, "run.gate", { runId: run.id, command, ok, ...(r.kind === "pass" ? (r.note ? { note: r.note } : {}) : { summary: r.summary }) });
@@ -952,6 +970,11 @@ export function runHook(
     runGate: (command, worktree, cardId) => {
       const argv = parseGate(command);
       return argv ? runGate(argv, worktree, undefined, cardId) : Promise.resolve({ kind: "error", message: "empty gate command" });
+    },
+    gateQueuedBehind: (cardId) => {
+      if (!gatesWaiting.has(cardId)) return null;
+      const h = gateHolder();
+      return (h && db.getCard(h)?.title) || "another gate";
     },
     freeSlots: () => ((db.maxAgents() ?? cfg.boardMaxAgents) || Infinity) - runningCards(db),
     // The lead's verdict IS the review of a lot's card: the copilot owes it none (db.listCardsOwedReview).

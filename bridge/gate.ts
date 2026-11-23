@@ -9,7 +9,9 @@
 import { constants, setPriority } from "node:os";
 
 /** A gate that outlives this is hung, not slow: the run halts instead of waiting for ever. */
-const GATE_TIMEOUT_MS = 30 * 60_000;
+export const GATE_TIMEOUT_MS = 30 * 60_000;
+/** A gate queued longer than this gives up: the queue is held by a gate that is itself hung. */
+const QUEUE_WAIT_MS = 2 * GATE_TIMEOUT_MS;
 /** SIGTERM first, SIGKILL this long after — short, so a timed-out gate hands back within a second. */
 const KILL_GRACE_MS = 300;
 
@@ -74,22 +76,45 @@ export function oneAtATime<A extends unknown[], R>(fn: (...args: A) => Promise<R
 const waiting = new Set<string>();
 export const gatesWaiting: ReadonlySet<string> = waiting;
 
-const queued = oneAtATime((argv: string[], cwd: string, timeoutMs?: number, cardId?: string) => {
-  if (cardId) waiting.delete(cardId);
-  return spawnGate(argv, cwd, timeoutMs);
-});
+const queued = oneAtATime((job: () => Promise<GateResult>) => job());
+/** The card whose gate is running now, if it named one — what a queued gate waits behind. */
+let holder: string | undefined;
+export const gateHolder = (): string | undefined => holder;
 
 /**
  * The operator's gate, one at a time across the whole bridge: a run gates each card of a lot in
  * parallel and pr-follow gates each PR it lands, and N test suites at once starve the CPU until a
  * healthy suite times out (a red that is not the worker's). Each gate's own timeout starts when it
- * actually runs, so a queued gate is never charged for the wait. `cardId`: listed in `gatesWaiting`
- * until its turn comes.
+ * actually runs, so a queued gate is never charged for the wait — but the wait itself is bounded
+ * (`maxWaitMs`): past it, the gate gives up its turn and says who held the queue. `cardId`: listed in
+ * `gatesWaiting` until its turn comes.
  * ponytail: one global queue; per-repo slots if gates on unrelated repos must overlap.
  */
-export function runGate(argv: string[], cwd: string, timeoutMs?: number, cardId?: string): Promise<GateResult> {
+export function runGate(argv: string[], cwd: string, timeoutMs?: number, cardId?: string, maxWaitMs = QUEUE_WAIT_MS): Promise<GateResult> {
   if (cardId) waiting.add(cardId);
-  return queued(argv, cwd, timeoutMs, cardId);
+  let started = false;
+  let gaveUp = false;
+  const ran = queued(async (): Promise<GateResult> => {
+    if (gaveUp) return { kind: "error", message: "gave up its turn" };
+    if (cardId) waiting.delete(cardId);
+    started = true;
+    holder = cardId;
+    try {
+      return await spawnGate(argv, cwd, timeoutMs);
+    } finally {
+      holder = undefined;
+    }
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const bound = new Promise<GateResult>((resolve) => {
+    timer = setTimeout(() => {
+      if (started) return;
+      gaveUp = true;
+      if (cardId) waiting.delete(cardId);
+      resolve({ kind: "error", message: `queued behind ${holder ?? "another gate"} for ${Math.round(maxWaitMs / 60_000)} min` });
+    }, maxWaitMs);
+  });
+  return Promise.race([ran, bound]).finally(() => clearTimeout(timer));
 }
 
 /** Run a command unqueued — what the gate runs, and what `bun install` (deps.ts) uses directly. */

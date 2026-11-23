@@ -10,7 +10,7 @@ import { currentStep } from "./pipeline.ts";
 import { lotView } from "./lot.ts";
 import { reconcile } from "./cards.ts";
 import { mechanicalHalt } from "./resume.ts";
-import { AGENT_GONE_REASON, briefOf, heldHalts, LEAD_SILENT_MS, orphanedHalt, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
+import { AGENT_GONE_REASON, briefOf, GATE_STUCK_MS, heldHalts, LEAD_SILENT_MS, orphanedHalt, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = (panes: Record<string, string> = {}, bridge = "connected"): EngineSnapshot =>
@@ -1193,6 +1193,62 @@ describe("the repo's gate (ADR 0020)", () => {
     w.coord.update(snap({ "p-a": "idle" }));
     await flush();
     expect(events(db, a, "run.halted")).toHaveLength(1);
+  });
+
+  it("a slow gate that ends green: the lead's net counts from the green, not the landing (23/11)", async () => {
+    const { db, a, w } = await landed();
+    let pass!: (r: GateResult) => void;
+    w.ports.runGate = () => new Promise((r) => (pass = r));
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    // The gate held the card 40 min: the landing is that old by the time it is green.
+    const raw = (db as unknown as { db: import("bun:sqlite").Database }).db;
+    raw.query("UPDATE event SET ts = ts - ? WHERE card_id = ?").run(40 * 60_000, a.id);
+    w.clock.now = Date.now();
+    pass({ kind: "pass" });
+    await flush();
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(events(db, a, "run.halted")).toEqual([]);
+    expect(w.seen).toHaveLength(1);
+  });
+
+  it("a gate in flight past its own timeout halts the lot once, saying where it waits", async () => {
+    const { db, a, w } = await landed();
+    let pass!: (r: GateResult) => void;
+    w.ports.runGate = () => new Promise((r) => (pass = r));
+    w.ports.gateQueuedBehind = () => "b";
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    w.clock.now += GATE_STUCK_MS - 1;
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(events(db, a, "run.halted")).toEqual([]);
+    w.clock.now += 1;
+    w.coord.update(snap({ "p-a": "idle" }));
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(events(db, a, "run.halted").map((e) => (e.payload as { reason: string }).reason)).toEqual(["gate queued behind “b” for 35 min"]);
+    // Its late verdict is dropped: the halt is the operator's, the lead is not asked.
+    pass({ kind: "pass" });
+    await flush();
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(events(db, a, "run.gate")).toEqual([]);
+    expect(w.seen).toEqual([]);
+    expect(events(db, a, "run.halted")).toHaveLength(1);
+  });
+
+  it("a running gate past its timeout halts as stuck", async () => {
+    const { db, a, w } = await landed();
+    w.ports.runGate = () => new Promise(() => {});
+    w.ports.gateQueuedBehind = () => null;
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    w.clock.now += GATE_STUCK_MS;
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect((events(db, a, "run.halted")[0]!.payload as { reason: string }).reason).toBe("gate stuck for 35 min");
   });
 
   it("no gate configured: the lead is asked straight away, as before", async () => {
