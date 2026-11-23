@@ -19,3 +19,4 @@
 {"v":1,"hlc":"1795462766710.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.automerge_armed","payload":{"branch":"board/ou-passe-le-temps-entre-travail-fini-et-le-verdi"},"ts":1795462766308}}
 {"v":1,"hlc":"1795462766710.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1795462766710.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1795462766326}}
+{"v":1,"hlc":"1795462794271.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/ou-passe-le-temps-entre-travail-fini-et-le-verdi","stat":"docs/explorations/attente-lead.md | +182 -0\n1 files changed, 182 insertions(+), 0 deletions(-)"},"ts":1795462786109}}
