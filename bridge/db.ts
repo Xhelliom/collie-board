@@ -710,6 +710,8 @@ export interface RunEventPayloads {
   /** The operator resumed the run: every halt before it is lifted, and the card picks up at the step it stopped on. */
   /** `auto`: the orchestrator's resume (ADR 0055), the gesture's time — one per gesture, counted against its bound. */
   "run.resumed": { runId: string; auto?: number };
+  /** The orchestrator confirmed hearing that the lot is halted (halted-wake.ts): the reminder counts from it. Null card. */
+  "run.halt_told": { runId: string };
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
   "run.gate": { runId: string; command: string; ok: boolean; summary?: string; note?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */
@@ -733,6 +735,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "plan.exported",
   "run.halted",
   "run.resumed",
+  "run.halt_told",
   "run.gate",
   "run.merge",
   "run.report",
@@ -2521,6 +2524,14 @@ export class BoardDb {
   }
 
   /** The lot's journaled gauge readings and token total (cost.ts `consumedLine`); a missing reading is null. */
+  /** When the orchestrator last confirmed hearing the lot halted (halted-wake.ts), or null. */
+  lastHaltTold(runId: string): BoardEvent | null {
+    const row = this.db
+      .query<EventRow, [string]>("SELECT * FROM event WHERE card_id IS NULL AND type = 'run.halt_told' AND json_extract(payload, '$.runId') = ? ORDER BY id DESC LIMIT 1")
+      .get(runId);
+    return row ? toEvent(row) : null;
+  }
+
   runQuota(id: string): { start: number | null; end: number | null; tokens: number | null } {
     const rows = this.db
       .query<{ payload: string }, [string]>("SELECT payload FROM event WHERE type = 'run.quota' AND json_extract(payload, '$.runId') = ? ORDER BY id")
