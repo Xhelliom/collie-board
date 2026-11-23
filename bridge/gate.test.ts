@@ -1,8 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { BoardDb } from "./db.ts";
-import { gateNote, gatePrompt, gatesWaiting, oneAtATime, parseGate, runGate, summarizeGate } from "./gate.ts";
+import { gateNote, gatePrompt, gatesRunning, gatesWaiting, oneAtATime, parseGate, runGate, spawnGate, summarizeGate } from "./gate.ts";
 
 // The gate commands are this very bun, so the test runs where no `true`, `sh` or `sleep` exists (Windows).
 const bun = (code: string) => [process.execPath, "-e", code];
@@ -48,6 +49,18 @@ describe("gate (ADR 0020)", () => {
     expect(await runGate(SLEEP, tmp, 50)).toMatchObject({ kind: "error" });
   });
 
+  // Incident 23/11: a grandchild kept the pipes open, a 30-min gate held the queue for 4 h 16.
+  it.skipIf(process.platform === "win32")("a timed-out gate hands back at once and its whole group dies", async () => {
+    const pidFile = `${tmp}/gate-grandchild-${process.pid}`;
+    const t0 = performance.now();
+    const r = await spawnGate(["sh", "-c", `sleep 600 & echo $! > ${pidFile}; wait`], tmp, 200);
+    expect(r).toMatchObject({ kind: "error" });
+    expect(performance.now() - t0).toBeLessThan(1_200);
+    const grandchild = Number(await Bun.file(pidFile).text());
+    await Bun.sleep(50);
+    expect(() => process.kill(grandchild, 0)).toThrow();
+  });
+
   it("oneAtATime: calls never overlap, and a failing one frees the slot", async () => {
     let running = 0;
     let peak = 0;
@@ -75,6 +88,17 @@ describe("gate (ADR 0020)", () => {
     expect(Date.now() - t0).toBeGreaterThanOrEqual(100);
   });
 
+  it("a gate queued past its bound gives up, names who holds the queue, and never runs", async () => {
+    const mark = join(tmp, `queued-ran-${process.pid}`);
+    const first = runGate(bun("setTimeout(() => {}, 400)"), tmp, undefined, "card-hold");
+    const second = await runGate(bun(`require("node:fs").writeFileSync(${JSON.stringify(mark)}, "x")`), tmp, undefined, "card-late", 100);
+    expect(second).toEqual({ kind: "error", message: "queued behind card-hold for 0 min" });
+    expect(gatesWaiting.has("card-late")).toBe(false);
+    expect((await first).kind).toBe("pass");
+    await Bun.sleep(50);
+    expect(await Bun.file(mark).exists()).toBe(false);
+  });
+
   it("two ready cards: the second waits, listed in gatesWaiting until its turn (audit P5)", async () => {
     // The first card's gate reports whether the second is listed as waiting while it runs.
     const first = runGate(bun('setTimeout(() => {}, 300)'), tmp, undefined, "card-a");
@@ -82,10 +106,12 @@ describe("gate (ADR 0020)", () => {
     expect(gatesWaiting.has("card-b")).toBe(true);
     await Bun.sleep(100);
     expect(gatesWaiting.has("card-a")).toBe(false); // running, not waiting
+    expect(gatesRunning.has("card-a")).toBe(true); // …and listed as running, with when it started
     expect(gatesWaiting.has("card-b")).toBe(true);
     await first;
     await second;
     expect(gatesWaiting.size).toBe(0);
+    expect(gatesRunning.size).toBe(0);
   });
 
   it("a gate runs at low priority, and its children inherit it", async () => {

@@ -242,6 +242,38 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [ ] SKILL.md documente la route
   - [ ] Tests verts
 
+### Lot — Attente du lead · correctifs (launched)
+
+- **Un bun test lancé à la racine ne ramasse plus les tests web** — done
+
+  Correctif 4. bunfig.toml : [test] root (ou liste) pour que bun test à la racine ne prenne que bridge/ et scripts/, pas les tests Vitest de web/ (ce bun test nu a tourné 5 h le 23/11). Vérifier que bun test ./scripts et bun run test restent OK ; une ligne dans CLAUDE.md § Tests si le comportement change. Détails : livrable attente-lead.md de la carte 69e1b836-406d-4447-8129-942af28072d4 (GET /api/cards/69e1b836-406d-4447-8129-942af28072d4/deliverables/attente-lead.md), section 3.
+
+  - [x] bun test à la racine finit en quelques dizaines de secondes
+  - [x] bun run test inchangé et vert
+- **Carte à relire : montrer où elle attend et depuis quand** — done
+  - after: Filet du lot : compter depuis la demande au lead et voir une porte qui traîne
+
+  Skill frontend-design en tête. Correctif 3. bridge/gate.ts expose gateRunning (cardId → startedAt) à côté de gatesWaiting et journalise [gate] start/end avec durée ; bridge/cards.ts ajoute gateSince et la carte qui tient la file ; bridge/board-routes.ts clé de révision. UI : web/src/lib/board.ts, web/src/lib/tile-state.ts, web/src/routes/card.tsx, i18n board.ts et card.ts — sur la tuile et dans la carte : « vérification en cours depuis 12 min » / « en attente derrière “…” », et l’âge de l’atterrissage pour toute carte À relire. Couleurs d’état fortes, pas de liseré latéral, pas de carte dans une carte. Détails : livrable attente-lead.md de la carte 69e1b836-406d-4447-8129-942af28072d4 (GET /api/cards/69e1b836-406d-4447-8129-942af28072d4/deliverables/attente-lead.md), section 3.
+
+  - [x] Une carte À relire montre ce qu’elle attend et depuis quand
+  - [x] Les logs du bridge montrent début et fin de chaque porte
+  - [x] Tests verts
+- **Filet du lot : compter depuis la demande au lead et voir une porte qui traîne** — done
+  - after: Porte en retard : tuer tout son groupe de processus et rendre la main tout de suite
+
+  Correctif 2 (faux « lead muet » 194 min le 23/11). bridge/run.ts : dans stepFor, le filet part du plus récent de atterrissage / reprise / run.gate vert ; busy devient Map<cardId,{kind,since}> ; dans update(), une action gate qui dure plus que GATE_TIMEOUT_MS + marge arrête le lot avec la vraie raison (« vérification en file derrière <carte> depuis N min » / « vérification bloquée depuis N min »). Borne aussi l’attente en file dans runGate (bridge/gate.ts) à 2 × GATE_TIMEOUT_MS. Tests bridge/run.test.ts. Détails : livrable attente-lead.md de la carte 69e1b836-406d-4447-8129-942af28072d4 (GET /api/cards/69e1b836-406d-4447-8129-942af28072d4/deliverables/attente-lead.md), section 3.
+
+  - [x] Plus de « lead muet » quand c’est la porte qui traîne
+  - [x] Une porte coincée arrête le lot en ≤ ~35 min avec une raison juste
+  - [x] Tests verts
+- **Porte en retard : tuer tout son groupe de processus et rendre la main tout de suite** — done
+
+  Correctif 1 de l’exploration attente du lead (23/11 : porte bornée à 30 min mais lot bloqué 4 h 16, un petit-fils gardait le tube). spawnGate (bridge/gate.ts) lance la porte dans son propre groupe ; au délai, SIGTERM court puis SIGKILL du groupe (process.kill(-pid)) ; ne plus attendre la fin des tubes après le délai (rendre error sur proc.exited ou courte échéance). bun install (bridge/deps.ts) en profite. Test bridge/gate.test.ts : sh -c 'sleep 600 & wait' avec délai 200 ms → error en < 1 s, petit-fils mort. Détails : livrable attente-lead.md de la carte 69e1b836-406d-4447-8129-942af28072d4 (GET /api/cards/69e1b836-406d-4447-8129-942af28072d4/deliverables/attente-lead.md), section 3.
+
+  - [x] Une porte qui dépasse son délai rend error en moins d’une seconde après le délai
+  - [x] Aucun processus descendant ne survit
+  - [x] Tests verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done

@@ -5,9 +5,23 @@ import type { Awaiting, CardView } from "./board";
 import type { DependencyInfo } from "./board-groups";
 import type { LotHold } from "./lot-hold";
 import { ago, type CardFacts } from "./project-facts";
+import { ago as span } from "./agents-page";
 
-/** `bad` is red and means blocked — the only red on a tile. `strong` asks for you without alarm. */
-export type TileTone = "bad" | "good" | "strong" | "plain" | "quiet";
+/**
+ * `bad` is red and means blocked — the only red on a tile. `strong` asks for you without alarm.
+ * `busy` / `wait`: the gate is running / queued — the status colours of working and waiting.
+ */
+export type TileTone = "bad" | "good" | "strong" | "busy" | "wait" | "plain" | "quiet";
+
+export const TILE_TONE: Record<TileTone, string> = {
+  bad: "text-destructive",
+  good: "text-status-done",
+  strong: "font-medium text-foreground",
+  busy: "font-medium text-status-working",
+  wait: "font-medium text-status-blocked",
+  plain: "text-muted-foreground",
+  quiet: "text-muted-foreground/75",
+};
 
 /** `agent`: a live pane backs the card — the tile asks the herd for its state (agent-identity). */
 export type TileState = { agent: true } | { agent?: false; text: string; tone: TileTone };
@@ -31,7 +45,12 @@ export function tileState(
   if (card.status === "review" && pr === "closed")
     return { text: t("tile.state.blocked", { reason: t("tile.state.prClosed") }), tone: "bad" };
   if (o.awaiting) return { text: t("tile.state.question"), tone: "strong" };
-  if (card.gateWaiting) return { text: t("tile.state.gateWaiting"), tone: "quiet" };
+  const gateFor = card.gateSince != null ? span(now - card.gateSince, { min: t("agents.unit.min"), h: t("agents.unit.h"), d: t("agents.unit.d") }) : null;
+  if (card.gateWaiting)
+    return card.gateBehind
+      ? { text: t("tile.state.gateBehind", { title: card.gateBehind, duration: gateFor ?? "" }), tone: "wait" }
+      : { text: t("tile.state.gateWaiting"), tone: "wait" };
+  if (gateFor) return { text: t("tile.state.gateRunning", { duration: gateFor }), tone: "busy" };
   if (card.runtime) return { agent: true };
   if (card.status === "blocked") return { text: t("agents.state.needs"), tone: "strong" };
   if (card.copilotBusy) return { text: t("tile.state.copilot"), tone: "quiet" };

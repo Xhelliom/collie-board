@@ -83,7 +83,8 @@ the unit name; the Herdr action runs from anywhere.
   live `web/dist`. Bare `cd web && bun run build` still skips typechecking; don't ship from it.
 - **Tests:** frontend `cd web && bun run test` (Vitest + jsdom + Testing Library + MSW; no headless
   browser); backend pure-logic `bun run test` at the root (Bun's own runner — covers `checkAccess`,
-  `StateEngine`, `loadConfig`). A **pre-push hook** (`scripts/git-hooks/pre-push`) runs **both** before
+  `StateEngine`, `loadConfig`); a bare root `bun test` skips `web/` (`bunfig.toml`
+  `pathIgnorePatterns` — Vitest's files under Bun ran for 5 h). A **pre-push hook** (`scripts/git-hooks/pre-push`) runs **both** before
   every push — override once with `SKIP_TESTS=1 git push`. A green pre-push notes the commit (`scripts/tests-passed.sh`); the repo's gate `bun run check` then only typechecks that same commit on a clean tree, CI stays the net (audit P6). The same hook refuses a push while a file sits untracked (`scripts/check-untracked.sh`) — a diff importing a never-`git add`ed file only breaks for the reviewer; `git add` it or `.gitignore` it. The bits that genuinely need `Bun.serve` /
   `Bun.connect` (HTTP handlers, the socket client) stay unit-untested — Vitest-on-Node can't run them,
   so keep new backend logic pure/injectable enough for `bun test`, or exercise it through `web/`.

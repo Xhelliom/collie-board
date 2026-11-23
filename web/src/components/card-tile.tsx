@@ -12,21 +12,13 @@ import type { Awaiting, CardView } from "@/lib/board";
 import type { DependencyInfo } from "@/lib/board-groups";
 import type { LotHold } from "@/lib/lot-hold";
 import type { CardFacts } from "@/lib/project-facts";
-import { tileState, type TileTone } from "@/lib/tile-state";
+import { TILE_TONE as TONE, tileState } from "@/lib/tile-state";
 import { AGE_TONE_CLASS, ageTone } from "@/lib/status-age";
 
 // One card in a board column, in three lines: its title, its phase, and ONE readable state computed
 // from what the card already knows (lib/tile-state.ts). Everything else — origin, branch, criteria,
 // people, milestones — lives on the card's own page: a tile answers "where is this", not "what is it".
 // Red means blocked and nothing else; a card waiting on you is loud in weight, not in colour.
-
-const TONE: Record<TileTone, string> = {
-  bad: "text-destructive",
-  good: "text-status-done",
-  strong: "font-medium text-foreground",
-  plain: "text-muted-foreground",
-  quiet: "text-muted-foreground/75",
-};
 
 /** « travaille depuis 7 min » — the same words and icon as the Agents page (agent-identity). */
 function AgentState({ card, agent }: { card: CardView; agent?: AgentView }) {
@@ -161,7 +153,11 @@ export function CardTile({
         {where && <div className="truncate text-[13px] text-muted-foreground">{where}</div>}
         <div className="flex min-w-0 items-baseline gap-2 text-[13px]">
           {state.agent ? (
-            <AgentState card={card} agent={agent} />
+            <>
+              <AgentState card={card} agent={agent} />
+              {/* A card À relire always says how long it has sat there, even with its pane still up. */}
+              {card.status === "review" && <StatusAge since={card.statusSince} signal={cardSignal(card.status)} className="ml-auto" />}
+            </>
           ) : (
             <>
               <span className={cn("truncate", TONE[state.tone])}>{state.text}</span>

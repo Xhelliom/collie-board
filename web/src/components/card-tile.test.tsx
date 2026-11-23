@@ -81,6 +81,24 @@ describe("CardTile — three lines", () => {
     expect(stateLine("check waiting")).toBeInTheDocument();
   });
 
+  it("a queued gate names the card holding the queue and how long it has waited, in the waiting colour", () => {
+    const tile = card({ status: "review", gateWaiting: true, gateSince: Date.now() - 12 * 60_000, gateBehind: "fix the lot" });
+    render(<CardTile card={tile} onClick={() => {}} />);
+    expect(stateLine("waiting behind “fix the lot” for 12 min").className).toContain("text-status-blocked");
+  });
+
+  it("a running gate reads « check running for 12 min », and the landing's age stays shown", () => {
+    const now = Date.now();
+    render(<CardTile card={card({ status: "review", gateSince: now - 12 * 60_000, statusSince: now - 3 * 3600_000 })} onClick={() => {}} />);
+    expect(stateLine("check running for 12 min").className).toContain("text-status-working");
+    expect(screen.getByText("for 3 h")).toBeInTheDocument();
+  });
+
+  it("a card to review with its pane still up still shows how long it has sat there", () => {
+    render(<CardTile card={card({ status: "review", statusSince: Date.now() - 2 * 3600_000, runtime: runtime({ agentStatus: "idle" }) })} onClick={() => {}} />);
+    expect(screen.getByText("for 2 h")).toBeInTheDocument();
+  });
+
   it("an unmet predecessor reads « waits for: <title> », grey, not red", () => {
     render(<CardTile card={card()} onClick={() => {}} dependency={{ title: "the panes column", met: false }} />);
     const line = stateLine("waits for: the panes column");
