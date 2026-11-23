@@ -102,6 +102,8 @@ export const goal = defineMessages({
   },
   "goal.link.journal": { en: "Lot journal", fr: "Journal des lots" },
   "goal.then": { en: "Next:", fr: "Ensuite :" },
+  "goal.showAll": { en: "Show all", fr: "Voir tout" },
+  "goal.showLess": { en: "Show less", fr: "Réduire" },
   "goal.see": { en: "See", fr: "Voir" },
   "goal.hide": { en: "Hide", fr: "Masquer" },
 });
