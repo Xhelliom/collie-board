@@ -186,7 +186,7 @@ describe("GoalPanel", () => {
 
 describe("GoalPanel — the objective's text", () => {
   const long = "Ship v1:\n\n1. Login works\n2. Export works\n3. Import works\n\n- **docs** written\n- CI green";
-  const goal = { id: "g1", repoPath: "/r", text: long, criteria: ["CI **green**"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "active", createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } };
+  const goal = { id: "g1", repoPath: "/r", text: long, criteria: ["CI **green**", "Every screen:\n\n- home\n- board\n- project\n- settings"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "active", createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } };
   beforeEach(() => {
     localStorage.clear();
     server.use(http.get("*/api/goals", () => HttpResponse.json({ goals: [goal] })));
@@ -209,6 +209,21 @@ describe("GoalPanel — the objective's text", () => {
     expect(screen.getByText("Export works").closest(".overflow-hidden")).toBeNull();
     expect(localStorage.getItem("collie:goal-unfolded")).toBe("1");
     // Every action of the panel is still there.
-    for (const name of ["Edit", "Validate", "Pause", "Abandon", "Prepare the next one", "1 success criterion"]) expect(screen.getByRole("button", { name: new RegExp(name, "i") })).toBeInTheDocument();
+    for (const name of ["Edit", "Validate", "Pause", "Abandon", "Prepare the next one", "2 success criteria"]) expect(screen.getByRole("button", { name: new RegExp(name, "i") })).toBeInTheDocument();
+  });
+
+  it("renders the criteria in Markdown and folds a long one on its own", async () => {
+    mount();
+    await userEvent.click(await screen.findByRole("button", { name: "2 success criteria" }));
+    expect(screen.getByText("green").tagName).toBe("STRONG");
+    expect(screen.getByText("board").closest("ul ul")).not.toBeNull();
+    expect(screen.getByText("board").closest(".overflow-hidden")).not.toBeNull();
+    // Two folds now: the objective's, then the long criterion's — unfolding one leaves the other.
+    const more = screen.getAllByRole("button", { name: "Show all" });
+    expect(more).toHaveLength(2);
+    await userEvent.click(more[1]!);
+    expect(screen.getByText("board").closest(".overflow-hidden")).toBeNull();
+    expect(screen.getByText("Export works").closest(".overflow-hidden")).not.toBeNull();
+    expect(localStorage.getItem("collie:goal-unfolded")).toBeNull();
   });
 });

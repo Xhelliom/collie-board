@@ -30,6 +30,35 @@ const readUnfolded = () => {
 // shortcut: guessed from the source, not measured — jsdom has no layout; measure if it misfires.
 const isLong = (text: string) => text.split("\n").length > 4 || text.length > 280;
 
+/** Markdown folded to ~4 lines when long, « Show all » under it. `remember`: the objective's fold, kept per device. */
+function FoldedMarkdown({ text, className, remember = false }: { text: string; className: string; remember?: boolean }) {
+  const t = useT();
+  const [unfolded, setUnfolded] = useState(() => remember && readUnfolded());
+  const toggle = () =>
+    setUnfolded((v) => {
+      if (remember)
+        try {
+          localStorage.setItem(UNFOLD_KEY, v ? "0" : "1");
+        } catch {
+          /* private mode: the fold just isn't remembered */
+        }
+      return !v;
+    });
+  const long = isLong(text);
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <div className={cn("w-full", long && !unfolded && "max-h-[5.6em] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]")}>
+        <MarkdownText text={text} className={className} />
+      </div>
+      {long && (
+        <button type="button" aria-expanded={unfolded} onClick={toggle} className="text-xs font-medium text-primary underline-offset-2 hover:underline">
+          {t(unfolded ? "goal.showLess" : "goal.showAll")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 const field = "rounded-md border border-border bg-background px-2 py-1.5 text-sm";
 
 function GoalForm({ initial, onSave, onCancel }: { initial: Goal | null; onSave: (g: { text: string; criteria: string[]; budget: GoalBudget }) => void; onCancel: () => void }) {
@@ -145,16 +174,6 @@ export function GoalPanel({
   // Which detail is unfolded: the page shows the objective in a few lines, the rest one tap away.
   const [shown, setShown] = useState<"criteria" | "cards" | "journal" | "next" | null>(null);
   const { pending, confirm } = usePendingConfirm();
-  const [unfolded, setUnfolded] = useState(readUnfolded);
-  const toggleUnfolded = () =>
-    setUnfolded((v) => {
-      try {
-        localStorage.setItem(UNFOLD_KEY, v ? "0" : "1");
-      } catch {
-        /* private mode: the fold just isn't remembered */
-      }
-      return !v;
-    });
 
   useEffect(() => {
     const ac = new AbortController();
@@ -261,17 +280,8 @@ export function GoalPanel({
         </>
       ) : (
         <>
-          <div className="flex flex-col items-start gap-1">
-            {/* Folded to ~4 lines: the text is the orchestrator's Markdown, lists and all. */}
-            <div className={cn("w-full", isLong(open.text) && !unfolded && "max-h-[5.6em] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]")}>
-              <MarkdownText text={open.text} className="space-y-1! text-[15px]! leading-snug" />
-            </div>
-            {isLong(open.text) && (
-              <button type="button" aria-expanded={unfolded} onClick={toggleUnfolded} className="text-xs font-medium text-primary underline-offset-2 hover:underline">
-                {t(unfolded ? "goal.showLess" : "goal.showAll")}
-              </button>
-            )}
-          </div>
+          {/* The orchestrator's Markdown, lists and all, folded to ~4 lines. */}
+          <FoldedMarkdown text={open.text} className="space-y-1! text-[15px]! leading-snug" remember />
           {open.status === "active" && !noOrchestrator && <p className="text-xs font-medium text-status-done">{t("goal.runningHint")}</p>}
           {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-destructive/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
           <div role="group" aria-label={t("goal.progress")} className="grid grid-cols-3 gap-3">
@@ -316,7 +326,7 @@ export function GoalPanel({
             <ul className="list-disc pl-5">
               {open.criteria.map((c, i) => (
                 <li key={i}>
-                  <MarkdownText text={c} className="text-sm!" />
+                  <FoldedMarkdown text={c} className="space-y-1! text-sm! leading-snug" />
                   {open.status === "claimed" && open.claim?.proofs[i] && (
                     <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">
                       <span className="font-medium">{t("goal.proof")}</span> {open.claim.proofs[i]}
