@@ -83,6 +83,25 @@ Busiest first:
 curl -s http://127.0.0.1:8788/api/diag/routes | jq -r '.routes[] | "\(.totalMs)ms\t\(.calls)\t\(.route)"' | head
 ```
 
+### What is stuck — `GET /api/health`
+
+One read for a health round, worst first, derived at read time (nothing stored): `lots` — every open
+lot of every repo with its age, its last event and that event's age, its halted / orphaned / blocked
+cards with the reason of their last `run.halted`, the last halt of the lot (`lastHalt`), and whether
+an orchestrator is alive on its repo (`orchestrator`: `true` / `false`, `null` when Herdr is
+unreachable); `stalls` — cards in `review` or `working` with no event for more than 45 min (`quietMs`);
+`gates` — the last 24 h of gates that failed (`failed`) or could not give a verdict (`error`, a timeout);
+`routes` — the five slowest routes since boot (`maxMs`, `avgMs`, from `/api/diag/routes`); `bridge` —
+`uptimeMs` and `lastDisconnectAgoMs` (the last Herdr disconnect, `null` if none since boot).
+
+```bash
+curl -s http://127.0.0.1:8788/api/health | jq '{lots: [.lots[] | {name, repo, days: (.ageMs/86400000|floor), lastHalt, cards, orchestrator}], stalls, gates}'
+```
+
+An orchestrator starts its health round here instead of crossing `/api/runs`, each card, the logs
+and `/api/diag/routes` by hand: a lot with `cards` and `orchestrator: false` is one nobody watches —
+say it to the user.
+
 ## Create a card
 
 ```bash
