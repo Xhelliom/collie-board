@@ -3,3 +3,8 @@
 {"v":1,"hlc":"1795469057022.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Veille des cartes : un redémarrage ne remet pas le chrono à zéro","status":"backlog"},"ts":1795469050267}}
 {"v":1,"hlc":"1795469057023.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"4a9a3caf-7831-47a1-9acb-60b831c66969"}}
 {"v":1,"hlc":"1795469057007.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795469060829.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/veille-des-cartes-un-redemarrage-ne-remet-pas-le"}}
+{"v":1,"hlc":"1795469060830.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795469060830.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795469060673}}
+{"v":1,"hlc":"1795469068051.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795469068051.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795469067991}}
