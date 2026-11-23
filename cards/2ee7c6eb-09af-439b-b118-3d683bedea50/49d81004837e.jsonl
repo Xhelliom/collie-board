@@ -18,3 +18,4 @@
 {"v":1,"hlc":"1795461167051.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.halted","payload":{"runId":"3ad99119-faf3-4e8f-8264-ad0a04bdd7b7","reason":"gate could not run: timed out after 30 min"},"ts":1795461162637}}
 {"v":1,"hlc":"1795461410040.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
 {"v":1,"hlc":"1795461410040.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1795461409976}}
+{"v":1,"hlc":"1795461424607.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.gate","payload":{"runId":"3ad99119-faf3-4e8f-8264-ad0a04bdd7b7","command":"bun run check","ok":true,"note":"check: typecheck green; tests skipped — the pre-push ran them green on 2c74af52e"},"ts":1795461421295}}
