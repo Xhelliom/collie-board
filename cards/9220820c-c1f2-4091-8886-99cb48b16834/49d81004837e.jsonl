@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1795462803823.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Porte en retard : tuer tout son groupe de processus et rendre la main tout de suite","status":"backlog"},"ts":1795462803101}}
 {"v":1,"hlc":"1795462803828.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"9b67b6a3-d93d-423a-9504-327bb45f6289"}}
 {"v":1,"hlc":"1795462805928.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795462816110.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/porte-en-retard-tuer-tout-son-groupe-de-processu"}}
+{"v":1,"hlc":"1795462816110.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795462816110.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795462808629}}
+{"v":1,"hlc":"1795462816118.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2700},"ts":1795462812168}}
+{"v":1,"hlc":"1795462816118.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795462816118.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795462815146}}
