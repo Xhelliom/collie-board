@@ -1,3 +1,5 @@
 [test]
 # Every `startCard` in a test pre-trusts its fake checkout: never in the real ~/.claude.json.
 preload = ["./bridge/test-preload.ts"]
+# web/ is Vitest's (jsdom, MSW): a bare root `bun test` that picks it up runs for hours (23/11).
+pathIgnorePatterns = ["web/**"]
