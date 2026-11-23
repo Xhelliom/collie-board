@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1795476145994.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Prompt au lead : un tour trop rapide n’est plus compté comme raté","status":"backlog"},"ts":1795476145413}}
 {"v":1,"hlc":"1795476145994.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"43e587b7-6a79-42ad-af49-e0c27f183a5d"}}
 {"v":1,"hlc":"1795476145987.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795476156714.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/prompt-au-lead-un-tour-trop-rapide-n-est-plus-co"}}
+{"v":1,"hlc":"1795476156714.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795476156714.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795476149490}}
+{"v":1,"hlc":"1795476156715.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795476156715.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795476154304}}
+{"v":1,"hlc":"1795476156715.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3112},"ts":1795476154569}}
