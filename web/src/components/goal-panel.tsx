@@ -9,6 +9,7 @@ import { boardErrorMessage, cardPath, createGoal, deleteGoal, editGoal, fetchGoa
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { GOAL_SURFACE, isOpenGoal, type OpenGoal } from "@/components/goal-chip";
+import { MarkdownText } from "@/components/markdown-text";
 
 const OPEN = new Set(["active", "paused", "claimed"]);
 const DEFAULT_BUDGET: GoalBudget = { maxLots: 10, quotaPct: 80, deadline: null };
@@ -16,6 +17,18 @@ const DEFAULT_BUDGET: GoalBudget = { maxLots: 10, quotaPct: 80, deadline: null }
 // A date input's "2026-12-01" and back, in local time; the deadline is the end of that day.
 const toDay = (ms: number | null) => (ms === null ? "" : new Date(ms - new Date(ms).getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
 const fromDay = (d: string) => (d ? new Date(`${d}T23:59:59`).getTime() : null);
+
+// Unfolded or not, remembered per device: the objective is read once, then glanced at.
+const UNFOLD_KEY = "collie:goal-unfolded";
+const readUnfolded = () => {
+  try {
+    return localStorage.getItem(UNFOLD_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+// shortcut: guessed from the source, not measured — jsdom has no layout; measure if it misfires.
+const isLong = (text: string) => text.split("\n").length > 4 || text.length > 280;
 
 const field = "rounded-md border border-border bg-background px-2 py-1.5 text-sm";
 
@@ -41,7 +54,7 @@ function GoalForm({ initial, onSave, onCancel }: { initial: Goal | null; onSave:
     <form onSubmit={submit} className="flex flex-col gap-2.5">
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         {t("goal.text")}
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={2000} className={field} />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={2000} className={field} />
       </label>
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         {t("goal.criteria")}
@@ -132,6 +145,16 @@ export function GoalPanel({
   // Which detail is unfolded: the page shows the objective in a few lines, the rest one tap away.
   const [shown, setShown] = useState<"criteria" | "cards" | "journal" | "next" | null>(null);
   const { pending, confirm } = usePendingConfirm();
+  const [unfolded, setUnfolded] = useState(readUnfolded);
+  const toggleUnfolded = () =>
+    setUnfolded((v) => {
+      try {
+        localStorage.setItem(UNFOLD_KEY, v ? "0" : "1");
+      } catch {
+        /* private mode: the fold just isn't remembered */
+      }
+      return !v;
+    });
 
   useEffect(() => {
     const ac = new AbortController();
@@ -238,7 +261,17 @@ export function GoalPanel({
         </>
       ) : (
         <>
-          <p className="text-[15px] font-medium leading-snug">{open.text}</p>
+          <div className="flex flex-col items-start gap-1">
+            {/* Folded to ~4 lines: the text is the orchestrator's Markdown, lists and all. */}
+            <div className={cn("w-full", isLong(open.text) && !unfolded && "max-h-[5.6em] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]")}>
+              <MarkdownText text={open.text} className="space-y-1! text-[15px]! leading-snug" />
+            </div>
+            {isLong(open.text) && (
+              <button type="button" aria-expanded={unfolded} onClick={toggleUnfolded} className="text-xs font-medium text-primary underline-offset-2 hover:underline">
+                {t(unfolded ? "goal.showLess" : "goal.showAll")}
+              </button>
+            )}
+          </div>
           {open.status === "active" && !noOrchestrator && <p className="text-xs font-medium text-status-done">{t("goal.runningHint")}</p>}
           {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-destructive/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
           <div role="group" aria-label={t("goal.progress")} className="grid grid-cols-3 gap-3">
@@ -283,7 +316,7 @@ export function GoalPanel({
             <ul className="list-disc pl-5">
               {open.criteria.map((c, i) => (
                 <li key={i}>
-                  {c}
+                  <MarkdownText text={c} className="text-sm!" />
                   {open.status === "claimed" && open.claim?.proofs[i] && (
                     <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">
                       <span className="font-medium">{t("goal.proof")}</span> {open.claim.proofs[i]}

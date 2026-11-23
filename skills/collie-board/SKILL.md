@@ -728,7 +728,9 @@ budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quo
   stop**: no lot planned or launched (`403`), no end-of-lot wake, until the user answers. A refusal comes
   back as a wake carrying the user's comment.
 - **Write it — only on the user's explicit yes** (ADR 0057). Draft the objective WITH the user in the
-  conversation: the text, verifiable criteria, the budget. Show them the final wording and ask for their
+  conversation: the text, verifiable criteria, the budget. **Write `text` in Markdown** — one line per
+  function or per issue, as a `-` or `1.` list, sections on their own lines: the panel renders it
+  formatted and folded to ~4 lines (the « Modifier » field keeps the raw text). Show them the final wording and ask for their
   agreement. Once they have said yes, either `POST /api/goals` `{repoPath, text, criteria: [..], budget?}`
   with your `x-collie-pane` — `active` if none is open, otherwise `queued` as the next objective (`409` if a
   next one already waits); it is marked « écrit par l'orchestrateur » and wakes you like any new objective —

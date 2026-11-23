@@ -183,3 +183,32 @@ describe("GoalPanel", () => {
     expect(seen.every((s) => s === null)).toBe(true);
   });
 });
+
+describe("GoalPanel — the objective's text", () => {
+  const long = "Ship v1:\n\n1. Login works\n2. Export works\n3. Import works\n\n- **docs** written\n- CI green";
+  const goal = { id: "g1", repoPath: "/r", text: long, criteria: ["CI **green**"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "active", createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } };
+  beforeEach(() => {
+    localStorage.clear();
+    server.use(http.get("*/api/goals", () => HttpResponse.json({ goals: [goal] })));
+  });
+
+  it("renders Markdown lists as lists, not one block", async () => {
+    mount();
+    const item = await screen.findByText("Export works");
+    expect(item.closest("ol")).not.toBeNull();
+    expect(screen.getByText("docs").tagName).toBe("STRONG");
+  });
+
+  it("folds a long objective, unfolds it on « Show all », and remembers it", async () => {
+    mount();
+    const more = await screen.findByRole("button", { name: "Show all" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Export works").closest(".overflow-hidden")).not.toBeNull();
+    await userEvent.click(more);
+    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Export works").closest(".overflow-hidden")).toBeNull();
+    expect(localStorage.getItem("collie:goal-unfolded")).toBe("1");
+    // Every action of the panel is still there.
+    for (const name of ["Edit", "Validate", "Pause", "Abandon", "Prepare the next one", "1 success criterion"]) expect(screen.getByRole("button", { name: new RegExp(name, "i") })).toBeInTheDocument();
+  });
+});
