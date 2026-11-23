@@ -90,8 +90,12 @@ export const GOAL_LOT_LINE =
 
 /** The message for one card the lead reports unmerged or blocked. Pure. */
 export function cardMessage(card: Card, why: string, runId = "<id>"): string {
-  return `La carte « ${card.title} » (${card.id}) n'est pas mergée : ${why}\nSi l'arrêt est mécanique (PR en retard sur sa base, pre-push rouge, lead muet, travail non commité, démarrage raté) et que l'autonomie ou un objectif est actif, corrige la cause si elle est à toi puis reprends le lot (POST /api/runs/${runId}/resume avec ton x-collie-pane) ; le bridge te refuse un arrêt qui est une décision. Sinon, dis à l'opérateur pourquoi et ce que tu proposes.`;
+  return `La carte « ${card.title} » (${card.id}) n'est pas mergée : ${why}\n${resumeAdvice(runId)}`;
 }
+
+/** What the orchestrator may do about a stop: shared by an unmerged card and a halted lot (halted-wake.ts). Pure. */
+export const resumeAdvice = (runId: string) =>
+  `Si l'arrêt est mécanique (PR en retard sur sa base, pre-push rouge, lead muet, travail non commité, démarrage raté) et que l'autonomie ou un objectif est actif, corrige la cause si elle est à toi puis reprends le lot (POST /api/runs/${runId}/resume avec ton x-collie-pane) ; le bridge te refuse un arrêt qui est une décision. Sinon, dis à l'opérateur pourquoi et ce que tu proposes.`;
 
 /** The message for commits that reached a merged card's branch after the merge (late-commits.ts). Pure. */
 export function lateMessage(card: Card, count: number, branch: string, base: string): string {
@@ -169,7 +173,7 @@ export class OrchestratorNudger {
   }
 
   private cursor: number;
-  /** `runId:cardId` already reported: the lead may say it twice (unmerged, then halted) — the orchestrator hears it once. */
+  /** `runId:cardId` already reported unmerged: the land step may say it twice — the orchestrator hears it once. */
   private readonly told = new Set<string>();
 
   constructor(
@@ -288,8 +292,9 @@ export class OrchestratorNudger {
     if (!run) return null;
     // A wait (`wait: true` — no check registered yet, checks running, mergeability unknown) is not a
     // verdict: the land step asks again and settles it at CHECKS_GRACE_MS. Only a real refusal wakes it.
+    // A halt is not told here: halted-wake.ts repeats it until the orchestrator has heard it or the lot resumes.
     const unmerged = e.type === "run.merge" && p.merged === false && !p.wait;
-    if ((!unmerged && e.type !== "run.halted") || !e.cardId) return null;
+    if (!unmerged || !e.cardId) return null;
     const key = `${run.id}:${e.cardId}`;
     const card = this.db.getCard(e.cardId);
     if (!card || this.told.has(key)) return null;

@@ -7,8 +7,9 @@
 import type { BoardEvent } from "./db.ts";
 
 /** Journal facts that no route gestured, so no audit line will tell of them. A remote card's stop
- *  (remote-idle.ts) and what retracts it: cleared, or the session ended. */
-export const SINCE_EVENT_TYPES = ["card.pr_merged", "card.pr_closed", "card.remote_idle", "card.remote_idle_cleared", "card.remote_ended"];
+ *  (remote-idle.ts) and what retracts it: cleared, or the session ended. A lot halted (its reason in
+ *  the payload) and resumed: a wake lost in a restart is still read here. */
+export const SINCE_EVENT_TYPES = ["card.pr_merged", "card.pr_closed", "card.remote_idle", "card.remote_idle_cleared", "card.remote_ended", "run.halted", "run.resumed"];
 
 /** Never shown: what the orchestrator does to itself, and the operator's settings around it. */
 const SKIP_ACTION = /^orchestrator\./;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
-import { sinceChanges, type SinceInput } from "./since.ts";
+import { BoardDb } from "./db.ts";
+import { SINCE_EVENT_TYPES, sinceChanges, type SinceInput } from "./since.ts";
 
 const REPO = "/r";
 const line = (ts: number, action: string, detail: Record<string, unknown>) => JSON.stringify({ ts: new Date(ts).toISOString(), action, detail });
@@ -45,5 +46,15 @@ describe("sinceChanges", () => {
     expect(r.summary).toContain("card.pr_merged « Ma carte »");
     expect(r.summary).not.toContain("ailleurs");
     expect(r.summary).not.toContain("orchestrator.memory");
+  });
+
+  it("shows a lot halted with its reason, and its resume — read from the journal", () => {
+    const db = new BoardDb(":memory:");
+    const card = db.createCard({ title: "Sélecteur", repoPath: REPO, status: "working" });
+    db.recordRunEvent(card.id, "run.halted", { runId: "r1", reason: "lead muet 266 min" });
+    db.recordRunEvent(card.id, "run.resumed", { runId: "r1" });
+    const r = sinceChanges(base({ since: 0, events: db.repoEventsSince(REPO, 0, SINCE_EVENT_TYPES), labelOf: () => "Sélecteur" }));
+    expect(r.summary).toMatch(/run\.halted « Sélecteur » \{"reason":"lead muet 266 min"\}/);
+    expect(r.summary).toContain("run.resumed « Sélecteur »");
   });
 });

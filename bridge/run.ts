@@ -892,7 +892,7 @@ export function runHook(
       const r = await startOnPeer({ db, fetch, outbound, branchPrefix: cfg.boardBranchPrefix }, card);
       return r.ok ? { ok: true } : { ok: false, error: { kind: r.kind === "peer" ? "peer" : "remote", message: r.error } };
     },
-    prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
+    prompt: async (paneId, text) => void (await promptAndConfirm(herdr, paneId, text)),
     prepareLot: async (run, card) => {
       const r = await prepareLot(db, run, card);
       return r.ok ? { ok: true } : { ok: false, error: { kind: r.kind, message: r.error } };
