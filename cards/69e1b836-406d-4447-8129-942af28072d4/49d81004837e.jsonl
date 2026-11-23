@@ -10,3 +10,5 @@
 {"v":1,"hlc":"1795462250108.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795462245302}}
 {"v":1,"hlc":"1795462250108.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3840},"ts":1795462245673}}
 {"v":1,"hlc":"1795462468236.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"69e1b836-406d-4447-8129-942af28072d4","name":"attente-lead.md","size":14248,"by":"agent","pane":"t1bb"},"ts":1795462457042}}
+{"v":1,"hlc":"1795462487292.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
+{"v":1,"hlc":"1795462487300.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1795462487181}}
