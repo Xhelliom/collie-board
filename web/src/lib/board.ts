@@ -181,6 +181,10 @@ export interface CardView {
   copilotBusy: boolean;
   /** Its gate waits for another card's to finish (one at a time per machine). Absent on an older bridge. */
   gateWaiting?: boolean;
+  /** When its gate started running (or joined the queue, with `gateWaiting`); null/absent without one. */
+  gateSince?: number | null;
+  /** While its gate waits: the title of the card whose gate holds the queue. */
+  gateBehind?: string | null;
   /** The agent is still writing its closing report — cleaning up the worktree now would lose it. */
   wrapupPending: boolean;
   /** The card's PR url, from its journal. On one card's GET only; absent on the list and an older bridge. */

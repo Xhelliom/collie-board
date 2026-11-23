@@ -22,6 +22,8 @@ export const board = defineMessages({
   "tile.state.waits": { en: "waits for: {title}", fr: "attend : {title}" },
   "tile.state.question": { en: "question waiting", fr: "question en attente" },
   "tile.state.gateWaiting": { en: "check waiting", fr: "vérification en attente" },
+  "tile.state.gateBehind": { en: "waiting behind “{title}” for {duration}", fr: "en attente derrière « {title} » depuis {duration}" },
+  "tile.state.gateRunning": { en: "check running for {duration}", fr: "vérification en cours depuis {duration}" },
   "tile.state.copilot": { en: "the copilot is writing it", fr: "le copilote la rédige" },
   "tile.state.starting": { en: "starting", fr: "démarre" },
   "tile.state.review": { en: "to review", fr: "à relire" },

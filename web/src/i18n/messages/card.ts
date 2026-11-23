@@ -248,7 +248,6 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "card.section.subtasks": { en: "Sub-tasks", fr: "Sous-tâches" },
   "card.dup.hint": { en: "The copilot thinks this repeats a card you already have:", fr: "Le copilote pense que ça répète une carte que tu as déjà :" },
   "card.dup.not": { en: "Not a duplicate", fr: "Pas un doublon" },
-  "card.gateWaiting": { en: "Check waiting — another card's is running, one at a time.", fr: "Vérification en attente — celle d'une autre carte tourne, une à la fois." },
   "card.copilotBusy": { en: "The copilot has this card — it rewrites itself in a minute.", fr: "Le copilote a cette carte — elle se réécrit dans une minute." },
   "card.section.spec": { en: "Spec", fr: "Spec" },
   "card.section.acceptance": { en: "Acceptance", fr: "Critères" },

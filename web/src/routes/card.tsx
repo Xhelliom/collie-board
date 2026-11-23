@@ -20,7 +20,6 @@ import {
   GitMerge,
   GitPullRequest,
   GripVertical,
-  Hourglass,
   Layers,
   Link2,
   Lock,
@@ -53,6 +52,7 @@ import { CardCostLine } from "@/components/card-cost";
 import { cardReport } from "@/lib/card-report";
 import { MarkdownText } from "@/components/markdown-text";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusAge } from "@/components/status-age";
 import { CardDiff } from "@/components/card-diff";
 import { CardEditor, LinkPicker } from "@/components/card-editor";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
@@ -69,7 +69,7 @@ import { Panel, PanelLink, PanelPart } from "@/components/card-panel";
 import { AgentLine } from "@/components/agent-line";
 import { haltSummary } from "@/components/halt-reason";
 import { ficheState, criterionVerdicts } from "@/lib/card-fiche";
-import { tileState } from "@/lib/tile-state";
+import { TILE_TONE, tileState } from "@/lib/tile-state";
 import { EFFORTS, type Effort } from "@/lib/agent-identity";
 import { fetchRecette, type RecetteEntry } from "@/lib/recette";
 import { CardDeliverables } from "@/components/card-deliverables";
@@ -743,12 +743,6 @@ export function CardRoute() {
       }
     >
       {/* Here, because it is usually why the card is still a bare title. */}
-      {card.gateWaiting && (
-        <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          <Hourglass className="size-3.5 shrink-0" />
-          <span>{t("card.gateWaiting")}</span>
-        </div>
-      )}
       {card.copilotBusy && (
         <div className="flex animate-pulse items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
           <Sparkles className="size-3.5 shrink-0" />
@@ -1342,7 +1336,9 @@ export function CardRoute() {
             ) : (
               <CardStatusChip status={card.status} className="normal-case tracking-normal">{CARD_STATUS_LABEL[card.status]}</CardStatusChip>
             )}
-            {!said.agent && <span className={said.tone === "bad" ? "text-destructive" : said.tone === "good" ? "text-status-done" : undefined}>{said.text}</span>}
+            {/* How long it has sat À relire — the landing's age, whatever else is going on. */}
+            {card.status === "review" && <StatusAge since={card.statusSince} signal={cardSignal(card.status)} />}
+            {!said.agent && <span className={said.tone === "plain" ? undefined : TILE_TONE[said.tone]}>{said.text}</span>}
             {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
             {detail.awaiting && card.repoPath && <AwaitingTag awaiting={detail.awaiting} repo={card.repoPath} />}
             {phaseName && <span>{phaseName}</span>}
