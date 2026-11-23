@@ -19,6 +19,7 @@ const MECHANICAL = [
   /uncommitted work/, // the checkout had work not committed
   /^start failed: /, // the start failed
   /^no agent ever came up in this pane/, // cards.ts NO_AGENT_REASON: a start that never got its agent
+  /^gate could not run: /, // run.ts: the gate gave no verdict (timed out, queued too long, spawn error) — a red gate is a round, never this
 ];
 
 /** Is this halt one the orchestrator may lift? Pure over its payload. */

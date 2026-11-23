@@ -19,6 +19,7 @@ describe("mechanicalHalt (ADR 0055)", () => {
     "PR: the card's checkout has uncommitted work — commit it from the agent's pane first, or it will not be integrated",
     "start failed: herdr is not answering",
     NO_AGENT_REASON,
+    "gate could not run: timed out after 30 min",
   ])("lifts %s", (reason) => expect(mechanicalHalt({ reason })).toBe(true));
 
   it("lifts the lead's « blocked outside » verdict", () =>
@@ -32,6 +33,7 @@ describe("mechanicalHalt (ADR 0055)", () => {
     "the lead called it finished, yet the branch has no commit. Lead: ok. Worker's last reply: start failed: uncommitted work",
     "the lead says the spec is ambiguous",
     "PR not merged: the check ci failed — not merging",
+    "the gate failed (exit 1)", // a red gate: the worker's to fix, then the operator's
     "“a”'s PR was closed without merging — its work is not in the base",
     "",
   ])("keeps %s for the operator", (reason) => expect(mechanicalHalt({ reason })).toBe(false));
