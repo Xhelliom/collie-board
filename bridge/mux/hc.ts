@@ -177,6 +177,7 @@ export function toWirePane(t: HcTerminal): WirePane {
     ...(typeof t.status_ms === "number" ? { status_ms: t.status_ms } : {}),
     label: t.labels?.[NAME_LABEL] || t.name || null,
     revision: t.turn ?? 0,
+    ...(typeof t.turn === "number" ? { turn: t.turn } : {}),
     ...(t.labels?.[TITLE_LABEL]
       ? { app_place: { space: t.labels[SPACE_NAME_LABEL] || APP_SPACE_NAME, tab: t.labels[TITLE_LABEL] } }
       : {}),

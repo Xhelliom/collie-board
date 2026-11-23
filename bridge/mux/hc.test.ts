@@ -296,15 +296,28 @@ describe("launchAgent / promptAndConfirm on hc", () => {
   it("send said started: done, one send, nothing else", async () => {
     const { dial, written } = core([claudeIdle], { started: true, status: "idle", turn: 0 });
     await promptAndConfirm(new Hc("/unused", "auto", dial), "t5", "Réponds juste: PRET", noWait, { firstAfterLaunch: true });
-    expect(written.map((w) => w.method)).toEqual(["terminal.send"]);
+    expect(written.map((w) => w.method)).toEqual(["terminal.get", "terminal.send"]);
   });
 
   it("send said null in front of an idle agent: one Enter submits the draft (§2b), never a resend", async () => {
     const working: HcTerminal = { ...claudeIdle, status: { app: "claude-code", state: "working" } };
-    const { dial, written } = core([claudeIdle, working], { started: null, status: null, turn: 0 });
+    const { dial, written } = core([claudeIdle, claudeIdle, working], { started: null, status: null, turn: 0 });
     await promptAndConfirm(new Hc("/unused", "auto", dial), "t5", "Réponds juste: R5", noWait, { firstAfterLaunch: true });
-    expect(written.map((w) => w.method)).toEqual(["terminal.send", "terminal.get", "terminal.keys", "terminal.get"]);
-    expect(written[2]!.params.keys).toEqual(["enter"]);
+    expect(written.map((w) => w.method)).toEqual(["terminal.get", "terminal.send", "terminal.get", "terminal.keys", "terminal.get"]);
+    expect(written[3]!.params.keys).toEqual(["enter"]);
+  });
+
+  it("a turn of a few seconds already done: taken, no Enter, no resend, no warning", async () => {
+    const done: HcTerminal = { ...claudeIdle, status: { app: "claude-code", state: "done" }, turn: 4 };
+    const { dial, written } = core([{ ...claudeIdle, turn: 3 }, done], { started: false, status: "done", turn: 4 });
+    expect(await promptAndConfirm(new Hc("/unused", "auto", dial), "t5", "lis le prompt", noWait)).toBe(true);
+    expect(written.map((w) => w.method)).toEqual(["terminal.get", "terminal.send", "terminal.get"]);
+  });
+
+  it("same turn and idle after the send: still \"did not take\"", async () => {
+    const idle3: HcTerminal = { ...claudeIdle, turn: 3 };
+    const { dial } = core([idle3], { started: false, status: "idle", turn: 3 });
+    expect(await promptAndConfirm(new Hc("/unused", "auto", dial), "t5", "lis le prompt", noWait)).toBe(false);
   });
 
   it("a blocked agent: hc refuses the send, and that is the caller's error", async () => {

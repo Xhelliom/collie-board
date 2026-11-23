@@ -6,6 +6,8 @@ import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 
 const MIN = 60 * 1000;
+/** promptAndConfirm reads the agent before it sends: let that read settle. */
+const flush = () => new Promise((r) => setTimeout(r, 0));
 
 function pane(status: AgentStatus, agent = "claude"): AgentView {
   return {
@@ -31,7 +33,7 @@ function setup(agent = "claude", boardOn = true) {
   let t = 1_000_000;
   const prompts: string[] = [];
   // The prompt never returns, so the test sees the marker exactly as the ask left it.
-  const herdr = { promptAgent: () => (prompts.push("prompt"), new Promise(() => {})) };
+  const herdr = { getAgent: async () => ({ agent_status: "idle" }), promptAgent: () => (prompts.push("prompt"), new Promise(() => {})) };
   const auto = new AutoHandoff(store, herdr as never, () => t);
   const tick = (status: AgentStatus, advance = 0) => {
     t += advance;
@@ -47,53 +49,61 @@ function setup(agent = "claude", boardOn = true) {
 }
 
 describe("AutoHandoff — asks for the note inside the cache window, and only there", () => {
-  it("asks once the session has been quiet for four minutes", () => {
+  it("asks once the session has been quiet for four minutes", async () => {
     const { tick, prompts, marker } = setup();
     tick("working");
     tick("idle");
     tick("idle", 3 * MIN);
+    await flush();
     expect(prompts).toEqual([]);
     tick("idle", 1.5 * MIN);
+    await flush();
     expect(prompts).toEqual(["prompt"]);
     expect(marker()).not.toBeNull();
   });
 
-  it("never asks once the cache is gone — that prompt would pay for the reload it exists to avoid", () => {
+  it("never asks once the cache is gone — that prompt would pay for the reload it exists to avoid", async () => {
     const { tick, prompts } = setup();
     tick("working");
     tick("idle");
     tick("idle", 6 * MIN);
+    await flush();
     expect(prompts).toEqual([]);
   });
 
-  it("never asks a pane it never saw working, nor a non-Claude agent", () => {
+  it("never asks a pane it never saw working, nor a non-Claude agent", async () => {
     const unseen = setup();
     unseen.tick("idle");
     unseen.tick("idle", 4.5 * MIN);
+    await flush();
     expect(unseen.prompts).toEqual([]);
 
     const codex = setup("codex");
     codex.tick("working");
     codex.tick("idle");
     codex.tick("idle", 4.5 * MIN);
+    await flush();
     expect(codex.prompts).toEqual([]);
   });
 
-  it("is off by default, and a card's own choice wins over the board's either way", () => {
+  it("is off by default, and a card's own choice wins over the board's either way", async () => {
     expect(new BoardDb(":memory:").autoHandoff()).toBe(false);
 
     const forced = setup("claude", false);
     forced.store.patchCard(forced.card.id, { autoHandoff: "on" });
     forced.idleIntoWindow();
+    await flush();
     expect(forced.prompts).toEqual(["prompt"]);
 
     const refused = setup("claude", true);
     refused.store.patchCard(refused.card.id, { autoHandoff: "off" });
     refused.idleIntoWindow();
+    await flush();
     expect(refused.prompts).toEqual([]);
 
     const followsBoard = setup("claude", false);
     followsBoard.idleIntoWindow();
+    await flush();
     expect(followsBoard.prompts).toEqual([]);
   });
 
