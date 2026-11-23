@@ -32,10 +32,14 @@ export interface Episode {
   told: boolean;
 }
 
-/** One tick of the rule. `key` null: the card is not stuck (the episode ends, the alarm re-arms). Pure. */
-export function stuckStep(prev: Episode | undefined, key: string | null, now: number, after = STUCK_AFTER_MS): { next: Episode | undefined; fire: boolean } {
+/**
+ * One tick of the rule. `key` null: the card is not stuck (the episode ends, the alarm re-arms).
+ * `seed`: when a new episode may have begun before now (the card's last known activity, after a
+ * restart emptied the episodes) — already past `after`, it fires on this very tick. Pure.
+ */
+export function stuckStep(prev: Episode | undefined, key: string | null, now: number, after = STUCK_AFTER_MS, seed = now): { next: Episode | undefined; fire: boolean } {
   if (key === null) return { next: undefined, fire: false };
-  if (!prev || prev.key !== key) return { next: { key, since: now, told: false }, fire: false };
+  if (!prev || prev.key !== key) prev = { key, since: Math.min(now, seed), told: false };
   if (prev.told || now - prev.since < after) return { next: prev, fire: false };
   return { next: { ...prev, told: true }, fire: true };
 }
@@ -81,6 +85,8 @@ export class StuckCards {
   private readonly episodes = new Map<string, Episode>();
   private readonly nudges = new Map<string, Episode>();
   private readonly screens = new Map<string, { print?: string; readAt: number }>();
+  /** Cards whose first nudge episode since the bridge started was seeded from the journal. */
+  private readonly seeded = new Set<string>();
 
   constructor(
     private readonly db: BoardDb,
@@ -131,7 +137,11 @@ export class StuckCards {
       seen.add(card.id);
       if (pane.status === "working") watched.add(pane.paneId);
       const state = nudgeState(pane.status, pane.kind, pane.status === "working" ? this.screen(pane.paneId, now) : undefined);
-      const { next, fire } = stuckStep(this.nudges.get(card.id), state && `${card.updatedAt}|${pane.paneId}|${state}`, now, this.nudgeAfter);
+      // A restart empties the episodes: the first one after it starts at the card's last known activity, not now.
+      const prev = this.nudges.get(card.id);
+      const seed = state && !prev && !this.seeded.has(card.id) ? this.lastActivity(card.id) : now;
+      if (seed !== now) this.seeded.add(card.id);
+      const { next, fire } = stuckStep(prev, state && `${card.updatedAt}|${pane.paneId}|${state}`, now, this.nudgeAfter, seed);
       if (next) this.nudges.set(card.id, next);
       else this.nudges.delete(card.id);
       if (!fire) continue;
@@ -143,6 +153,11 @@ export class StuckCards {
     }
     for (const id of [...this.nudges.keys()]) if (!seen.has(id)) this.nudges.delete(id);
     for (const id of [...this.screens.keys()]) if (!watched.has(id)) this.screens.delete(id);
+  }
+
+  /** The card's last sign of life in the durable data: its newest journal entry or when it entered its status. */
+  private lastActivity(cardId: string): number {
+    return Math.max(this.db.listEvents(cardId, 1)[0]?.ts ?? 0, this.db.statusSince(cardId).get(cardId) ?? 0);
   }
 
   /** The pane's last screen print, re-read in the background at most every READ_EVERY_MS. */
