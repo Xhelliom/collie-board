@@ -19,6 +19,7 @@ import { MuxUnsupported, type MachineEngine, type Mux, type PaneRead } from "./m
 import { CompositeMux } from "./mux/composite.ts";
 import { handleExitRoute, protocolWatch } from "./exit-criteria.ts";
 import { handleAboutRoute, readService } from "./about.ts";
+import { collectHealth, handleHealthRoute } from "./health.ts";
 import { precompressed } from "./precompressed.ts";
 import { computeEtag, conditionalJson, gzipJsonResponse, notModified } from "./http-cache.ts";
 import type { NotifyLog } from "./notify-log.ts";
@@ -284,6 +285,13 @@ export function startServer(opts: {
         text,
       });
       if (exitRes) return exitRes;
+      const healthRes = await handleHealthRoute(pathname, req, {
+        input: () => collectHealth(board, primarySnap(), registry.get()?.engine.lastDisconnectAt ?? null),
+        guard: (level) => guard(req, cfg, level),
+        json: (data) => json(data, req.headers.get("accept-encoding")),
+        text,
+      });
+      if (healthRes) return healthRes;
       const aboutRes = await handleAboutRoute(pathname, req, {
         facts: async () => {
           const snap = primarySnap();

@@ -100,7 +100,7 @@ describe("the collie-board skill and the bridge's routes", () => {
   it("routes every documented route: isBoardPath, or a guard of server.ts", () => {
     const server = readFileSync(join(import.meta.dir, "server.ts"), "utf8");
     // Families server.ts hands to a handler itself, before the board's (handleAboutRoute, handleHerdRoute).
-    const guards = ["/api/about", "/api/herd", ...[...server.matchAll(/pathname(?:\s*===\s*|\.startsWith\(\s*)"(\/api\/[^"]+)"/g)].map((m) => m[1]!)];
+    const guards = ["/api/about", "/api/health", "/api/herd", ...[...server.matchAll(/pathname(?:\s*===\s*|\.startsWith\(\s*)"(\/api\/[^"]+)"/g)].map((m) => m[1]!)];
     const unrouted = [...documented].filter((d) => !isBoardPath(d) && !guards.some((g) => d === g || d.startsWith(g)));
     expect(unrouted).toEqual([]);
   });
