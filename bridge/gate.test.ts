@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { BoardDb } from "./db.ts";
 import { gateNote, gatePrompt, gatesWaiting, oneAtATime, parseGate, runGate, spawnGate, summarizeGate } from "./gate.ts";
@@ -85,6 +86,17 @@ describe("gate (ADR 0020)", () => {
     expect(slow.kind).toBe("error");
     expect(fast).toMatchObject({ kind: "pass" });
     expect(Date.now() - t0).toBeGreaterThanOrEqual(100);
+  });
+
+  it("a gate queued past its bound gives up, names who holds the queue, and never runs", async () => {
+    const mark = join(tmp, `queued-ran-${process.pid}`);
+    const first = runGate(bun("setTimeout(() => {}, 400)"), tmp, undefined, "card-hold");
+    const second = await runGate(bun(`require("node:fs").writeFileSync(${JSON.stringify(mark)}, "x")`), tmp, undefined, "card-late", 100);
+    expect(second).toEqual({ kind: "error", message: "queued behind card-hold for 0 min" });
+    expect(gatesWaiting.has("card-late")).toBe(false);
+    expect((await first).kind).toBe("pass");
+    await Bun.sleep(50);
+    expect(await Bun.file(mark).exists()).toBe(false);
   });
 
   it("two ready cards: the second waits, listed in gatesWaiting until its turn (audit P5)", async () => {
