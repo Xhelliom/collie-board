@@ -228,7 +228,7 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
 
 ### Lot — Santé du board (launched)
 
-- **Santé du board : une route qui dit ce qui coince, tous dépôts** — working
+- **Santé du board : une route qui dit ce qui coince, tous dépôts** — done
 
   Constat (ronde santé 23/11) : deux lots sont ouverts depuis 9 jours sans que personne ne le voie — tablee « Lot 4.1 — Dette indépendante » et Kenobu « Sujet 5 — fidélité » : merge refusé (GraphQL, règle de branche), puis carte orphaned (pane disparu). Aucun orchestrateur vivant sur ces dépôts, donc seulement la cloche. Pour le voir, l’orchestrateur doit croiser /api/runs, chaque carte, journalctl et /api/diag/routes à la main.
   
@@ -237,10 +237,10 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - La documenter dans skills/collie-board/SKILL.md (bridge/skill.test.ts l’exige) et dire à l’orchestrateur de s’en servir pour sa ronde.
   - Tests bun purs sur la dérivation (lot ouvert vieux, carte orphaned, aucun problème → listes vides).
 
-  - [ ] GET /api/health liste les lots tablee et Kenobu ouverts depuis 9 jours avec leur raison
-  - [ ] Une carte review sans événement depuis > 45 min apparaît dans stalls
-  - [ ] SKILL.md documente la route
-  - [ ] Tests verts
+  - [x] GET /api/health liste les lots tablee et Kenobu ouverts depuis 9 jours avec leur raison
+  - [x] Une carte review sans événement depuis > 45 min apparaît dans stalls
+  - [x] SKILL.md documente la route
+  - [x] Tests verts
 
 ### Lot — Attente du lead · correctifs (launched)
 
@@ -273,6 +273,34 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Une porte qui dépasse son délai rend error en moins d’une seconde après le délai
   - [x] Aucun processus descendant ne survit
   - [x] Tests verts
+
+### Lot — Correctif · veille après redémarrage (launched)
+
+- **Veille des cartes : un redémarrage ne remet pas le chrono à zéro** — review
+
+  Constat (ronde 23/11 22:22) : la carte « Santé du board » est restée 1 h 40 sur un écran figé (bun test bloqué). La relance d’1 h (bridge/stuck-card.ts, NUDGE_AFTER_MS) n’a pas eu lieu : le redémarrage du bridge à 21:27 (mise à jour) a vidé les épisodes en mémoire, et le chrono est reparti de zéro. Chaque mise à jour repousse donc la relance d’une heure.
+  
+  À faire (bridge/stuck-card.ts seulement, pas de nouvelle boucle, rien de persisté) : au premier passage après le démarrage, faire partir l’épisode d’une carte « en cours » de son dernier signe d’activité connu dans les données durables (dernier événement du journal de la carte ou statusSince, le plus récent), au lieu de now. Même principe que HaltedWaker (bridge/orchestrator-nudge.ts).
+  
+  Tests bun purs sur stuckStep / la graine : une carte dont le dernier événement date de 70 min est relancée au premier passage après le démarrage ; une carte active il y a 5 min ne l’est pas.
+
+  - [ ] Après un redémarrage, une carte figée depuis plus d’1 h est relancée au premier passage
+  - [ ] Une carte récemment active n’est pas relancée
+  - [ ] Tests verts
+
+### Lot — Correctif · porte expirée = mécanique (launched)
+
+- **Reprise autonome : une porte expirée est un arrêt mécanique** — review
+
+  Constat (23/11 23:00) : le lot « Correctif · veille après redémarrage » s’est arrêté sur « gate could not run: timed out after 30 min ». La machine était chargée (load 25, un calcul CrewDesign sur 13 cœurs) ; relancés à la main, les tests du même commit passent en 4 min. L’orchestrateur a voulu reprendre le lot et le bridge a refusé (403 « this halt is a decision »), parce que bridge/resume.ts ne reconnaît pas ce motif. L’opérateur veut que les arrêts mécaniques soient repris sans lui.
+  
+  À faire : dans bridge/resume.ts, ajouter à MECHANICAL le motif d’une porte qui n’a pas pu tourner (préfixe « gate could not run: », dont le timeout ; vérifier le texte exact dans bridge/gate.ts / bridge/run.ts). Une porte ROUGE (tests en échec) reste hors de cette liste. Le plafond MAX_AUTO_RESUMES borne déjà les reprises en boucle. Mettre à jour l’ADR 0055 (liste des arrêts mécaniques) si elle les énumère, et le SKILL si il les cite.
+  
+  Test bun dans bridge/resume.test.ts : « gate could not run: timed out after 30 min » → mécanique ; un motif de porte rouge → pas mécanique.
+
+  - [ ] Un lot arrêté sur une porte expirée est repris par l’orchestrateur sans 403
+  - [ ] Une porte rouge reste à l’opérateur
+  - [ ] Tests verts
 
 ### Lot — Agents figés relancés, copilote actif (launched)
 

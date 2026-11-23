@@ -4079,6 +4079,15 @@ export class BoardDb {
     return this.db.query<{ id: number | null }, []>("SELECT MAX(id) AS id FROM event").get()?.id ?? 0;
   }
 
+  /** Every repo's journal entries of `types` newer than `ts`, oldest first — the health route's 24 h of gates (health.ts). */
+  eventsSince(ts: number, types: string[], limit = 500): BoardEvent[] {
+    const marks = types.map(() => "?").join(",");
+    return this.db
+      .query<EventRow, (string | number)[]>(`SELECT * FROM event WHERE ts > ? AND type IN (${marks}) ORDER BY id LIMIT ?`)
+      .all(ts, ...types, limit)
+      .map(toEvent);
+  }
+
   /** One repo's journal entries of `types` newer than `ts`, oldest first — « quoi de neuf depuis » (since.ts). */
   repoEventsSince(repoPath: string, ts: number, types: string[], limit = 200): BoardEvent[] {
     const marks = types.map(() => "?").join(",");

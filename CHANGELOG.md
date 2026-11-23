@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.363.0] - 2026-11-23
+
+### Added
+
+- Carte À relire : « vérification en cours depuis 12 min » ou « en attente derrière “…” depuis N min », sur la tuile et dans la carte. (e8c6a21)
+- Carte À relire : l'âge de l'atterrissage reste affiché, même avec son terminal ouvert, et dans l'en-tête de la carte. (e8c6a21)
+- Journal du bridge : `[gate] start <carte> <cmd>` / `[gate] end <carte> <issue> <durée>` pour chaque porte. (e8c6a21)
+
 ## [0.362.2] - 2026-11-23
 
 ### Fixed

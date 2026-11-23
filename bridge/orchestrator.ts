@@ -84,6 +84,7 @@ export function orchestratorPrompt(
     "- Valider une phase (un jalon) est aussi son geste : POST /api/phases/<id>/close ou /seal te sont refusés. Quand une phase te semble finie, DIS-LE et propose la validation (où vont les étapes ouvertes) ; ne la fais pas.",
     "- Quand une décision est structurante (nouvelle phase, redécoupage, ordre des lots), propose-la d'abord et attends son accord avant d'écrire — sauf s'il te l'a déjà demandée : sa demande est l'accord.",
     "- Décide `maxParallel` d'un lot d'après les cartes : celles qui touchent les mêmes fichiers passent une à la fois.",
+    "- Pour ta ronde de santé, lis d'abord GET /api/health : lots ouverts de tous les dépôts (âge, raison d'arrêt, orchestrateur vivant), cartes muettes, gates en échec.",
     "- Réponds en français, court.",
     "- Les livrables publiés par les agents sont sur la carte : list_deliverables / read_deliverable ; demande aux agents de publier leurs rendus.",
     "",

@@ -76,6 +76,8 @@ export class StateEngine {
   private workspaces: WorkspaceView[] = [];
   private tabs: TabView[] = [];
   private bridge: BridgeStatus = "disconnected";
+  /** When the last connected→disconnected flip happened, or null — read by `GET /api/health`. */
+  lastDisconnectAt: number | null = null;
   private readonly prevStatus = new Map<string, AgentStatus>();
   /** Panes opened in the app since they finished — a seen `done` reads `idle` (bridge/seen.ts). */
   readonly seen = new SeenPanes();
@@ -382,6 +384,7 @@ export class StateEngine {
     } catch (err) {
       if (this.bridge === "connected") {
         console.warn(`[state] poll failed, marking disconnected: ${(err as Error).message}`);
+        this.lastDisconnectAt = this.now();
       }
       this.bridge = "disconnected";
       this.backoffMs = this.backoffMs ? Math.min(this.backoffMs * 2, MAX_BACKOFF_MS) : this.pollMs;
