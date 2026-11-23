@@ -276,7 +276,7 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
 
 ### Lot — Correctif · veille après redémarrage (launched)
 
-- **Veille des cartes : un redémarrage ne remet pas le chrono à zéro** — review
+- **Veille des cartes : un redémarrage ne remet pas le chrono à zéro** — done
 
   Constat (ronde 23/11 22:22) : la carte « Santé du board » est restée 1 h 40 sur un écran figé (bun test bloqué). La relance d’1 h (bridge/stuck-card.ts, NUDGE_AFTER_MS) n’a pas eu lieu : le redémarrage du bridge à 21:27 (mise à jour) a vidé les épisodes en mémoire, et le chrono est reparti de zéro. Chaque mise à jour repousse donc la relance d’une heure.
   
@@ -284,9 +284,9 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   
   Tests bun purs sur stuckStep / la graine : une carte dont le dernier événement date de 70 min est relancée au premier passage après le démarrage ; une carte active il y a 5 min ne l’est pas.
 
-  - [ ] Après un redémarrage, une carte figée depuis plus d’1 h est relancée au premier passage
-  - [ ] Une carte récemment active n’est pas relancée
-  - [ ] Tests verts
+  - [x] Après un redémarrage, une carte figée depuis plus d’1 h est relancée au premier passage
+  - [x] Une carte récemment active n’est pas relancée
+  - [x] Tests verts
 
 ### Lot — Correctif · porte expirée = mécanique (launched)
 
