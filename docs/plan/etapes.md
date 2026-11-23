@@ -128,7 +128,7 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
 
 ### Lot — Sélecteur de dossier unifié (launched)
 
-- **Nouvel agent : choisir le dossier avec le sélecteur de projet** — review
+- **Nouvel agent : choisir le dossier avec le sélecteur de projet** — done
 
   Skill frontend-design en tête.
   
@@ -140,11 +140,11 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - Même apparence que sur la page Projet ; pas de liseré latéral, pas de carte dans une carte ; utilisable au doigt sur mobile.
   - Tests Vitest : recherche filtre, choix d’un dépôt remplit le dossier, « Autre dossier… » marche toujours.
 
-  - [ ] Le champ Dossier de « Nouvel agent » ouvre le même sélecteur avec recherche que la page Projet
-  - [ ] Taper quelques lettres filtre la liste
-  - [ ] « ~ (dossier personnel) » et « Autre dossier… » sont toujours là
-  - [ ] La page Projet se comporte comme avant
-  - [ ] Tests verts
+  - [x] Le champ Dossier de « Nouvel agent » ouvre le même sélecteur avec recherche que la page Projet
+  - [x] Taper quelques lettres filtre la liste
+  - [x] « ~ (dossier personnel) » et « Autre dossier… » sont toujours là
+  - [x] La page Projet se comporte comme avant
+  - [x] Tests verts
 
 ### Lot — Correctif · dossier réel des agents (launched)
 
@@ -161,6 +161,25 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Terminal ouvert dans un dossier, cd vers un autre dépôt, puis claude : l’agent apparaît dans le groupe du bon projet sur la page Agents
   - [x] Les agents des cartes restent rattachés à leur carte
   - [x] Tests verts
+
+### Lot — Correctif · réveil d’un lot arrêté (launched)
+
+- **Un lot arrêté finit toujours par réveiller l’orchestrateur, même après un redémarrage** — working
+
+  Incident 22/11 : redémarrage du PC à 13 h 47. Au démarrage, le bridge arrête le lot « Sélecteur de dossier unifié » (run.halted, lead muet 266 min). Le réveil de l’orchestrateur (bridge/orchestrator-nudge.ts, cardMessage sur run.halted) part pendant que le pane de l’orchestrateur est relancé par resume-lost : perdu. Le garde `told` (Set en mémoire, l.173) empêche tout renvoi. Et le récapitulatif « Depuis ton dernier tour » (bridge/since.ts) ne liste pas run.halted. Résultat : lot arrêté 25 h, autonomie active, personne n’a rien fait.
+  
+  À faire (l’opérateur veut une vraie autonomie) :
+  - Un lot arrêté (run.halted non suivi de run.resumed) et non fini réveille l’orchestrateur du dépôt tant que personne ne l’a repris : le réveil n’est considéré livré qu’une fois l’orchestrateur prêt (même confirmation que promptAndConfirm) ; sinon il est retenté au prochain engine.onUpdate où l’orchestrateur est prêt (throttlé dans le consommateur, pas de nouvelle boucle). Rappel au plus toutes les 30 min tant que le lot reste arrêté, ce qui survit à un redémarrage du bridge (dérivé du journal, pas d’état runtime persisté).
+  - Au démarrage du bridge, les lots arrêtés et non repris sont re-annoncés à leur orchestrateur une fois prêt.
+  - bridge/since.ts : run.halted (avec sa raison) et run.resumed figurent dans « Depuis ton dernier tour ».
+  - Si l’orchestrateur n’existe pas ou ne vit pas : la cloche, comme aujourd’hui (ADR 0011), rien de plus.
+  - Tests bun : réveil perdu (pane pas prêt) → retenté ; bridge redémarré → re-annoncé ; lot repris → plus de réveil ; since contient run.halted.
+  - Mettre à jour skills/collie-board/SKILL.md (section reprise de lot).
+
+  - [ ] Un lot arrêté pendant un redémarrage réveille l’orchestrateur une fois celui-ci prêt
+  - [ ] Tant que le lot reste arrêté, rappel au plus toutes les 30 min ; plus rien après la reprise
+  - [ ] « Depuis ton dernier tour » montre l’arrêt d’un lot et sa raison
+  - [ ] Tests verts
 
 ### Lot — Agents figés relancés, copilote actif (launched)
 
