@@ -302,6 +302,20 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Une porte rouge reste à l’opérateur
   - [x] Tests verts
 
+### Lot — Correctif · faux « prompt did not take » (launched)
+
+- **Prompt au lead : un tour trop rapide n’est plus compté comme raté** — done
+
+  Constat (ronde 24/11 00:22) : 7 fois « [board] pane t16k: prompt did not take » en 1 h dans journalctl, alors que le lead a bien reçu et traité chaque demande (écran : « Read .board/prompts/….md … Done. · Churned for 8s »). Cause : promptAndConfirm (bridge/cards.ts ~l.760-801) juge « reçu » seulement si l’agent est working/blocked après PROMPT_SETTLE_MS ; un tour de 8 s est déjà fini (done) à la relecture, donc compté raté. Résultat : un faux avertissement à chaque demande, qui noie les vrais échecs dans le journal et dans les rondes de santé.
+  
+  À faire (bridge/cards.ts seulement) : considérer aussi comme reçu un prompt après lequel l’agent a commencé un nouveau tour — le compteur de tours que herdr-core expose (`turn` dans hc ls / l’agent ; vérifier le champ dans HERDR_CORE_API.md et bridge/mux/hc.ts) a augmenté depuis avant l’envoi. Si le champ n’existe pas côté herdr classique, garder le comportement actuel pour lui. Ne jamais renvoyer le texte sur cette seule base (pas de double travail).
+  
+  Test bun pur sur la règle « reçu » : turn +1 et statut done → reçu ; turn inchangé et idle → pas reçu.
+
+  - [x] Un tour de quelques secondes ne logue plus « prompt did not take »
+  - [x] Un prompt vraiment pas reçu le logue toujours
+  - [x] Tests verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done
