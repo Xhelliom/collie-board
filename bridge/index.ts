@@ -35,6 +35,7 @@ import { findOrchestrator, isOrchestratorAgent } from "./orchestrator.ts";
 import { lotHoldsPush } from "./lot-push.ts";
 import { GoalWatch, openGoalOf } from "./goal-mode.ts";
 import { OrchestratorNudger } from "./orchestrator-nudge.ts";
+import { HaltedWaker } from "./halted-wake.ts";
 import { StuckCards } from "./stuck-card.ts";
 import { prFollowHook } from "./pr-follow.ts";
 import { isLeadPane, runHook } from "./run.ts";
@@ -417,6 +418,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     const nudger = new OrchestratorNudger(board, herdr, notifyLog);
     engine.onUpdate((snap) => nudger.update(snap), "nudger");
     audit.listeners.push((e) => nudger.heard(e)); // the operator's gestures, told on the next tick
+    // …and of a halted lot, until it hears it or someone resumes the lot — a restart re-announces it.
+    const haltedWaker = new HaltedWaker(board, herdr);
+    engine.onUpdate((snap) => haltedWaker.update(snap), "haltedWaker");
     // …and of a lot's card whose agent stalls (blocked, idle or gone for 10 min) — once per episode;
     // any card « en cours » whose agent sat idle or frozen for 1 h is asked by the board itself.
     const stuck = new StuckCards(board, herdr);

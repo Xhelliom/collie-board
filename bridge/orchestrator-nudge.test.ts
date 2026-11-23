@@ -28,14 +28,12 @@ function world(prState?: (c: { id: string }) => Promise<{ state: string } | null
 }
 
 describe("OrchestratorNudger (ADR 0028)", () => {
-  it("tells the orchestrator once when the lead halts a card, even if it says so twice", async () => {
+  it("leaves a halt to halted-wake.ts, which repeats it until it is heard", async () => {
     const w = world();
-    w.db.recordRunEvent(w.card.id, "run.halted", { runId: w.run.id, reason: "gate rouge" });
     w.db.recordRunEvent(w.card.id, "run.halted", { runId: w.run.id, reason: "gate rouge" });
     w.nudger.update(snap(true));
     await flush();
-    expect(w.sent).toHaveLength(1);
-    expect(w.sent[0]).toContain("gate rouge");
+    expect(w.sent).toHaveLength(0);
   });
 
   it("does not wake on a merge still waiting on GitHub, but does on the refusal that follows", async () => {

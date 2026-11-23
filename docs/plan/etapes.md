@@ -164,7 +164,7 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
 
 ### Lot — Correctif · réveil d’un lot arrêté (launched)
 
-- **Un lot arrêté finit toujours par réveiller l’orchestrateur, même après un redémarrage** — review
+- **Un lot arrêté finit toujours par réveiller l’orchestrateur, même après un redémarrage** — done
 
   Incident 22/11 : redémarrage du PC à 13 h 47. Au démarrage, le bridge arrête le lot « Sélecteur de dossier unifié » (run.halted, lead muet 266 min). Le réveil de l’orchestrateur (bridge/orchestrator-nudge.ts, cardMessage sur run.halted) part pendant que le pane de l’orchestrateur est relancé par resume-lost : perdu. Le garde `told` (Set en mémoire, l.173) empêche tout renvoi. Et le récapitulatif « Depuis ton dernier tour » (bridge/since.ts) ne liste pas run.halted. Résultat : lot arrêté 25 h, autonomie active, personne n’a rien fait.
   
@@ -176,10 +176,10 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - Tests bun : réveil perdu (pane pas prêt) → retenté ; bridge redémarré → re-annoncé ; lot repris → plus de réveil ; since contient run.halted.
   - Mettre à jour skills/collie-board/SKILL.md (section reprise de lot).
 
-  - [ ] Un lot arrêté pendant un redémarrage réveille l’orchestrateur une fois celui-ci prêt
-  - [ ] Tant que le lot reste arrêté, rappel au plus toutes les 30 min ; plus rien après la reprise
-  - [ ] « Depuis ton dernier tour » montre l’arrêt d’un lot et sa raison
-  - [ ] Tests verts
+  - [x] Un lot arrêté pendant un redémarrage réveille l’orchestrateur une fois celui-ci prêt
+  - [x] Tant que le lot reste arrêté, rappel au plus toutes les 30 min ; plus rien après la reprise
+  - [x] « Depuis ton dernier tour » montre l’arrêt d’un lot et sa raison
+  - [x] Tests verts
 
 ### Lot — Objectif lisible (launched)
 

@@ -599,7 +599,7 @@ pane header. Write your note when asked.
 
 The user creates and edits cards, settles decisions, launches or deletes lots, merges PRs by hand — none
 of it reaches your conversation. `GET /api/orchestrator/since?since=<ts>` lists it: the repo's audited
-gestures (yours, i.e. your pane's, left out) and the PRs merged or closed — plus a remote card stopped with no PR (`card.remote_idle`) and what retracts it (`card.remote_idle_cleared`, `card.remote_ended`) — newer than `since` (ms epoch).
+gestures (yours, i.e. your pane's, left out) and the PRs merged or closed — plus a remote card stopped with no PR (`card.remote_idle`) and what retracts it (`card.remote_idle_cleared`, `card.remote_ended`), and a lot's card halted (`run.halted`, with its `reason`) or resumed (`run.resumed`) — newer than `since` (ms epoch).
 It answers only the orchestrator's own pane (`204` for any other) and derives the repo from it.
 
 A few of the user's gestures do not wait for your next turn: the bridge types them into your pane at once
@@ -686,6 +686,10 @@ code.
   your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`, the
   count in `haltedCards`), tell the user why and let them resume it — a `resume_lot {runId}` button
   says « Reprendre le lot « nom » — N cartes arrêtées : raison » and asks for confirmation.
+  **The bridge wakes you about it**: « Le lot « nom » (id) est arrêté depuis HH:MM UTC… », one line per
+  halted card with its reason — typed once you are at rest, repeated every **30 min** while the lot stays
+  halted and not finished, and again after a bridge restart if you never heard it. It stops the moment
+  the lot is resumed. No orchestrator: only the user's bell.
   **Except (ADR 0055)**: with autonomy on — or the repo's objective active — **the repo's orchestrator** may resume it itself when the
   halt is mechanical — a PR not up to date with its base, a red pre-push, a silent lead, uncommitted
   work, a failed start, or the lead's **`blocked outside the code: <why> — operator: <what to do>`**
