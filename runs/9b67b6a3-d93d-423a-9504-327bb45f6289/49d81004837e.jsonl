@@ -1,2 +1,3 @@
 {"v":1,"hlc":"1795462803827.0002.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"fold_in_cap":0,"lead_agent":null,"phase_id":"fda2d174-a189-457f-9643-66e1a227d48a","name":"Attente du lead · correctifs","position":0,"launched_at":null,"max_parallel":null,"integration":"card","lot_branch":null,"lot_base":null,"created_at":1795462803193,"created_by":"stephane.wetterwald@gmail.com","created_pair":"49d81004837e","finished_at":null}}
 {"v":1,"hlc":"1795462803828.0004.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1795462803232}}
+{"v":1,"hlc":"1795465132496.0000.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"finished_at":1795465120672}}
