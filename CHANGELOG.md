@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.362.0] - 2026-11-23
+
+### Changed
+
+- Panneau Objectif : le texte et les critères s'affichent en Markdown (listes, gras, sauts de ligne) (f65b52a)
+- Objectif long et critère long repliés à ~4 lignes, « Voir tout » / « Réduire » (objectif mémorisé par appareil) (f65b52a)
+- Skill : l'orchestrateur rédige l'objectif en Markdown, une ligne par fonction ou par issue (f65b52a)
+
+### Fixed
+
+- Un lot arrêté réveille son orchestrateur une fois celui-ci prêt, puis toutes les 30 min jusqu'à la reprise — même après un redémarrage du bridge (3834d82)
+- « Depuis ton dernier tour » montre l'arrêt d'un lot (avec sa raison) et sa reprise (3834d82)
+
 ## [0.361.0] - 2026-11-23
 
 ### Changed
