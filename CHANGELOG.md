@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.361.0] - 2026-11-23
+
+### Changed
+
+- « Nouvel agent » : le champ Dossier ouvre le sélecteur avec recherche de la page Projet, au lieu d'une liste native (e812462)
+
 ## [0.360.2] - 2026-11-22
 
 ### Fixed
