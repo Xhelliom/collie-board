@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { tmpdir } from "node:os";
 
 import { BoardDb } from "./db.ts";
-import { gateNote, gatePrompt, gatesWaiting, oneAtATime, parseGate, runGate, summarizeGate } from "./gate.ts";
+import { gateNote, gatePrompt, gatesWaiting, oneAtATime, parseGate, runGate, spawnGate, summarizeGate } from "./gate.ts";
 
 // The gate commands are this very bun, so the test runs where no `true`, `sh` or `sleep` exists (Windows).
 const bun = (code: string) => [process.execPath, "-e", code];
@@ -46,6 +46,18 @@ describe("gate (ADR 0020)", () => {
     expect((fail as { summary: string }).summary).toContain("bad");
     expect((await runGate(["definitely-not-a-binary-xyz"], tmp)).kind).toBe("error");
     expect(await runGate(SLEEP, tmp, 50)).toMatchObject({ kind: "error" });
+  });
+
+  // Incident 23/11: a grandchild kept the pipes open, a 30-min gate held the queue for 4 h 16.
+  it.skipIf(process.platform === "win32")("a timed-out gate hands back at once and its whole group dies", async () => {
+    const pidFile = `${tmp}/gate-grandchild-${process.pid}`;
+    const t0 = performance.now();
+    const r = await spawnGate(["sh", "-c", `sleep 600 & echo $! > ${pidFile}; wait`], tmp, 200);
+    expect(r).toMatchObject({ kind: "error" });
+    expect(performance.now() - t0).toBeLessThan(1_200);
+    const grandchild = Number(await Bun.file(pidFile).text());
+    await Bun.sleep(50);
+    expect(() => process.kill(grandchild, 0)).toThrow();
   });
 
   it("oneAtATime: calls never overlap, and a failing one frees the slot", async () => {
