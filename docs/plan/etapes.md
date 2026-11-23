@@ -164,7 +164,7 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
 
 ### Lot — Correctif · réveil d’un lot arrêté (launched)
 
-- **Un lot arrêté finit toujours par réveiller l’orchestrateur, même après un redémarrage** — working
+- **Un lot arrêté finit toujours par réveiller l’orchestrateur, même après un redémarrage** — review
 
   Incident 22/11 : redémarrage du PC à 13 h 47. Au démarrage, le bridge arrête le lot « Sélecteur de dossier unifié » (run.halted, lead muet 266 min). Le réveil de l’orchestrateur (bridge/orchestrator-nudge.ts, cardMessage sur run.halted) part pendant que le pane de l’orchestrateur est relancé par resume-lost : perdu. Le garde `told` (Set en mémoire, l.173) empêche tout renvoi. Et le récapitulatif « Depuis ton dernier tour » (bridge/since.ts) ne liste pas run.halted. Résultat : lot arrêté 25 h, autonomie active, personne n’a rien fait.
   
@@ -180,6 +180,27 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [ ] Tant que le lot reste arrêté, rappel au plus toutes les 30 min ; plus rien après la reprise
   - [ ] « Depuis ton dernier tour » montre l’arrêt d’un lot et sa raison
   - [ ] Tests verts
+
+### Lot — Objectif lisible (launched)
+
+- **Objectif : texte mis en forme et repliable** — done
+
+  Skill frontend-design en tête.
+  
+  Constat (capture opérateur 23/11) : dans le panneau Objectif (web/src/components/goal-panel.tsx), le texte de l’objectif est un seul pavé de 15 lignes : listes numérotées, tirets et sections écrasés sur une ligne. Illisible.
+  
+  À faire :
+  - Rendre le texte de l’objectif (et ses critères si même souci) avec le rendu Markdown existant web/src/components/markdown-text.tsx (listes, gras, retours à la ligne ; pas d’innerHTML — même frontière XSS que le reste).
+  - Replié par défaut à ~4 lignes avec « Voir tout » / « Réduire » ; état mémorisé par appareil (localStorage dans try/catch) acceptable.
+  - Côté écriture : l’orchestrateur doit rédiger l’objectif en Markdown (une ligne par fonction / par issue, listes) — l’indiquer dans skills/collie-board/SKILL.md section objectif (POST /api/goals). Le champ « Modifier » garde le texte brut éditable.
+  - Mêmes règles : couleurs d’état fortes, pas de liseré latéral, pas de carte dans une carte, aucune action perdue (Modifier, critères, journal, valider, pause, abandonner, préparer le suivant restent).
+  - Tests Vitest : une liste Markdown s’affiche en liste ; repli/dépli.
+
+  - [x] Un objectif écrit en Markdown s’affiche avec ses listes et sauts de ligne
+  - [x] Le texte long est replié à ~4 lignes, « Voir tout » le déplie
+  - [x] Toutes les actions du panneau sont toujours là
+  - [x] SKILL.md demande un objectif en Markdown
+  - [x] Tests verts
 
 ### Lot — Agents figés relancés, copilote actif (launched)
 
