@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1795462803826.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Carte à relire : montrer où elle attend et depuis quand","status":"backlog"},"ts":1795462803155}}
 {"v":1,"hlc":"1795462803828.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"9b67b6a3-d93d-423a-9504-327bb45f6289"}}
 {"v":1,"hlc":"1795464296898.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795464308933.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/carte-a-relire-montrer-ou-elle-attend-et-depuis"}}
+{"v":1,"hlc":"1795464308933.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795464308933.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795464300044}}
+{"v":1,"hlc":"1795464308933.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795464308933.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795464305475}}
+{"v":1,"hlc":"1795464308933.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3058},"ts":1795464305759}}
