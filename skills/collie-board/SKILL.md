@@ -711,7 +711,7 @@ code.
   the lot is resumed. No orchestrator: only the user's bell.
   **Except (ADR 0055)**: with autonomy on — or the repo's objective active — **the repo's orchestrator** may resume it itself when the
   halt is mechanical — a PR not up to date with its base, a red pre-push, a silent lead, uncommitted
-  work, a failed start, or the lead's **`blocked outside the code: <why> — operator: <what to do>`**
+  work, a failed start, a gate that could not run (timed out — a red gate is not one), or the lead's **`blocked outside the code: <why> — operator: <what to do>`**
   (a full disk, an absent emulator, a missing secret, a refused access: the lead stops the lot at
   once, no round spent). That last one is the user's to fix: tell them the reason and what to do,
   and resume only once they say it is dealt with. Fix the cause first if it is yours to fix, then send the same POST with your
