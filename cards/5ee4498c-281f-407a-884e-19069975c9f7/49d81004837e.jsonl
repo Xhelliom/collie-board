@@ -24,3 +24,4 @@
 {"v":1,"hlc":"1795463718157.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/532"},"ts":1795463717793}}
 {"v":1,"hlc":"1795463718157.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1795463718157.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1795463717844}}
+{"v":1,"hlc":"1795463731792.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/un-bun-test-lance-a-la-racine-ne-ramasse-plus-le","stat":"CLAUDE.md | +2 -1\nbunfig.toml | +2 -0\n2 files changed, 4 insertions(+), 1 deletions(-)"},"ts":1795463731148}}
