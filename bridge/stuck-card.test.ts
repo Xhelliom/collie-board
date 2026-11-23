@@ -178,3 +178,45 @@ describe("StuckCards — asking the agent", () => {
     expect(w.keys).toHaveLength(0);
   });
 });
+
+describe("StuckCards — after a restart", () => {
+  it("stuckStep: a seed already past the threshold fires on the first tick, a recent one does not", () => {
+    expect(stuckStep(undefined, "k", 70 * MIN, 60 * MIN, 0).fire).toBe(true);
+    expect(stuckStep(undefined, "k", 70 * MIN, 60 * MIN, 65 * MIN).fire).toBe(false);
+    // A seed in the future (clock skew) counts from now.
+    expect(stuckStep(undefined, "k", 70 * MIN, 60 * MIN, 999 * MIN).next!.since).toBe(70 * MIN);
+  });
+
+  function world(minutesSinceActivity: number) {
+    const db = new BoardDb(":memory:");
+    const sent: string[] = [];
+    const herdr = {
+      getAgent: async () => ({ interactive_ready: true, agent_status: "idle" }),
+      promptAgent: async (o: { text: string }) => void sent.push(o.text),
+      sendPaneKeys: async () => {},
+      readPane: async () => ({ text: "" }),
+    } as never;
+    const card = db.createCard({ title: "carte z", repoPath: "/g/r", status: "ready" });
+    db.patchCard(card.id, { status: "working" });
+    db.openSession({ cardId: card.id, paneId: "w1" });
+    // A freshly started bridge: the last journal entry is `minutesSinceActivity` old.
+    const t = Date.now() + minutesSinceActivity * MIN;
+    const watcher = new StuckCards(db, herdr, () => t, STUCK_AFTER_MS, 60 * MIN, async () => {});
+    const snap = { bridge: "connected", shellPanes: [], agents: [{ paneId: "w1", workspaceLabel: "w", cwd: "/x", status: "idle" }] } as unknown as EngineSnapshot;
+    return { sent, tick: async () => (watcher.update(snap), await flush(), await flush()) };
+  }
+
+  it("asks, on the first tick, a card whose last event is 70 min old", async () => {
+    const w = world(70);
+    await w.tick();
+    expect(w.sent).toEqual([NUDGE_TEXT]);
+    await w.tick();
+    expect(w.sent).toHaveLength(1);
+  });
+
+  it("leaves alone a card active 5 min ago", async () => {
+    const w = world(5);
+    await w.tick();
+    expect(w.sent).toHaveLength(0);
+  });
+});
