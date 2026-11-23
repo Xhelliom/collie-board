@@ -73,8 +73,12 @@ export function oneAtATime<A extends unknown[], R>(fn: (...args: A) => Promise<R
 }
 
 /** The cards whose gate is queued behind another one — runtime only, shown as "check waiting" (audit P5). */
-const waiting = new Set<string>();
-export const gatesWaiting: ReadonlySet<string> = waiting;
+/** cardId → when it joined the queue. */
+const waiting = new Map<string, number>();
+export const gatesWaiting: ReadonlyMap<string, number> = waiting;
+/** The card whose gate is running now → when it started (correctif 3: "vérification en cours depuis…"). */
+const running = new Map<string, number>();
+export const gatesRunning: ReadonlyMap<string, number> = running;
 
 const queued = oneAtATime((job: () => Promise<GateResult>) => job());
 /** The card whose gate is running now, if it named one — what a queued gate waits behind. */
@@ -91,7 +95,7 @@ export const gateHolder = (): string | undefined => holder;
  * ponytail: one global queue; per-repo slots if gates on unrelated repos must overlap.
  */
 export function runGate(argv: string[], cwd: string, timeoutMs?: number, cardId?: string, maxWaitMs = QUEUE_WAIT_MS): Promise<GateResult> {
-  if (cardId) waiting.add(cardId);
+  if (cardId) waiting.set(cardId, Date.now());
   let started = false;
   let gaveUp = false;
   const ran = queued(async (): Promise<GateResult> => {
@@ -99,10 +103,18 @@ export function runGate(argv: string[], cwd: string, timeoutMs?: number, cardId?
     if (cardId) waiting.delete(cardId);
     started = true;
     holder = cardId;
+    const t0 = Date.now();
+    if (cardId) running.set(cardId, t0);
+    console.log(`[gate] start ${cardId ?? "-"} ${argv.join(" ")}`);
+    let kind = "error";
     try {
-      return await spawnGate(argv, cwd, timeoutMs);
+      const r = await spawnGate(argv, cwd, timeoutMs);
+      kind = r.kind;
+      return r;
     } finally {
       holder = undefined;
+      if (cardId) running.delete(cardId);
+      console.log(`[gate] end ${cardId ?? "-"} ${kind} ${Math.round((Date.now() - t0) / 1000)}s`);
     }
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
