@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.362.2] - 2026-11-23
+
+### Fixed
+
+- Lot : le filet « lead silencieux » compte depuis la porte verte, plus depuis l'atterrissage — une porte lente n'est plus un faux lead muet. (923056f)
+- Lot : une porte en cours ou en file depuis plus de 35 min arrête le lot avec la vraie raison (« gate stuck » / « gate queued behind … »). (923056f)
+- Porte : l'attente en file est bornée à 60 min, puis la porte rend son tour en nommant la carte qui tient la file. (923056f)
+
 ## [0.362.1] - 2026-11-23
 
 ### Fixed
