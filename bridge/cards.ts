@@ -36,7 +36,7 @@ import {
 import { installDeps } from "./deps.ts";
 import { baseOf, branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import { landedBase } from "./lot.ts";
-import { boardTab, type BoardTab, type CreatedWorktree, type Mux } from "./mux/mux.ts";
+import { boardTab, type BoardTab, type CreatedWorktree, type Mux, type WireAgent } from "./mux/mux.ts";
 import { HC_NO_NOTIFY_HINT, HC_SPACE } from "./mux/hc.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
 import { manualChecksPrompt } from "./recette.ts";
@@ -750,6 +750,17 @@ export async function launchAgent(
   await waitForAgentReady(herdr, paneId, wait);
 }
 
+/**
+ * "It landed" = the agent is doing something, or — hc only — it has started a turn since before the
+ * send: a turn of a few seconds is already `done` when we look again. `idle` with the same turn
+ * means it never saw it. Herdr 0.9 has no turn counter (`revision` there is the pane's), so it keeps
+ * the status rule alone. Pure.
+ */
+export function promptLanded(a: Pick<WireAgent, "agent_status" | "turn"> | undefined, turnBefore: number | undefined): boolean {
+  if (a?.agent_status === "working" || a?.agent_status === "blocked") return true;
+  return typeof turnBefore === "number" && typeof a?.turn === "number" && a.turn > turnBefore;
+}
+
 export async function promptAndConfirm(
   herdr: Mux,
   paneId: string,
@@ -757,15 +768,9 @@ export async function promptAndConfirm(
   wait: (ms: number) => Promise<void> = sleep,
   opts: { firstAfterLaunch?: boolean } = {},
 ): Promise<boolean> {
-  const status = async (): Promise<AgentStatus | undefined> => {
-    try {
-      return (await herdr.getAgent(paneId)).agent_status;
-    } catch {
-      return undefined;
-    }
-  };
-  // "It landed" = the agent is doing something. `idle` after a prompt means it never saw it.
-  const landed = (s: AgentStatus | undefined) => s === "working" || s === "blocked";
+  const read = () => herdr.getAgent(paneId).catch(() => undefined);
+  const turnBefore = (await read())?.turn;
+  const landed = (a: Pick<WireAgent, "agent_status" | "turn"> | undefined) => promptLanded(a, turnBefore);
 
   const started = await retryWhileNotReady(() => herdr.promptAgent({ target: paneId, text }), wait);
   if (started === true) return true;
@@ -773,23 +778,24 @@ export async function promptAndConfirm(
     // hc said it did not take (HERDR_CORE_API.md §2b): the draft sits in the box. Enter submits it —
     // but ONLY in front of an agent reporting itself at rest. Without a status, what is on screen may
     // be the trust dialog, where an Enter answers « No, exit » (§2c). Never resent: no double work.
-    const agent = await herdr.getAgent(paneId).catch(() => null);
+    const agent = await read();
+    if (landed(agent)) return true; // a short turn already over: hc missed its `working`
     if (agent?.agent && (agent.agent_status === "idle" || agent.agent_status === "done")) {
       await herdr.sendPaneKeys(paneId, ["Enter"]);
       await wait(PROMPT_SETTLE_MS);
-      if (landed(await status())) return true;
+      if (landed(await read())) return true;
     }
     console.warn(`[board] pane ${paneId}: prompt did not take`);
     return false;
   }
   await wait(PROMPT_SETTLE_MS);
-  if (landed(await status())) return true;
+  if (landed(await read())) return true;
 
   // Either the text is sitting unsubmitted in the box, or a modal is in front of it. One Enter
   // covers both: it submits the draft, or it answers the modal.
   await herdr.sendPaneKeys(paneId, ["Enter"]);
   await wait(PROMPT_SETTLE_MS);
-  const now = landed(await status());
+  const now = landed(await read());
   if (now || !opts.firstAfterLaunch) return now;
 
   // Still nothing, on the FIRST prompt after a launch — the text was swallowed whole. Re-send it
@@ -797,7 +803,7 @@ export async function promptAndConfirm(
   // follow-up whose turn merely finished fast would make the agent do the work twice.
   await retryWhileNotReady(() => herdr.promptAgent({ target: paneId, text }), wait);
   await wait(PROMPT_SETTLE_MS);
-  if (landed(await status())) return true;
+  if (landed(await read())) return true;
   console.warn(`[board] pane ${paneId}: prompt did not take after two attempts`);
   return false;
 }

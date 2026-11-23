@@ -22,6 +22,7 @@ import {
   finishNowPrompt,
   initialPrompt,
   PUBLISH_HINT,
+  promptLanded,
   reconcile,
   reconcileOne,
   NO_AGENT_MS,
@@ -808,8 +809,8 @@ describe("startCard", () => {
     const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(res.ok).toBe(true);
-    // The trailing getAgent is promptAndConfirm checking the prompt actually got submitted.
-    expect(calls).toEqual(["createWorktree", "getPane", "startAgent", "getAgent", "promptAgent", "getAgent"]);
+    // The getAgent around promptAgent is promptAndConfirm reading the turn, then checking the prompt actually got submitted.
+    expect(calls).toEqual(["createWorktree", "getPane", "startAgent", "getAgent", "getAgent", "promptAgent", "getAgent"]);
     const after = store.getCard(card.id)!;
     expect(after.status).toBe("starting");
     expect(after.branch).toBe("board/ship-it");
@@ -861,6 +862,7 @@ describe("startCard", () => {
       "openWorktree",
       "getPane",
       "startAgent",
+      "getAgent",
       "getAgent",
       "promptAgent",
       "getAgent",
@@ -1225,6 +1227,7 @@ describe("waitForAgentReady (through startCard)", () => {
       "createWorktree",
       "getPane",
       "startAgent",
+      "getAgent",
       "getAgent",
       "getAgent",
       "getAgent",
@@ -5394,5 +5397,18 @@ describe("GET /api/cards — identities per shared repo (ADR 0048 §5)", () => {
     const r = await handleBoardRoute("/api/cards", new Request("http://x/api/cards?view=summary"), routeCtx(store));
     const body = (await r!.json()) as { identities: Record<string, unknown> };
     expect(body.identities).toEqual({ "/r/shared": { me: "me@pair", pair: null, people: ["bob@pair", "me@pair"] } });
+  });
+});
+
+describe("promptLanded", () => {
+  it("a turn started since the send counts, even already done", () => {
+    expect(promptLanded({ agent_status: "done", turn: 8 }, 7)).toBe(true);
+  });
+  it("same turn and idle: it never saw it", () => {
+    expect(promptLanded({ agent_status: "idle", turn: 7 }, 7)).toBe(false);
+  });
+  it("no turn counter (herdr 0.9): the status alone decides", () => {
+    expect(promptLanded({ agent_status: "done" }, undefined)).toBe(false);
+    expect(promptLanded({ agent_status: "working" }, undefined)).toBe(true);
   });
 });
