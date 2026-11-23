@@ -202,6 +202,46 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] SKILL.md demande un objectif en Markdown
   - [x] Tests verts
 
+### Lot — Exploration · attente du lead (launched)
+
+- **Où passe le temps entre « travail fini » et le verdict du lead** — done
+
+  Exploration, aucun code. Livrable : docs/explorations/attente-lead.md publié comme livrable de la carte (+ PR doc si utile).
+  
+  Incident 23/11 (heures locales) :
+  - Carte « Un lot arrêté finit toujours par réveiller… » (2ee7c6eb) : agent fini 15:56, lot arrêté 20:12 « gate could not run: timed out after 30 min ». Deux `bun test` dans son worktree tournaient 4–5 h (un lancé par l’agent, un par la porte/pre-push, parent systemd). Seuls, les tests passent en 56 s.
+  - Carte « Objectif : texte mis en forme… » (9ef648b8) : agent fini 17:01, lot arrêté 20:15 « no verdict from the lead 194 min after the worker landed ». Pendant ce temps le lead (pane t16k) était libre et a traité des cartes CrewDesign.
+  
+  Questions :
+  1. Chronologie minute par minute des deux cartes : landing → gate lancée (quand, par qui, quel processus) → fin/timeout → demande au lead. Sources : journal des cartes (GET /api/cards/<id>), journalctl --user -u collie-board, bridge/gate.ts, bridge/run.ts (seuil « lead muet »), bridge/lead.ts (file des demandes), ~/.local/state/collie-board/lead/.board/prompts.
+  2. Les gates sont-elles sérialisées (par dépôt, globalement) ? Une gate bloquée retient-elle les cartes des autres lots ? Pourquoi un timeout de 30 min n’a-t-il arrêté le lot qu’au bout de 4 h 16 ?
+  3. Pourquoi le seuil « lead muet » est-il atteint si tard (194/266 min) alors que la gate est bornée à 30 min ?
+  4. Le doublon de tests (agent + gate dans le même worktree) explique-t-il le blocage ? (port, fichier verrou, base SQLite de test partagée…)
+  5. Ce que l’opérateur ne voit pas : où une carte « à relire » attend, et depuis quand.
+  
+  Conclure par 2 à 4 correctifs classés par gain, chacun avec les fichiers à toucher, pour que l’orchestrateur en fasse des cartes. Ne rien modifier dans le code.
+
+  - [x] Chronologie des deux cartes avec la cause de chaque attente, sourcée (log, journal, code)
+  - [x] Réponse aux 5 questions
+  - [x] 2 à 4 correctifs classés, fichiers nommés
+  - [x] Livrable publié sur la carte
+
+### Lot — Santé du board (launched)
+
+- **Santé du board : une route qui dit ce qui coince, tous dépôts** — working
+
+  Constat (ronde santé 23/11) : deux lots sont ouverts depuis 9 jours sans que personne ne le voie — tablee « Lot 4.1 — Dette indépendante » et Kenobu « Sujet 5 — fidélité » : merge refusé (GraphQL, règle de branche), puis carte orphaned (pane disparu). Aucun orchestrateur vivant sur ces dépôts, donc seulement la cloche. Pour le voir, l’orchestrateur doit croiser /api/runs, chaque carte, journalctl et /api/diag/routes à la main.
+  
+  À faire :
+  - Nouvelle route lecture seule GET /api/health (nouveau fichier bridge/health.ts + hook, pas dans server.ts/index.ts ; dérivée à la lecture, rien de stocké, pas de nouvelle boucle) : { lots: lots ouverts de tous dépôts avec âge, dernier événement et son âge, cartes arrêtées/orphaned/bloquées et raison du dernier run.halted, orchestrateur vivant ou non ; stalls: cartes review/working sans événement depuis > 45 min ; gates: timeouts et échecs des 24 h ; routes: les 5 plus lentes (maxMs, moyenne) depuis le démarrage (réutiliser bridge/diag) ; bridge: uptime, dernière déconnexion herdr }. Trié du plus grave au moins grave.
+  - La documenter dans skills/collie-board/SKILL.md (bridge/skill.test.ts l’exige) et dire à l’orchestrateur de s’en servir pour sa ronde.
+  - Tests bun purs sur la dérivation (lot ouvert vieux, carte orphaned, aucun problème → listes vides).
+
+  - [ ] GET /api/health liste les lots tablee et Kenobu ouverts depuis 9 jours avec leur raison
+  - [ ] Une carte review sans événement depuis > 45 min apparaît dans stalls
+  - [ ] SKILL.md documente la route
+  - [ ] Tests verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done
