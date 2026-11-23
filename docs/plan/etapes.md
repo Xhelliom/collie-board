@@ -290,7 +290,7 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
 
 ### Lot — Correctif · porte expirée = mécanique (launched)
 
-- **Reprise autonome : une porte expirée est un arrêt mécanique** — review
+- **Reprise autonome : une porte expirée est un arrêt mécanique** — done
 
   Constat (23/11 23:00) : le lot « Correctif · veille après redémarrage » s’est arrêté sur « gate could not run: timed out after 30 min ». La machine était chargée (load 25, un calcul CrewDesign sur 13 cœurs) ; relancés à la main, les tests du même commit passent en 4 min. L’orchestrateur a voulu reprendre le lot et le bridge a refusé (403 « this halt is a decision »), parce que bridge/resume.ts ne reconnaît pas ce motif. L’opérateur veut que les arrêts mécaniques soient repris sans lui.
   
@@ -298,9 +298,9 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   
   Test bun dans bridge/resume.test.ts : « gate could not run: timed out after 30 min » → mécanique ; un motif de porte rouge → pas mécanique.
 
-  - [ ] Un lot arrêté sur une porte expirée est repris par l’orchestrateur sans 403
-  - [ ] Une porte rouge reste à l’opérateur
-  - [ ] Tests verts
+  - [x] Un lot arrêté sur une porte expirée est repris par l’orchestrateur sans 403
+  - [x] Une porte rouge reste à l’opérateur
+  - [x] Tests verts
 
 ### Lot — Agents figés relancés, copilote actif (launched)
 
