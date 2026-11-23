@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.364.0] - 2026-11-23
+
+### Added
+
+- `GET /api/health` : lots ouverts (âge, dernier événement, cartes arrêtées/orphelines et raison, orchestrateur vivant), cartes muettes > 45 min, gates en échec sur 24 h, 5 routes les plus lentes, uptime et dernière déconnexion herdr — du plus grave au moins grave. (bd91f41)
+- L'orchestrateur est invité à commencer sa ronde de santé par cette route. (bd91f41)
+
 ## [0.363.0] - 2026-11-23
 
 ### Added
