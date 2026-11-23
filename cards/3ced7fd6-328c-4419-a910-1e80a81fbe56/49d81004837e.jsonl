@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1795462635297.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Santé du board : une route qui dit ce qui coince, tous dépôts","status":"backlog"},"ts":1795462632203}}
 {"v":1,"hlc":"1795462635299.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"a7918be7-2deb-4ee0-9bd5-fdaa993a652b"}}
 {"v":1,"hlc":"1795462635286.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795462646238.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/sante-du-board-une-route-qui-dit-ce-qui-coince-t"}}
+{"v":1,"hlc":"1795462646238.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795462646238.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795462638102}}
+{"v":1,"hlc":"1795462646238.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795462646238.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795462643391}}
+{"v":1,"hlc":"1795462646238.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3383},"ts":1795462643687}}
