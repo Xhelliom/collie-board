@@ -316,6 +316,20 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Un prompt vraiment pas reçu le logue toujours
   - [x] Tests verts
 
+### Lot — Correctif · /clear du lead (launched)
+
+- **Le /clear du lead ne logue plus « prompt did not take »** — done
+
+  Suite de #540 (ronde 24/11 01:22) : après la mise à jour de 00:37 qui contient #540, journalctl montre encore « [board] pane t16k: prompt did not take » (00:42, 01:04) alors que le lead répond bien. Piste à vérifier d’abord : bridge/copilot.ts reset() (~l.1273) envoie la commande de remise à zéro (`/clear`, adapter.clear) via promptAndConfirm. Une commande locale de l’agent ne lance aucun tour : ni working, ni turn+1 → promptLanded (bridge/cards.ts) la compte ratée, logue l’avertissement et envoie un Enter de secours dans une boîte vide.
+  
+  À faire : confirmer la piste (corréler les avertissements aux resets dans le journal, ou lire le turn du pane avant/après un /clear). Si confirmée : une option de promptAndConfirm (bridge/cards.ts) pour une commande locale — on l’envoie, on la confirme par l’écran ou on ne la confirme pas, sans avertissement ni Enter de secours — utilisée par reset(). Ne pas appeler herdr.promptAgent directement (règle CLAUDE.md). Si la piste est fausse, trouver la vraie cause et la noter dans la carte.
+  
+  Test bun pur sur la nouvelle branche.
+
+  - [x] Une heure de lead sans aucun « prompt did not take » dans journalctl
+  - [x] Un vrai prompt non reçu le logue toujours
+  - [x] Tests verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done
