@@ -766,8 +766,15 @@ export async function promptAndConfirm(
   paneId: string,
   text: string,
   wait: (ms: number) => Promise<void> = sleep,
-  opts: { firstAfterLaunch?: boolean } = {},
+  /** `local`: an agent's own command (`/clear`, `/model`) — it starts no turn, so nothing could confirm it. */
+  opts: { firstAfterLaunch?: boolean; local?: boolean } = {},
 ): Promise<boolean> {
+  if (opts.local) {
+    // shortcut: sent, never confirmed — no Enter into an empty box, no false « did not take ».
+    await retryWhileNotReady(() => herdr.promptAgent({ target: paneId, text }), wait);
+    await wait(PROMPT_SETTLE_MS);
+    return true;
+  }
   const read = () => herdr.getAgent(paneId).catch(() => undefined);
   const turnBefore = (await read())?.turn;
   const landed = (a: Pick<WireAgent, "agent_status" | "turn"> | undefined) => promptLanded(a, turnBefore);
