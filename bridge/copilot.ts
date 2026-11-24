@@ -1147,7 +1147,7 @@ export class Copilot {
       if (this.requestsSinceReset >= this.resetEvery) await this.reset();
       this.requestsSinceReset++;
       if (model && model !== this.model && this.adapter.kind === "claude") {
-        await promptAndConfirm(this.herdr, paneId, `/model ${model}`);
+        await promptAndConfirm(this.herdr, paneId, `/model ${model}`, undefined, { local: true });
         this.model = model;
       }
 
@@ -1274,7 +1274,7 @@ export class Copilot {
     const clear = this.cfg.boardCopilotClear || this.adapter.clear;
     if (!this._paneId || !clear) return;
     try {
-      await promptAndConfirm(this.herdr, this._paneId, clear);
+      await promptAndConfirm(this.herdr, this._paneId, clear, undefined, { local: true });
       this.requestsSinceReset = 0;
     } catch {
       // A failed clear only means a fuller context next request — not worth failing over.

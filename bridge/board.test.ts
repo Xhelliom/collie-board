@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -2389,6 +2389,45 @@ describe("promptAndConfirm — a prompt swallowed by a first-run modal", () => {
     };
     await promptAndConfirm(client as never, "w1:p1", "x", async () => {}, { firstAfterLaunch: true });
     expect(calls).toEqual(["promptAgent", "sendPaneKeys"]);
+  });
+});
+
+describe("promptAndConfirm — an agent's own command (`/clear`) starts no turn", () => {
+  // hc's answer to `/clear`: started false, the agent at rest, the turn unchanged.
+  function hcIdle() {
+    const calls: string[] = [];
+    return {
+      calls,
+      client: {
+        async promptAgent() {
+          calls.push("promptAgent");
+          return false;
+        },
+        async sendPaneKeys() {
+          calls.push("sendPaneKeys");
+        },
+        async getAgent() {
+          return { agent: "claude", agent_status: "done", turn: 7 };
+        },
+      },
+    };
+  }
+
+  it("`local`: sent once, no Enter, no warning", async () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    const { client, calls } = hcIdle();
+    expect(await promptAndConfirm(client as never, "w1:p1", "/clear", async () => {}, { local: true })).toBe(true);
+    expect(calls).toEqual(["promptAgent"]);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("a real prompt that did not take still logs it", async () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    const { client } = hcIdle();
+    expect(await promptAndConfirm(client as never, "w1:p1", "do it", async () => {})).toBe(false);
+    expect(warn).toHaveBeenCalledWith("[board] pane w1:p1: prompt did not take");
+    warn.mockRestore();
   });
 });
 
