@@ -330,6 +330,24 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Un vrai prompt non reçu le logue toujours
   - [x] Tests verts
 
+### Lot — Chat · commandes shell avec ! (launched)
+
+- **Chat d’un agent : un message qui commence par « ! » lance la commande shell** — done
+
+  Constat opérateur (25/11) : dans le chat d’un agent sur Collie Board, « !ls » n’est pas exécuté comme commande shell. Cause probable : le texte part en un seul collage (hc `terminal.send`, bridge/mux/hc.ts sendPaneLine/promptAgent). Claude Code n’entre en mode bash que sur un « ! » TAPÉ en premier caractère ; collé, il reste du texte et l’agent le lit comme une question.
+  
+  À faire :
+  1. Vérifier la cause sur un agent Claude Code réel (pane de test).
+  2. Si le message commence par « ! » et que l’adaptateur de l’agent connaît ce mode (adapters/agents.toml, nouvelle clé du genre `shellPrefix = "!"` ; seul claude l’a vérifié), envoyer d’abord la touche « ! » (terminal.keys — vérifier que hc accepte un caractère littéral, sinon trouver l’équivalent herdr classique et hc), attendre que la boîte passe en mode bash, puis coller le reste et Entrée. Sinon, comportement actuel.
+  3. Fichiers : bridge/mux/hc.ts (+ herdr classique si besoin), le chemin d’envoi du chat (route d’envoi du pane dans bridge/), adapters/agents.toml. Pas de changement d’UI nécessaire.
+  
+  Test bun pur sur la décision (préfixe + adaptateur → séquence touches/collage). Recette : 1 étape.
+
+  - [x] « !pwd » envoyé depuis le chat d’un agent Claude affiche le dossier dans son terminal, sans tour d’agent
+  - [x] Un message normal part comme avant
+  - [x] Un agent sans ce mode reçoit le texte tel quel
+  - [x] Tests verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done
