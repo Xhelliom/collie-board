@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1795589373098.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Chat d’un agent : un message qui commence par « ! » lance la commande shell","status":"backlog"},"ts":1795589370641}}
 {"v":1,"hlc":"1795589373099.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"a8ad67f0-e939-4cb3-81c8-3db60dceecaa"}}
 {"v":1,"hlc":"1795589373091.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795589386772.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/chat-d-un-agent-un-message-qui-commence-par-lanc"}}
+{"v":1,"hlc":"1795589386772.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795589386772.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795589376825}}
+{"v":1,"hlc":"1795589386772.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1795589386772.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1795589382197}}
+{"v":1,"hlc":"1795589386772.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3237},"ts":1795589382512}}
