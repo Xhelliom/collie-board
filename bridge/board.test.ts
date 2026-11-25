@@ -1902,6 +1902,7 @@ describe("agent adapters", () => {
       opencodeDb: false,
       modelFlag: "--model",
       effortFlag: "--effort",
+      shellPrefix: "!",
     });
     // Everything else is explicitly false rather than guessed — a confident wrong percentage is
     // worse than no gauge (see bridge/context.ts).
@@ -1930,6 +1931,7 @@ describe("agent adapters", () => {
       opencodeDb: false,
       modelFlag: "--model",
       effortFlag: "--effort",
+      shellPrefix: "!",
     });
   });
 
@@ -1978,6 +1980,7 @@ describe("agent adapters", () => {
       opencodeDb: false,
       modelFlag: "--model",
       effortFlag: "--effort",
+      shellPrefix: "!",
     });
     expect(shipped.codex!.context).toBe(false);
     // The reset commands are opposites and were once contradicted by web/src/lib/agent-commands.ts:

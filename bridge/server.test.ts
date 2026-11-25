@@ -333,6 +333,23 @@ describe("sendReplySteps — two-step send & partial-failure clarity", () => {
     return { client, lines };
   };
 
+  test("a shell prefix is typed alone first, then the line goes as before", async () => {
+    const order: string[] = [];
+    const client = Object.assign(new FakeClient(), {
+      typePaneText: async (_p: string, text: string) => void order.push(`type ${text}`),
+      sendPaneLine: async (_p: string, text: string) => void order.push(`line ${text}`),
+    });
+    const out = await sendReplySteps(client, "t1", "pwd", true, ["Enter"], noSleep, { text: "pwd", force: false }, "!");
+    expect(out).toEqual({ ok: true, textDelivered: true });
+    expect(order).toEqual(["type !", "line pwd"]);
+  });
+
+  test("herdr (no typePaneText): the prefix is its own sendPaneText, before the text", async () => {
+    const client = new FakeClient();
+    await sendReplySteps(client, "p1", "pwd", true, ["Enter"], noSleep, undefined, "!");
+    expect(client.calls).toEqual(["text", "text", "keys"]);
+  });
+
   test("hc, submit with a line: one paste+Enter, nothing else", async () => {
     const { client, lines } = hcClient();
     const out = await sendReplySteps(client, "t1", "framed", true, ["Enter"], noSleep, { text: "raw", force: false });

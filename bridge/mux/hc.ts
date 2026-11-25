@@ -119,6 +119,35 @@ export function shellLine(argv: string[]): string {
   return argv.map((a) => (/^[\w@%+=:,./-]+$/.test(a) ? a : `'${a.replaceAll("'", `'\\''`)}'`)).join(" ");
 }
 
+/** Framed-mode kinds (`hc schema`: AUTOMATIC_INPUT is kind 6; DATA measured as 0, the kind the screen arrives in). */
+const HC_DATA = 0;
+const HC_AUTOMATIC_INPUT = 6;
+
+/** One frame of hc's framed mode (measured, hc 0.1.21): channel u32 LE · kind u8 · length u32 LE · payload. Channel 0 is JSON-RPC. */
+export function hcFrame(channel: number, kind: number, payload: Uint8Array): Uint8Array {
+  const f = new Uint8Array(9 + payload.length);
+  const v = new DataView(f.buffer);
+  v.setUint32(0, channel, true);
+  f[4] = kind;
+  v.setUint32(5, payload.length, true);
+  f.set(payload, 9);
+  return f;
+}
+
+/** The whole frames at the front of `buf`, and the bytes after them. */
+export function readHcFrames(buf: Uint8Array): { frames: Array<{ channel: number; kind: number; payload: Uint8Array }>; rest: Uint8Array } {
+  const frames = [];
+  const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let at = 0;
+  while (buf.length - at >= 9) {
+    const len = v.getUint32(at + 5, true);
+    if (buf.length - at - 9 < len) break;
+    frames.push({ channel: v.getUint32(at, true), kind: buf[at + 4]!, payload: buf.subarray(at + 9, at + 9 + len) });
+    at += 9 + len;
+  }
+  return { frames, rest: buf.subarray(at) };
+}
+
 /** The transport: dial the core and hand back a socket. Injected so the Windows named pipe (and tests) plug in. */
 export type HcDial = (handlers: DialHandlers) => Promise<SockHandle>;
 
@@ -133,6 +162,9 @@ export interface HcTerminal {
   /** The terminal that started it (`hc run` from inside a terminal), set once at start. */
   parent?: string | null;
   turn?: number;
+  /** Its size in cells. */
+  cols?: number;
+  rows?: number;
   foreground?: { pid: number; name: string; argv: string[]; cwd: string } | null;
   status?: { state: string; app?: string; kind?: string | null; msg?: string } | null;
   /** When that status word last changed (epoch ms), kept by the hc core across bridge restarts. */
@@ -513,6 +545,85 @@ export class Hc implements Mux {
 
   async sendPaneKeys(paneId: string, keys: string[]): Promise<void> {
     await this.request("terminal.keys", { terminal: paneId, keys: keys.map(hcKey) });
+  }
+
+  /**
+   * Typed, no Enter: `terminal.keys` names keys and refuses `!`, `?`, `$` (measured, hc 0.1.21), and
+   * `terminal.send` pastes. The raw input hc does have: a framed `terminal.attach` at the terminal's
+   * own size (so nothing resizes), the bytes as AUTOMATIC_INPUT, then hang up.
+   */
+  async typePaneText(paneId: string, text: string): Promise<void> {
+    const t = await this.request<HcTerminal>("terminal.get", { terminal: paneId });
+    if (!t.cols || !t.rows) throw new Error(`hc: no size for ${paneId}`);
+    const attach = { jsonrpc: "2.0", id: 2, method: "terminal.attach", params: { terminal: paneId, cols: t.cols, rows: t.rows } };
+    const enc = new TextEncoder();
+    const dec = new TextDecoder();
+    await new Promise<void>((resolve, reject) => {
+      let buf: Uint8Array = new Uint8Array(0);
+      let framed = false;
+      let sock: SockHandle | null = null;
+      let done = false;
+      const finish = (err?: string) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try {
+          sock?.end();
+        } catch {
+          /* ignore */
+        }
+        if (err) reject(new Error(`hc terminal.attach: ${err}`));
+        else resolve();
+      };
+      const timer = setTimeout(() => finish(`timed out after ${this.timeoutMs}ms`), this.timeoutMs);
+      const reply = (json: string): HcLine | null => {
+        try {
+          const m = decodeHcLine(json);
+          if (m.kind === "error") finish(m.message);
+          return m.kind === "reply" ? m : null;
+        } catch (e) {
+          finish((e as Error).message);
+          return null;
+        }
+      };
+      this.dial({
+        data: (s, chunk) => {
+          const next = new Uint8Array(buf.length + chunk.length);
+          next.set(buf);
+          next.set(chunk, buf.length);
+          buf = next;
+          if (!framed) {
+            const nl = buf.indexOf(10);
+            if (nl < 0) return;
+            if (!reply(dec.decode(buf.subarray(0, nl)))) return; // hello's answer, the last plain line
+            buf = buf.subarray(nl + 1);
+            framed = true;
+            s.write(hcFrame(0, 0, enc.encode(JSON.stringify(attach))));
+            s.flush();
+          }
+          const r = readHcFrames(buf);
+          buf = r.rest;
+          for (const f of r.frames) {
+            if (f.channel !== 0 || done) continue; // the screen's paint, on the stream's channel
+            const m = reply(dec.decode(f.payload));
+            if (!m || m.kind !== "reply") continue; // narrows for `result`
+            const a = m.result as { channel: number; automatic_input?: boolean };
+            s.write(hcFrame(a.channel, a.automatic_input ? HC_AUTOMATIC_INPUT : HC_DATA, enc.encode(text)));
+            s.flush();
+            finish();
+          }
+        },
+        error: (_s, err) => finish(err.message || "socket error"),
+        close: () => finish("connection closed"),
+      })
+        .then((s) => {
+          sock = s;
+          if (done) return s.end();
+          s.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "hello", params: { framed: true, generation: 1 } }) + "\n");
+          s.flush();
+        })
+        .catch((e: Error) => finish(e.message || "connect failed"));
+    });
   }
 
   /** `kill` refuses a program already gone; `rm` is what takes the terminal off the list. */

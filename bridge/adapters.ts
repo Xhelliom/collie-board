@@ -53,6 +53,11 @@ export interface AgentAdapter {
    * for a TUI with no model flag. Written beside a card's worktree, never inside it (model-file.ts).
    */
   modelFile?: string;
+  /**
+   * The character that opens the agent's shell mode when it is TYPED first (Claude Code's `!`), or
+   * empty: a pasted `!` stays text and the agent reads the line as a question (shell-mode.ts).
+   */
+  shellPrefix?: string;
 }
 
 /**
@@ -64,7 +69,7 @@ export interface AgentAdapter {
  * the telemetry design refuses.
  */
 export const BUILTIN_ADAPTERS: Record<string, AgentAdapter> = {
-  claude: { kind: "claude", clear: "/clear", context: true, sessionId: true, opencodeDb: false, modelFlag: "--model", effortFlag: "--effort" },
+  claude: { kind: "claude", clear: "/clear", context: true, sessionId: true, opencodeDb: false, modelFlag: "--model", effortFlag: "--effort", shellPrefix: "!" },
   // Codex resets with `/new`, not `/clear` — `/clear` wipes the terminal too. Cursor is the
   // opposite: `/clear` is its reset and it has no `/new`. Both are sourced in adapters/agents.toml.
   codex: { kind: "codex", clear: "/new", context: false, sessionId: false, opencodeDb: false, modelFlag: "" },
@@ -125,6 +130,8 @@ export function mergeAdapters(
     };
     const modelFile = text(o.model_file ?? o.modelFile, current.modelFile ?? "");
     if (modelFile) out[kind]!.modelFile = modelFile;
+    const shellPrefix = text(o.shell_prefix ?? o.shellPrefix, current.shellPrefix ?? "");
+    if (shellPrefix) out[kind]!.shellPrefix = shellPrefix;
   }
   return out;
 }

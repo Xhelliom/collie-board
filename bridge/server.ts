@@ -34,6 +34,7 @@ import { SEEN_HEADER } from "./seen.ts";
 import { redactAnsi, redactDeep } from "./redact.ts";
 import { revealPane } from "./reveal.ts";
 import { asPaste } from "./paste.ts";
+import { shellSplit } from "./shell-mode.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
 import { handleNodeRoute, liveNodeActions, type LaunchedPane } from "./node.ts";
@@ -196,11 +197,12 @@ export function startServer(opts: {
   registry.get()?.engine.onUpdate(protocolWatch(board, () => localEngine()?.hc ?? null), "exitProtocol");
   const nodeActions = liveNodeActions(
     () => registry.get()?.herdr ?? null,
-    (h, paneId, txt, submit) =>
-      sendReplySteps(h, paneId, asPaste(registry.get()?.engine.current(), paneId, txt), submit, cfg.submitKeys, undefined, {
-        text: txt,
-        force: false,
-      }),
+    (h, paneId, txt, submit) => {
+      const snap = registry.get()?.engine.current();
+      const shell = submit ? shellSplit(snap, adapters, paneId, txt) : null;
+      const sent = shell?.rest ?? txt;
+      return sendReplySteps(h, paneId, asPaste(snap, paneId, sent), submit, cfg.submitKeys, undefined, { text: sent, force: false }, shell?.prefix);
+    },
     async (cwd) => {
       const path = await new ClaudeTranscriptSource(cfg.transcriptRoot).resolveByCwd(cwd);
       return path ? basename(path, ".jsonl") : null;
@@ -485,7 +487,7 @@ export function startServer(opts: {
           if (!req.headers.get("x-collie-pane")?.trim()) touchHeld(board, paneId);
           else if (paneHeld(board, paneId)) return text(HELD_ERROR, 409);
         }
-        if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session, (txt) => recordOperatorSaid(board, paneId, txt), rt.engine);
+        if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session, (txt) => recordOperatorSaid(board, paneId, txt), rt.engine, adapters);
         if (action === "keys" && req.method === "POST") return keysPane(herdr, paneId, req, audit, device, session);
         if (action === "upload" && req.method === "POST") return uploadPane(cfg, paneId, req, audit, device, session);
         if (action === "close" && req.method === "POST") return closePane(herdr, paneId, req, audit, device, session);
@@ -1019,6 +1021,7 @@ export interface ReplySender {
   sendPaneText(paneId: string, text: string): Promise<void>;
   sendPaneLine?(paneId: string, text: string, force: boolean): Promise<void>;
   sendPaneKeys(paneId: string, keys: string[]): Promise<void>;
+  typePaneText?(paneId: string, text: string): Promise<void>;
 }
 
 /** Outcome of the two-step send. `textDelivered` is only meaningful on the failure branch. */
@@ -1049,9 +1052,15 @@ export async function sendReplySteps(
   sleep: SleepFn = defaultSleep,
   /** The reply unframed, for an engine whose one paste comes with Enter (hc): tried first when submitting. */
   line?: { text: string; force: boolean },
+  /** Typed alone before the text, to open the agent's shell mode (shell-mode.ts). */
+  shellPrefix?: string,
 ): Promise<ReplyOutcome> {
   let textDelivered = false;
   try {
+    if (shellPrefix) {
+      await (client.typePaneText ? client.typePaneText(paneId, shellPrefix) : client.sendPaneText(paneId, shellPrefix));
+      await sleep(REPLY_SETTLE_MS);
+    }
     if (submit && line?.text && client.sendPaneLine) {
       try {
         await client.sendPaneLine(paneId, line.text, line.force);
@@ -1097,6 +1106,7 @@ async function replyPane(
   session: string,
   onDelivered: (text: string) => void,
   engine: StateEngine,
+  adapters: Record<string, AgentAdapter>,
 ): Promise<Response> {
   let body: { text?: string; submit?: boolean; force?: boolean };
   try {
@@ -1107,10 +1117,12 @@ async function replyPane(
   const txt = body.text ?? "";
   const submit = body.submit ?? true;
   const ae = req.headers.get("accept-encoding");
-  const outcome = await sendReplySteps(herdr, paneId, asPaste(engine.current(), paneId, txt), submit, cfg.submitKeys, undefined, {
-    text: txt,
+  const shell = submit ? shellSplit(engine.current(), adapters, paneId, txt) : null;
+  const sent = shell?.rest ?? txt;
+  const outcome = await sendReplySteps(herdr, paneId, asPaste(engine.current(), paneId, sent), submit, cfg.submitKeys, undefined, {
+    text: sent,
     force: body.force === true,
-  });
+  }, shell?.prefix);
   // Audit the attempt regardless of outcome — text may have landed even when the submit failed.
   audit.record({
     action: "reply",
