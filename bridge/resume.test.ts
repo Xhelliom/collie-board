@@ -20,6 +20,10 @@ describe("mechanicalHalt (ADR 0055)", () => {
     "start failed: herdr is not answering",
     NO_AGENT_REASON,
     "gate could not run: timed out after 30 min",
+    "PR: pull request create failed: HTTP 502: 502 Bad Gateway (https://api.github.com/graphql)",
+    "PR: remote: Internal Server Error\nTo github.com:x/y.git\n ! [remote rejected] board/a -> board/a (Internal Server Error)",
+    "PR: To github.com:x/y.git\n ! [remote rejected] board/a -> board/a (failed)",
+    "merge direct: remote: 503 Service Unavailable",
   ])("lifts %s", (reason) => expect(mechanicalHalt({ reason })).toBe(true));
 
   it("lifts the lead's « blocked outside » verdict", () =>
@@ -33,6 +37,9 @@ describe("mechanicalHalt (ADR 0055)", () => {
     "the lead called it finished, yet the branch has no commit. Lead: ok. Worker's last reply: start failed: uncommitted work",
     "the lead says the spec is ambiguous",
     "PR not merged: the check ci failed — not merging",
+    "PR not merged: merge refused: GraphQL: Protected branch rules not configured for this branch / base branch policy prohibits the merge (mergePullRequest)",
+    "PR not merged: merge refused: GraphQL: At least 1 approving review is required by reviewers with write access. (mergePullRequest)",
+    "merge direct: To github.com:x/y.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs",
     "the gate failed (exit 1)", // a red gate: the worker's to fix, then the operator's
     "“a”'s PR was closed without merging — its work is not in the base",
     "",

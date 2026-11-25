@@ -22,7 +22,9 @@ du `run.halted` :
 - mécanique : PR refusée « not up to date / out of date / behind », push refusé (pre-push, `failed to
   push`), `uncommitted work`, `start failed:`, aucun agent venu dans le pane, une porte qui n'a pas pu tourner
   (`gate could not run:`, dont le timeout — une porte rouge, elle, n'arrête pas : elle compte un tour),
-  `leadSilent: true` ;
+  une panne serveur de GitHub sur PR/push/merge (`HTTP 5xx`, `502 Bad Gateway`, `remote: Internal Server
+  Error`, `[remote rejected] … (failed)`) — un refus qui est une règle (branche protégée, review requise,
+  conflit) reste de décision, `leadSilent: true` ;
 - de décision, **toujours l'opérateur** : tours du lead épuisés, « finished, yet the branch has no
   commit », et tout ce qui n'est pas reconnu (verdicts, PR fermée, CI rouge…). Les motifs de décision
   sont testés d'abord : un halt qui cite la réponse du worker ne devient pas mécanique par ses mots.
