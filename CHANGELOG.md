@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.365.0] - 2026-11-25
+
+### Added
+
+- Adaptateur : clé `shell_prefix` (claude : `!`) ; hc : saisie brute sans Entrée via `terminal.attach` en mode framed (bcd9c7e)
+
+### Fixed
+
+- Chat d'un agent Claude : « !commande » s'exécute dans son mode shell au lieu de partir en question (`!` tapé seul, puis le reste) (bcd9c7e)
+
 ## [0.364.4] - 2026-11-24
 
 ### Fixed
