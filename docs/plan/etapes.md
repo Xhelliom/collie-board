@@ -348,6 +348,20 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Un agent sans ce mode reçoit le texte tel quel
   - [x] Tests verts
 
+### Lot — Correctif · panne GitHub = mécanique (launched)
+
+- **Reprise autonome : une panne GitHub (5xx) est un arrêt mécanique** — done
+
+  Constat (ronde 25/11 18:22) : le lot CrewDesign « Lot SW-M2 — manques mapper 5-8 » est arrêté depuis 65 min sur « PR: pull request create failed: HTTP 502: 502 Bad Gateway (https://api.github.com/graphql) ». Juste avant, même lot : « PR: remote: Internal Server Error … » au push. Une panne passagère de GitHub, mais bridge/resume.ts ne la reconnaît pas comme mécanique : l’orchestrateur du dépôt ne peut pas reprendre, le lot attend l’opérateur.
+  
+  À faire : dans bridge/resume.ts MECHANICAL, reconnaître les erreurs serveur de GitHub sur les étapes PR/push/merge : « HTTP 5xx », « 502 Bad Gateway », « 503 », « remote: Internal Server Error », et le « [remote rejected] … (failed) » générique déjà vu au push. Un refus de GitHub qui est une décision (règle de branche, review requise, conflit) reste hors liste. MAX_AUTO_RESUMES borne déjà les reprises. Mettre à jour l’ADR 0055 si elle énumère les arrêts mécaniques.
+  
+  Tests bun dans bridge/resume.test.ts : les deux motifs ci-dessus (copiés tels quels) → mécanique ; « GraphQL: … protected branch … » → pas mécanique.
+
+  - [x] Un lot arrêté sur un 502 ou un Internal Server Error de GitHub est repris par l’orchestrateur sans 403
+  - [x] Un refus de règle de branche reste à l’opérateur
+  - [x] Tests verts
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done
