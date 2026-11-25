@@ -11,11 +11,13 @@ import type { EngineSnapshot } from "./state-engine.ts";
 /** Autonomous resumes per lot; past it, the operator's gesture again. */
 export const MAX_AUTO_RESUMES = 3;
 
-/** A decision halt: the lead's rounds ran out, or it called finished a branch with no commit. Checked first — it quotes the worker. */
-const DECISION = /rounds without the lead|yet the branch has no commit/;
+/** A decision halt: the lead's rounds ran out, it called finished a branch with no commit, or a branch rule refused. Checked first — it quotes the worker. */
+const DECISION = /rounds without the lead|yet the branch has no commit|protected branch/i;
 const MECHANICAL = [
   /^PR not merged: .*(not up to date|out of date|is behind)/is, // PR not up to date with its base
   /^(PR|merge direct|lot merge): .*(pre-push|failed to push|hook declined)/is, // a red pre-push hook
+  // GitHub's own server failing (5xx, `[remote rejected] … (failed)`): passing. A refusal that is a decision (protected branch, review) names its rule instead.
+  /^(PR|merge direct|lot merge): .*(HTTP 5\d\d|\b5\d\d (Bad Gateway|Service Unavailable|Gateway Time-?out)|Internal Server Error|\[remote rejected\][^\n]*\(failed\))/is,
   /uncommitted work/, // the checkout had work not committed
   /^start failed: /, // the start failed
   /^no agent ever came up in this pane/, // cards.ts NO_AGENT_REASON: a start that never got its agent
