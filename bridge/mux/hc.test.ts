@@ -5,7 +5,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { DialHandlers, SockHandle } from "../dial.ts";
 import { MuxUnsupported, type Mux } from "./mux.ts";
-import { appSpaceId, decodeHcLine, Hc, hcAgent, hcKey, hcSnapshot, hcStatus, nameAppTabs, shellLine, type HcTerminal } from "./hc.ts";
+import { appSpaceId, decodeHcLine, Hc, hcAgent, hcFrame, hcKey, readHcFrames, hcSnapshot, hcStatus, nameAppTabs, shellLine, type HcTerminal } from "./hc.ts";
 import { launchAgent, promptAndConfirm } from "../cards.ts";
 import type { GitRunner } from "../git.ts";
 import { normalizePath } from "../paths.ts";
@@ -74,6 +74,21 @@ describe("hc children_of → subagents", () => {
   });
 });
 
+describe("hc framed mode", () => {
+  it("frames round-trip, a cut frame waits for its bytes", () => {
+    const a = hcFrame(0, 0, new TextEncoder().encode("{}"));
+    const b = hcFrame(3, 6, new TextEncoder().encode("!"));
+    expect([...a.subarray(0, 9)]).toEqual([0, 0, 0, 0, 0, 2, 0, 0, 0]);
+    const both = new Uint8Array([...a, ...b]);
+    const cut = readHcFrames(both.subarray(0, both.length - 1));
+    expect(cut.frames.map((f) => [f.channel, f.kind, new TextDecoder().decode(f.payload)])).toEqual([[0, 0, "{}"]]);
+    expect(cut.rest.length).toBe(9);
+    const whole = readHcFrames(both);
+    expect(whole.frames.map((f) => [f.channel, f.kind, new TextDecoder().decode(f.payload)])).toEqual([[0, 0, "{}"], [3, 6, "!"]]);
+    expect(whole.rest.length).toBe(0);
+  });
+});
+
 describe("hc JSON-RPC lines", () => {
   it("decodes a reply, an error, an event and a heartbeat", () => {
     expect(decodeHcLine('{"id":10,"jsonrpc":"2.0","result":{"hidden_finished":0,"terminals":[]}}')).toEqual({
@@ -102,7 +117,7 @@ function fakeDial(answer: (req: { id: number; method: string; params: Record<str
   const dial = (h: DialHandlers): Promise<SockHandle> => {
     const s: SockHandle = {
       write(data) {
-        const req = JSON.parse(data) as { id: number; method: string; params: Record<string, unknown> };
+        const req = JSON.parse(data as string) as { id: number; method: string; params: Record<string, unknown> };
         written.push(req);
         queueMicrotask(() => {
           for (const line of answer(req)) h.data?.(s, new TextEncoder().encode(line.replaceAll("$ID", String(req.id)) + "\n"));

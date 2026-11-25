@@ -210,6 +210,10 @@ export class CompositeMux implements Mux {
     if (!m.sendPaneLine) throw new MuxUnsupported(ownerOf(paneId), "sendPaneLine");
     return m.sendPaneLine(paneId, text, force);
   }
+  async typePaneText(paneId: string, text: string) {
+    const m = await this.to(paneId, "typePaneText");
+    return m.typePaneText ? m.typePaneText(paneId, text) : m.sendPaneText(paneId, text);
+  }
   async sendPaneKeys(paneId: string, keys: string[]) { return (await this.to(paneId, "sendPaneKeys")).sendPaneKeys(paneId, keys); }
   async closePane(paneId: string) { return (await this.to(paneId, "closePane")).closePane(paneId); }
   async renamePane(paneId: string, label: string | null) { return (await this.to(paneId, "renamePane")).renamePane(paneId, label); }

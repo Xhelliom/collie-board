@@ -32,6 +32,9 @@ session_id = true
 model_flag = "--model"
 # `claude --help`: `--effort <level>` (low, medium, high, xhigh, max). A repo's default effort only.
 effort_flag = "--effort"
+# Claude Code's shell mode: a `!` TYPED as the first key runs the line in a shell, no agent turn. A
+# pasted `!` stays text — measured on Claude Code 2.1.332 under hc 0.1.21. Only claude is verified.
+shell_prefix = "!"
 
 # `/new` — "start a new chat during a conversation" — is Codex's own reset, read from the enum the
 # command popup is built from (codex-rs/tui/src/slash_command.rs). `/clear` exists too and also

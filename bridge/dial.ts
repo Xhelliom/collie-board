@@ -11,7 +11,7 @@
 import net from "node:net";
 
 export type SockHandle = {
-  write(data: string): unknown;
+  write(data: string | Uint8Array): unknown;
   flush(): void;
   /**
    * Closes the connection IMMEDIATELY — on win32 this is destroy(), not a graceful half-close,
