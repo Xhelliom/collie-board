@@ -3,3 +3,6 @@
 {"v":1,"hlc":"1795627351238.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Reprise autonome : une panne GitHub (5xx) est un arrêt mécanique","status":"backlog"},"ts":1795627349800}}
 {"v":1,"hlc":"1795627351239.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"6f74d6bc-55e1-4fa0-b597-8ecdf7226faa"}}
 {"v":1,"hlc":"1795627351229.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1795627355053.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/reprise-autonome-une-panne-github-5xx-est-un-arr"}}
+{"v":1,"hlc":"1795627355054.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1795627355054.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1795627354563}}
