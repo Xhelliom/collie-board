@@ -16,7 +16,13 @@ disait de **ne pas agir**.
 
 - **Il se pose** par le bouton « Je le prends » (carte, pane du worker) et **tout seul** dès que l'opérateur
   écrit au worker depuis l'appli : réponse ou touches sur le pane d'une carte qui a une session, ou
-  instruction de suivi sur la carte, sans `x-collie-pane`. Chaque message rafraîchit `lastTouch`.
+  instruction de suivi sur la carte, venue de l'appli. Chaque message rafraîchit `lastTouch`.
+  **« Depuis l'appli » = un en-tête `Origin` et pas de `x-collie-pane`** (`writerOf`, `held.ts`) : un
+  navigateur envoie toujours `Origin` sur un POST, et `checkAccess` refuse déjà une origine étrangère.
+  Sans `Origin` (curl en loopback, script, agent à la variable de pane vide), c'est un agent, en-tête ou
+  non : jamais de prise de main, `409` sur une carte en main, pas de `card.operator_said`. *Note du
+  2026-11-27* : avant, la seule absence de `x-collie-pane` suffisait, et un orchestrateur qui l'oubliait
+  tenait la carte — le lead ne reprenait plus.
 - **Tant qu'il tient**, `stepFor` ne rend aucune étape pour la carte : le lead ne juge pas, ne prompte pas,
   ne classe pas, ne ferme pas le worker ; un verdict demandé juste avant est jeté. Le reste du lot avance,
   et le lot ne finit pas sans elle. Un pane agent qui écrit à ce worker reçoit `409 {kind:"held"}`

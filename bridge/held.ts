@@ -14,6 +14,15 @@ export const HELD_EXPIRE_MS = 2 * HELD_REMIND_MS;
 
 export const HELD_ERROR = "en main par l'opérateur — wait until they give it back to the lead; do not write to this worker";
 
+/**
+ * Who is writing to a worker, read from the request's headers. Only the app is the operator: a browser
+ * always sends `Origin` on a POST (and `checkAccess` already refused a foreign one). No `Origin` —
+ * curl on loopback, a script, an agent with an empty pane variable — is an agent, header or not.
+ */
+export function writerOf(headers: Headers): "operator" | "agent" {
+  return headers.get("origin") && !headers.get("x-collie-pane")?.trim() ? "operator" : "agent";
+}
+
 type Db = Pick<BoardDb, "getCard" | "setHeld" | "recordEvent" | "openSessionFor">;
 
 /** Take the card, or refresh `lastTouch` on one already in hand. Null: no such card, or no live worker to hold. */

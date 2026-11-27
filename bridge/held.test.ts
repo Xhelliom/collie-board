@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { BoardNotifier } from "./board-notify.ts";
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
-import { HELD_EXPIRE_MS, HELD_REMIND_MS, hold, paneHeld, release, sweepHeld, touchHeld } from "./held.ts";
+import { HELD_EXPIRE_MS, HELD_REMIND_MS, hold, paneHeld, release, sweepHeld, touchHeld, writerOf } from "./held.ts";
 import { NotifyLog } from "./notify-log.ts";
 import { RunCoordinator, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -183,8 +183,25 @@ describe("« En main » (ADR 0058)", () => {
     expect(refused.status).toBe(409);
     expect(refused.body!.kind).toBe("held");
 
+    // No Origin and no pane header — a script on loopback — is an agent too, not the operator.
+    expect((await call("POST", "prompt", {}, { text: "go on" })).status).toBe(409);
+
     expect((await call("DELETE", "hold", agent)).status).toBe(403);
     expect(db.getCard(c.id)!.held).not.toBeNull();
     expect((await call("DELETE", "hold")).body!.card!.held).toBeNull();
+  });
+});
+
+describe("writerOf", () => {
+  const w = (h: Record<string, string>) => writerOf(new Headers(h));
+  it("is the operator only from the app: an Origin and no pane header", () => {
+    expect(w({ origin: "https://host.ts.net" })).toBe("operator");
+    expect(w({ origin: "https://host.ts.net", "x-collie-pane": "   " })).toBe("operator");
+  });
+  it("is an agent without Origin, pane header or not", () => {
+    expect(w({})).toBe("agent");
+    expect(w({ "x-collie-pane": "" })).toBe("agent");
+    expect(w({ "x-collie-pane": "p1" })).toBe("agent");
+    expect(w({ origin: "https://host.ts.net", "x-collie-pane": "p1" })).toBe("agent");
   });
 });
