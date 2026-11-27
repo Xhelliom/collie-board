@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.365.2] - 2026-11-27
+
+### Fixed
+
+- « En main » : seule une requête venue de l'appli (en-tête Origin) prend la carte ; un script ou un agent sans x-collie-pane ne la tient plus (ff6a8ed)
+
 ## [0.365.1] - 2026-11-25
 
 ### Fixed
