@@ -11,3 +11,4 @@
 {"v":1,"hlc":"1795804420186.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3501},"ts":1795804406835}}
 {"v":1,"hlc":"1795804544459.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
 {"v":1,"hlc":"1795804544459.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1795804544400}}
+{"v":1,"hlc":"1795804684466.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.gate","payload":{"runId":"516577c5-40f2-47b2-80af-0bb9dfacb5b6","command":"bun run check","ok":true,"note":"check: typecheck and tests green — run here, the pre-push had not validated 91115687c"},"ts":1795804682007}}
