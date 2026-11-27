@@ -362,6 +362,19 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Un refus de règle de branche reste à l’opérateur
   - [x] Tests verts
 
+### Lot — Correctif · prise de main par l’opérateur seul (launched)
+
+- **Correctif · seul l’opérateur dans l’appli prend la main** — done
+
+  Bug (ADR 0058) : bridge/server.ts:487 met la carte « en main par l’opérateur » (touchHeld, bridge/held.ts) dès qu’un POST /api/pane/<id>/reply ou /keys arrive SANS en-tête x-collie-pane. Un orchestrateur ou un script qui l’oublie (curl en loopback, variable de pane vide) passe donc pour l’opérateur : la carte est tenue et le lead ne prend plus le relais (5 cartes CrewDesign bloquées le 27/11).
+  
+  Correction retenue par l’opérateur : ne compter comme l’opérateur que la requête qui vient de l’appli, c.-à-d. du navigateur — un POST same-origin porte toujours un en-tête Origin (le gate same-origin le vérifie déjà, voir checkAccess). Sans Origin (loopback, agent, script) : jamais touchHeld ; s’il a x-collie-pane il reste refusé 409 sur une carte en main comme aujourd’hui ; sans x-collie-pane ni Origin, le traiter comme un agent (refus 409 si en main, pas de prise de main). Mettre la décision dans une petite fonction pure (ex. dans bridge/held.ts : qui écrit = operator | agent, d’après les en-têtes) testée dans bridge/held.test.ts. Vérifier aussi recordOperatorSaid (même route) : ne pas journaliser « l’opérateur a dit » pour une requête sans Origin. Mettre à jour l’ADR 0058 (ou en ajouter une note) et skills/collie-board/SKILL.md si le comportement documenté change. Fragment changes/ en bump: patch.
+
+  - [x] Un POST reply/keys sans Origin ne met jamais une carte en main, avec ou sans x-collie-pane
+  - [x] Un POST reply depuis l’appli (Origin same-origin, sans x-collie-pane) prend toujours la main comme avant
+  - [x] Sur une carte en main, un POST sans Origin est refusé 409
+  - [x] La règle est une fonction pure couverte par un test bun
+
 ### Lot — Agents figés relancés, copilote actif (launched)
 
 - **Copilote activé à l'installation** — done
