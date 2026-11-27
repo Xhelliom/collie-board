@@ -64,7 +64,7 @@ import {
 } from "./git.ts";
 import { redactDeep, redactText } from "./redact.ts";
 import { gatesRunning, gatesWaiting, parseGate } from "./gate.ts";
-import { HELD_ERROR, hold, release } from "./held.ts";
+import { HELD_ERROR, hold, release, writerOf } from "./held.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleOpenRoute } from "./open-routes.ts";
@@ -2089,7 +2089,7 @@ async function route(
     if (typeof promptText !== "string" || promptText.trim() === "") return text("text required", 400);
     const session = db.openSessionFor(id);
     // ADR 0058: an agent never writes to a worker the operator has in hand.
-    const fromAgent = !!req.headers.get(PANE_HEADER)?.trim();
+    const fromAgent = writerOf(req.headers) === "agent";
     if (!session?.paneId) {
       // A card running on a peer has no local session: its pane is the peer's, reached through it.
       const remote = remoteSessionFor(db, id);
@@ -2120,7 +2120,7 @@ async function route(
     const command = /^\/[\w-]+$/.test(promptText.trim()) ? promptText.trim() : undefined;
     db.recordEvent(id, "card.prompted", { chars: promptText.length, followUp: true, ...(command ? { command } : {}) });
     // A bare slash command is a gesture, not a direction the lead needs to read.
-    if (!command) recordOperatorSaid(db, session.paneId, promptText);
+    if (!command && !fromAgent) recordOperatorSaid(db, session.paneId, promptText);
     if (!command && !fromAgent) hold(db, id);
     ctx.audit.record({
       action: "card.prompt",
