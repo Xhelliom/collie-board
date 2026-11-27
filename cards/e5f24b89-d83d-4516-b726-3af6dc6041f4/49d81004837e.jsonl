@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1795154857774.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"fda2d174-a189-457f-9643-66e1a227d48a"}}
 {"v":1,"hlc":"1795154857774.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Les freins tiennent-ils ? Mesure à une semaine","status":"backlog"},"ts":1795154852254}}
 {"v":1,"hlc":"1795154857774.0006.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"4e057b4f-0a5c-48c8-a449-d8e478aa3ee0"}}
+{"v":1,"hlc":"1795805109552.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
