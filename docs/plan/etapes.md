@@ -427,11 +427,11 @@ Donner le bon outil au bon agent malgré le lancement réduit, alléger la recet
   - [x] Remettre la carte au backlog libère la session côté pair
   - [x] Test de la règle pure
 
-### Lot — Les freins tiennent-ils ? (à partir du 27/11) (planned)
+### Lot — Les freins tiennent-ils ? (à partir du 27/11) (launched)
 
-- **Les freins tiennent-ils ? Mesure à une semaine** — backlog
+- **Les freins tiennent-ils ? Mesure à une semaine** — done
 
   Refaire la mesure de docs/dev/couts-2026-11.md (« Où part le quota ») sur la semaine qui suit les freins (#513, #515 et le lead Sonnet/clear, mergés le 19/11) et la comparer à avant : part du board vs sessions manuelles, répartition par poste (agents de carte, orchestrateur, lead, copilote), tokens de départ d'un agent de carte, part d'Opus. Conclure : gain réel vs estimé, et s'il faut rouvrir les freins 1 (cartes en Sonnet) et 3 (renouveler l'orchestrateur). Ne lancer qu'à partir du 27/11.
 
-  - [ ] Une note compare avant/après par poste, avec les chiffres
-  - [ ] Elle conclut sur les freins 1 et 3
+  - [x] Une note compare avant/après par poste, avec les chiffres
+  - [x] Elle conclut sur les freins 1 et 3
