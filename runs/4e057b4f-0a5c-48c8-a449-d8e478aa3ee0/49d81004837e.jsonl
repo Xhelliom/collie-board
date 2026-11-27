@@ -4,3 +4,4 @@
 {"v":1,"hlc":"1795197461698.0001.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"position":4}}
 {"v":1,"hlc":"1795197581682.0001.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"position":5}}
 {"v":1,"hlc":"1795805109562.0000.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1795805104396}}
+{"v":1,"hlc":"1795806032518.0004.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"finished_at":1795806032238}}
